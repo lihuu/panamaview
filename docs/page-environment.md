@@ -108,6 +108,95 @@ To be explicit about what the *engine choice* did and did not cost us here: noth
 document is about WebKit versus Blink. We never hit a case where Safari could do something our
 page could not. Every problem above would have appeared identically on Chromium.
 
+## When Node is needed, and when it is not
+
+The dependency is real, but it sits entirely on the **left** of the build. It never ships.
+
+| phase | who runs it | needs Node? |
+| --- | --- | --- |
+| **editing** — dev server, hot module replacement | you, on your machine | React / Vue / Angular: yes. `vanilla` / `vanilla-tailwind`: no |
+| **building** — bundling the page into `src/main/resources/web/` | you, or your CI | same as above — `vite` and `ng build` are Node programs |
+| **running** — the app your users get | them | **never, in any template** |
+
+That last row is worth measuring rather than assuming, because the first two make it look
+otherwise. On the framework's own native binary:
+
+```
+$ otool -L target/panamaview
+    /usr/lib/libSystem.B.dylib
+    /System/Library/Frameworks/Foundation.framework/Versions/C/Foundation
+    /usr/lib/libz.1.dylib
+    /System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation
+    /usr/lib/libobjc.A.dylib
+```
+
+Five system libraries and nothing else. A released app is a native executable plus a directory of
+static files — HTML, CSS, JS, fonts, images, read off local disk by the platform's own engine.
+Nothing in that directory needs a package manager to run.
+
+A released app is also not where you should look for Node by **grepping for the word**:
+
+```
+$ strings -a target/panamaview | grep -ci node
+3                      ← java.util.stream.Node, and GraalVM compiler internals
+```
+
+Those are the JDK's own stream API and the native-image compiler's class names, not Node.js.
+The linker's dependency list is the honest criterion; a substring search on a binary that embeds
+a JVM will always find something.
+
+`node_modules` and the frontend toolchain are scaffolding. The build copies what it needs into
+`src/main/resources/web/`, and everything else is discardable.
+
+### The two edit loops, and what each one costs
+
+| | how a change reaches the window | needs Node |
+| --- | --- | --- |
+| **full reload** | the framework watches the staged assets and reloads the page (`DevReload`, on by default for file-backed pages) | no |
+| **hot module replacement** | a dev server pushes the changed module; components keep their state | yes — Vite and the Angular CLI are Node programs |
+
+Full reload is what `vanilla` and `vanilla-tailwind` use, and it is not a consolation prize:
+saving a file updates the window with no build step, no toolchain and nothing installed. HMR's
+advantage shows up when the UI **has state worth keeping** — form input, scroll position, a
+session, a message list. For a page that renders from a data source, reload and HMR feel
+identical. For a chat interface, HMR saves you from re-typing your test input on every
+stylesheet tweak.
+
+### Could the build run without Node?
+
+Technically yes, with a caveat worth understanding before relying on it. The bundlers are native
+binaries that merely *ship through* npm — esbuild is Go, SWC and Rolldown are Rust. Bundling
+React with nothing but the esbuild binary, in an environment with no `PATH` at all, was measured
+working end to end:
+
+```
+$ env -i esbuild src/main.jsx --bundle --outfile=dist/app.js --jsx=automatic
+  dist/app.js  218.5kb
+  ⚡ Done in 19ms
+
+$ env -i sh -c 'command -v node || echo absent'
+  absent
+
+→ the bundle rendered in a panamaview window: {rendered=true, text=REACT-WITHOUT-NODE-0}
+```
+
+What that experiment does **not** give you is dependency resolution. React pulled in `scheduler`
+as a transitive dependency, and without npm nothing resolves that for you — packages have to be
+fetched from the registry and unpacked by hand, and kept in sync by hand. That is a real
+maintenance burden in exchange for removing one build-time prerequisite, and for most projects it
+is a bad trade. Reach for it when a build machine genuinely cannot have Node, not to avoid
+`npm install`.
+
+### What this means for CI
+
+`macos-latest` has Node preinstalled — measured as **v24.20.0** in this repository's CI. The
+workflow does not install it; it only prints the version, and the JS-dependent templates use
+whatever the image ships. On a runner without it, those templates would need
+`actions/setup-node`; `vanilla` and `vanilla-tailwind` would not.
+
+The boundary, stated once: **Node is a developer-machine and CI dependency. It is not a runtime
+dependency, and a released app has no trace of it.**
+
 ## Checklist for a new app
 
 1. **Serve from a scheme you control**, never `file://`. The framework does this; if you ever
@@ -118,6 +207,9 @@ page could not. Every problem above would have appeared identically on Chromium.
 4. **Keep the frontend build boring.** If a config carries a workaround for the host, that is a
    signal the host is serving the page wrong — which is how the single-file plugin in an earlier
    version of the React template turned out to be a symptom rather than a fix.
+5. **Remember which side of the build Node lives on.** It is a developer-machine and CI
+   dependency, never a runtime one — so "do we have to ship Node?" has the same answer in every
+   template, and it is no.
 
 If the window is ever blank while the console is clean, the question to ask first is:
 **what origin is this page on?** That pairing — loaded fine, ran nothing — is the signature of an

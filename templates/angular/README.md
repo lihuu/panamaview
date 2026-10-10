@@ -36,6 +36,10 @@ derived file goes stale without saying so.
 Node 24 or newer is required. If you do not want a frontend toolchain at all, use the vanilla
 template — it has the same editing experience without needing Node.
 
+That requirement is **development-time only**. `build-native.sh` produces a native executable
+plus a directory of static files, and neither has any trace of Node at runtime — the frontend
+toolchain is scaffolding you can delete once the app is built.
+
 ## The bridge
 
 ```ts

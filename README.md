@@ -71,6 +71,10 @@ Five templates, all working apps to copy:
 | `templates/vue/` | Vue + vue-router, built by Vite | yes | history mode | hot module replacement |
 | `templates/angular/` | Angular, built by the Angular CLI | yes | history mode | dev server |
 
+The "needs Node" column is about **editing and building**, not running: a released app is a native
+executable plus static files, with no Node anywhere. [Where your page
+runs](docs/page-environment.md#when-node-is-needed-and-when-it-is-not) has the measured details.
+
 ```sh
 mvn install                        # this repository, until panamaview is on Maven Central
 cp -R templates/react ../myapp && cd ../myapp
