@@ -76,9 +76,40 @@ jobs:
           case "$jar" in *" "*) echo "more than one scaffolder jar in target/" >&2; exit 1 ;; esac
           java -jar "$jar" --selftest
 
+  # Built once, and handed to every platform job, rather than rebuilt in each.
+  #
+  # A jar carries timestamps, so building it twice produces two different files — and the first
+  # release did exactly that, shipping panamaview-0.1.0.jar with one SHA-256 inside the macOS
+  # archive and another inside the Linux one. Same code either way, and still wrong: a version
+  # number that names two different files cannot be checked against a checksum.
+  framework:
+    name: the framework jar, once
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up GraalVM
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '25'
+          distribution: 'graalvm-community'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build
+        run: mvn -q -B package -DskipTests
+
+      - name: Keep it
+        uses: actions/upload-artifact@v4
+        with:
+          name: framework
+          path: |
+            target/panamaview-*.jar
+            pom.xml
+
   build:
     name: ${{ matrix.asset }}
-    needs: verify
+    needs: framework
     strategy:
       fail-fast: false
       matrix:
@@ -102,8 +133,11 @@ jobs:
         id: version
         run: echo "value=$(python3 -c "import re;print(re.search(r'<version>([^<]+)</version>', open('pom.xml').read()).group(1))")" >> "$GITHUB_OUTPUT"
 
-      - name: Build the framework
-        run: mvn -q -B package -DskipTests
+      - name: The framework, as built once
+        uses: actions/download-artifact@v4
+        with:
+          name: framework
+          path: framework
 
       # The scaffolder is a separate project with no dependencies, so its native build needs none of
       # the reachability metadata the framework's does.
@@ -122,8 +156,8 @@ jobs:
 
           mkdir -p "$out/lib"
           cp scaffold/target/panamaview "$out/panamaview"
-          cp "target/panamaview-$version.jar" "$out/lib/panamaview-$version.jar"
-          cp pom.xml "$out/lib/panamaview-$version.pom"
+          cp "framework/target/panamaview-$version.jar" "$out/lib/panamaview-$version.jar"
+          cp framework/pom.xml "$out/lib/panamaview-$version.pom"
           cp scaffold/dist/README.md "$out/README.md"
 
           tar -czf "dist/$name.tar.gz" -C dist "$name"
@@ -131,7 +165,7 @@ jobs:
 
           # Both here and attached separately, so the hash can be checked without downloading the
           # archive again to compute it.
-          ( cd dist && shasum -a 256 "$name.tar.gz" | tee "$name.tar.gz.sha256" )
+          ( cd dist && sha256sum "$name.tar.gz" | tee "$name.tar.gz.sha256" )
 
           # A tarball whose executable bit was lost is a tarball that fails with "permission denied"
           # on a machine that has no way to know better.
@@ -149,7 +183,7 @@ jobs:
 
   release:
     name: publish
-    needs: build
+    needs: [framework, build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -159,20 +193,36 @@ jobs:
           path: assets
           merge-multiple: true
 
-      # Taken out of one of the archives rather than rebuilt here. Two reasons: this job then needs
-      # no JDK and no Maven at all, and the jar attached on its own is provably the same one the
-      # archives contain, instead of a second build that merely ought to match.
-      - name: Attach the framework on its own too
+      # The jar attached on its own is the same file the archives carry, not a third build of it —
+      # which is only true because it is the same artifact, and is the reason for the separate job.
+      - name: Put the framework beside the archives
         run: |
           set -eu
           version="$(python3 -c "import re;print(re.search(r'<version>([^<]+)</version>', open('pom.xml').read()).group(1))")"
-          archive="$(ls assets/panamaview-"$version"-macos-arm64.tar.gz)"
-          tar -xzf "$archive" -C /tmp
-          cp /tmp/panamaview-"$version"-macos-arm64/lib/* assets/
-          ls -la assets/
+          mv "assets/target/panamaview-$version.jar" "assets/panamaview-$version.jar"
+          mv assets/pom.xml "assets/panamaview-$version.pom"
+          rmdir assets/target
+          ls -la assets
 
-      - name: What is in the release
-        run: ls -la assets
+      # The two platform archives must carry the same jar, or the version number refers to two
+      # different files and no checksum can be checked against it.
+      - name: Both archives carry the same framework
+        run: |
+          set -eu
+          version="$(python3 -c "import re;print(re.search(r'<version>([^<]+)</version>', open('pom.xml').read()).group(1))")"
+          for asset in macos-arm64 linux-x64; do
+              tar -xzf "assets/panamaview-$version-$asset.tar.gz" -C /tmp
+          done
+          a="$(sha256sum "/tmp/panamaview-$version-macos-arm64/lib/panamaview-$version.jar" | cut -d' ' -f1)"
+          b="$(sha256sum "/tmp/panamaview-$version-linux-x64/lib/panamaview-$version.jar" | cut -d' ' -f1)"
+          c="$(sha256sum "assets/panamaview-$version.jar" | cut -d' ' -f1)"
+          echo "  macos-arm64 $a"
+          echo "  linux-x64   $b"
+          echo "  standalone  $c"
+          [ "$a" = "$b" ] && [ "$b" = "$c" ] || {
+              echo "the archives do not all carry the same jar" >&2
+              exit 1
+          }
 
       # The release body leads with what is not ready, because that is the thing a reader needs
       # first. A scaffolder whose generated projects cannot resolve their dependency without a
