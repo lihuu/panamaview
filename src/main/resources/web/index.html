@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>panamaview</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>panamaview</h1>
+    <p class="sub">
+      Cocoa + WKWebView, driven from Java through the Foreign Function &amp; Memory API.
+      No JNI, no JNA, no bundled browser engine.
+    </p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>JavaScript → Java</h2>
+      <div class="row">
+        <label for="name">name</label>
+        <input id="name" value="World" autocomplete="off" spellcheck="false">
+        <button id="call">Call Java</button>
+      </div>
+      <pre id="response">Response: waiting for Java…</pre>
+    </section>
+
+    <section class="card">
+      <h2>Java → JavaScript</h2>
+      <pre id="inbox">waiting for a message from Java…</pre>
+    </section>
+
+    <section class="card">
+      <h2>Runtime, answered by Java</h2>
+      <dl id="runtime"><dt>…</dt><dd>asking the Java side</dd></dl>
+    </section>
+
+    <section class="card">
+      <h2>Bridge log</h2>
+      <pre id="log" class="log"></pre>
+      <div class="row">
+        <button id="stress" class="ghost">200 round trips</button>
+        <button id="snapshot" class="ghost">Snapshot → PNG</button>
+        <label class="hint">overlapping invocations check the reply channel under load; the snapshot is WebKit rendering itself through a Java callback</label>
+      </div>
+      <div class="row">
+        <button id="slowcall" class="ghost">Start 10 s call</button>
+        <button id="cancel" class="ghost">Cancel</button>
+        <label class="hint">cancellation interrupts the handler — the sleep throws rather than being abandoned</label>
+      </div>
+    </section>
+  </main>
+</body>
+<script src="app.js"></script>
+</html>

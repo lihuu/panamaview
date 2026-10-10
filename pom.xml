@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>io.github.lihuu</groupId>
+  <artifactId>panamaview</artifactId>
+  <version>0.1.0</version>
+  <packaging>jar</packaging>
+
+  <name>panamaview</name>
+  <description>Drive the operating system's web view from Java over the FFM API. No JNI, no JNA,
+    no bundled browser engine.</description>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>25</maven.compiler.release>
+    <main.class>panamaview.macos.Main</main.class>
+  </properties>
+
+  <!--
+    Zero runtime dependencies on purpose: the whole point of the PoC is to talk to
+    Cocoa/WebKit through java.lang.foreign and nothing else.
+  -->
+  <dependencies/>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+      </plugin>
+
+      <!--
+        `mvn compile exec:exec` is the Maven equivalent of ./run.sh.
+        exec:exec (not exec:java) because the app must own the process' first thread,
+        which can only be arranged at JVM start-up (-XstartOnFirstThread).
+      -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.5.0</version>
+        <configuration>
+          <executable>${java.home}/bin/java</executable>
+          <arguments>
+            <argument>-XstartOnFirstThread</argument>
+            <argument>--enable-native-access=ALL-UNNAMED</argument>
+            <argument>-cp</argument>
+            <classpath/>
+            <argument>${main.class}</argument>
+          </arguments>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

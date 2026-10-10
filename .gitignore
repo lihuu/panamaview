@@ -1,0 +1,15 @@
+# Build output
+target/
+*.class
+
+# Snapshots written by the app into the project root, e.g.
+#   JAVA_OPTS=-Djavaview.snapshot=shot.png ./run.sh
+# (the README screenshot under docs/ is tracked on purpose)
+/*.png
+
+# Editors
+.idea/
+*.iml
+.vscode/
+# Editor-tool state (not project content)
+.alma-snapshots/
