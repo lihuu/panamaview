@@ -1,4 +1,7 @@
-package panamaview;
+package panamaview.demo;
+
+import panamaview.UiHost;
+import panamaview.WebApp;
 
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -6,12 +9,12 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * The PoC application: portable handlers plus the page's self-test handshake.
+ * The demo application: portable handlers plus the page's self-test handshake.
  *
  * <p>Split out from the old {@code Main} so the demo application and the platform entry
  * point are separate things. This file is portable — it drives windows, sleeps on virtual
  * threads and reads system properties, none of which is macOS-specific — while
- * {@code panamaview.macos.Main} owns the macOS-only parts.
+ * {@code Main} owns the macOS-only parts.
  */
 public final class App {
 
@@ -32,9 +35,9 @@ public final class App {
 
     public App(UiHost host) {
         this.web = new WebApp(host)
-                .title("Java WebView PoC")
+                .title("panamaview")
                 .size(1000, 700)
-                .load("/demo/index.html");
+                .load("/web/index.html");
     }
 
     /** The underlying app, for wiring platform-specific extras onto. */

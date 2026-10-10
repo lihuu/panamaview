@@ -13,7 +13,7 @@ import static java.lang.foreign.ValueLayout.JAVA_LONG;
  * Builds an Objective-C <em>block</em> in Java, by hand.
  *
  * <p>Plenty of Cocoa and WebKit APIs are block-based rather than delegate-based
- * ({@code takeSnapshotWithConfiguration:completionHandler:} is the one this PoC needs),
+ * ({@code takeSnapshotWithConfiguration:completionHandler:} is the one this framework needs),
  * and a block is not a class you can create with {@code objc_allocateClassPair}. It is
  * just a struct in memory:
  *

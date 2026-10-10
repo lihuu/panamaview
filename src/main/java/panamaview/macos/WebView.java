@@ -11,7 +11,7 @@ import static java.lang.foreign.ValueLayout.JAVA_DOUBLE;
  * bundled browser engine.
  *
  * <p>The interesting part is that none of this needs a subclass. Instead of writing an
- * Objective-C class that implements {@code WKScriptMessageHandler}, the PoC creates one
+ * Objective-C class that implements {@code WKScriptMessageHandler}, this creates one
  * at runtime whose implementations are Java upcall stubs (see {@link ObjCDispatch}).
  */
 final class WebView {

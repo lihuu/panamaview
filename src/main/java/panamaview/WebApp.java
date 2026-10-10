@@ -18,11 +18,11 @@ import java.util.function.Consumer;
  * <pre>{@code
  * UiHost host = new MacOsHost();
  * new WebApp(host)
- *       .title("Java WebView PoC")
+ *       .title("My App")
  *       .size(1000, 700)
  *       .load("/web/index.html")
  *       .bind("hello", params -> "Hello " + params.get("name"))
- *       .bind("research", App::slowThing, Duration.ofMinutes(10))   // outlives the default
+ *       .bind("research", this::research, Duration.ofMinutes(10))   // outlives the default
  *       .run();
  * }</pre>
  */

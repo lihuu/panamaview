@@ -119,10 +119,10 @@ The dependency is real, but it sits entirely on the **left** of the build. It ne
 | **running** — the app your users get | them | **never, in any template** |
 
 That last row is worth measuring rather than assuming, because the first two make it look
-otherwise. On the framework's own native binary:
+otherwise. On the demo app's native binary:
 
 ```
-$ otool -L target/panamaview
+$ otool -L demo-app/target/panamaview-demo
     /usr/lib/libSystem.B.dylib
     /System/Library/Frameworks/Foundation.framework/Versions/C/Foundation
     /usr/lib/libz.1.dylib
@@ -137,7 +137,7 @@ Nothing in that directory needs a package manager to run.
 A released app is also not where you should look for Node by **grepping for the word**:
 
 ```
-$ strings -a target/panamaview | grep -ci node
+$ strings -a demo-app/target/panamaview-demo | grep -ci node
 3                      ← java.util.stream.Node, and GraalVM compiler internals
 ```
 

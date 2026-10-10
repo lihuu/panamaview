@@ -1,4 +1,4 @@
-# Notes from the PoC
+# Notes from building panamaview
 
 What was actually hard, what the tutorials do not tell you, and where the bodies are
 buried. Organised so you can skim the headings and read only the ones that bite you.
@@ -271,12 +271,14 @@ consequences:
    `Resources.extract` trusts. Add a file, add a line. (The manifest itself is what
    `-H:IncludeResources='web/.*'` embeds, along with every asset it names.)
 
-## 7. Object lifetime: what this PoC does not solve
+## 7. Object lifetime: what this does not solve
 
-Honest accounting, because it is the main thing standing between this and a framework:
+Honest accounting, because it is the main thing standing between this and an app that runs
+for a long time:
 
 - Objects retained via `retain` are **never released**. Everything lives for the process
-  lifetime. Correct for a PoC, wrong for a long-running app with many transient objects.
+  lifetime. Correct for a short-lived process, wrong for a long-running app with many transient
+  objects.
 - There is no ownership tracking, so nothing can tell you what is leaked.
 - Java objects referenced from Objective-C (the delegate, the dispatch object) are kept
   alive by a static field — one process-wide reference, not a real GC bridge.
@@ -326,7 +328,7 @@ probe fails instead of silently producing a broken layout.
 ### The problem
 
 `userContentController:didReceiveScriptMessage:` is delivered on the UI thread, inside
-AppKit's own callback, while the run loop is blocked on it. The first version of this PoC
+AppKit's own callback, while the run loop is blocked on it. The first version
 therefore ran the whole handler there — parse, execute, build the reply, call
 `evaluateJavaScript` — so a handler that took a second froze the window for a second.
 Returning quickly is not an optimisation; on these platforms it is the contract.
@@ -359,8 +361,9 @@ burst costs a virtual thread each: 200 concurrent invocations measured 21 ms (JV
 Some operations are only legal on the UI thread — `setContentSize:`, `takeSnapshot…` — so
 those stay there, via `bindUi`. The trade is explicit rather than hidden: `bind` is
 off-thread and cannot freeze the window; `bindUi` can, and is for the operations that have
-no other choice. Platform extras registered by `panamaview.macos.Main` all use `bindUi`,
-and the self-test asserts they ran with `onUiThread: true`.
+no other choice. The platform extras (`geometry`, `resize`, `snapshot`) are registered with
+`bindUi` from the demo app's composition root, and the self-test asserts they ran with
+`onUiThread: true`.
 
 ### Getting onto the UI thread (the platform-specific part)
 
@@ -497,7 +500,7 @@ Note that the hook fires on the *initial* load too, which is why an empty sweep 
 
 ## 12. Keeping the platform isolated
 
-The brief for this PoC said not to design a cross-platform abstraction, and it was right:
+The original brief said not to design a cross-platform abstraction, and it was right:
 an interface extracted from one implementation describes that implementation, while an
 interface invented for three is a guess. But "do not abstract" is not the same as "let
 native types leak into the application", and the first version did leak — `WebApp` imported
@@ -512,7 +515,7 @@ panamaview            portable — JDK types only, no foreign, no ObjC
                     │  UiHost: String / Runnable / primitives / Path
                     │
 panamaview.macos      the only implementation that exists
-  MacOsHost  Main  ObjC  Cocoa  WebView  WebView  ObjCDispatch  NativeBlock  UiThread
+  MacOsHost  ObjC  Cocoa  WebView  WebView  ObjCDispatch  NativeBlock  UiThread
 ```
 
 `UiHost` is four methods plus a callback interface. Everything the application needs from a
@@ -520,16 +523,18 @@ platform is in it: start, evaluate, hop to the UI thread, ask whether you are on
 
 What is deliberately **not** in it: `snapshot`, `geometry`, `resize`. Those are macOS
 capabilities today. Putting them on the seam now would mean guessing at signatures for
-platforms nobody has written, so they stay as ordinary bindings registered by
-`panamaview.macos.Main`. When a second platform also needs to resize, that is when a
-method earns its place.
+platforms nobody has written, so they stay as ordinary bindings registered by the application's
+own composition root — `demo-app`'s `Main` is the one that exists. When a second platform also
+needs to resize, that is when a method earns its place.
 
 ### How strongly this is enforced
 
-Package-private, not modules. Inside `panamaview.macos` only `MacOsHost` and `Main` are
-public; `ObjC`, `Cocoa`, `WebView`, `ObjCDispatch`, `NativeBlock` and `UiThread` are all
-`final class` with no modifier, so they are unreachable from the application — by
-convention rather than by the compiler, since everything is still one Maven module.
+Package-private, not modules. Inside `panamaview.macos` only `MacOsHost` is public; `ObjC`,
+`Cocoa`, `WebView`, `ObjCDispatch`, `NativeBlock` and `UiThread` are all `final class` with no
+modifier, so they are unreachable from the application — by convention rather than by the compiler,
+since everything is still one Maven module. The composition root that pairs a host with an app is
+an application-side class now (`demo-app`'s `Main`), not a platform one: wiring the two together is
+the one thing that has to know both, and that is the app's job, not the platform's.
 
 That is enough for now because the portable half has been checked to be genuinely free of
 native types: the core package's imports are JDK-only, and no `MemorySegment`, `Arena`,
@@ -915,12 +920,14 @@ against the artifact that was published, not against a local copy of something s
 ## 17. Reproducing any of this
 
 ```sh
+cd demo-app
 ./run.sh                                       # JVM, 13 self-test checks
 JAVA_OPTS=-Dpanamaview.snapshot=/tmp/s.png ./run.sh
 JAVA_OPTS=-Dpanamaview.navigateAway=true ./run.sh          # also exercise the unload path
-./build-native.sh && ./target/panamaview -Dpanamaview.snapshot=/tmp/s.png
-otool -L target/panamaview                     # what the binary actually links
+./build-native.sh && ./target/panamaview-demo -Dpanamaview.snapshot=/tmp/s.png
+otool -L target/panamaview-demo                # what the binary actually links
 
+cd ..
 ./scripts/verify-templates.sh                  # every template, all the way to a native binary
 ./scripts/verify-templates.sh react            # or just one
 

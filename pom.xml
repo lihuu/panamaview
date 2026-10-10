@@ -16,11 +16,10 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>25</maven.compiler.release>
-    <main.class>panamaview.macos.Main</main.class>
   </properties>
 
   <!--
-    Zero runtime dependencies on purpose: the whole point of the PoC is to talk to
+    Zero runtime dependencies on purpose: the whole point is to talk to
     Cocoa/WebKit through java.lang.foreign and nothing else.
   -->
   <dependencies/>
@@ -34,25 +33,10 @@
       </plugin>
 
       <!--
-        `mvn compile exec:exec` is the Maven equivalent of ./run.sh.
-        exec:exec (not exec:java) because the app must own the process' first thread,
-        which can only be arranged at JVM start-up (-XstartOnFirstThread).
+        No exec plugin, and no entry point: this is a library. It has no main() to run and
+        nothing to launch, so declaring one would mean shipping the demo again. The demo
+        lives in demo-app/ and is an ordinary consumer, exactly like the templates.
       -->
-      <plugin>
-        <groupId>org.codehaus.mojo</groupId>
-        <artifactId>exec-maven-plugin</artifactId>
-        <version>3.5.0</version>
-        <configuration>
-          <executable>${java.home}/bin/java</executable>
-          <arguments>
-            <argument>-XstartOnFirstThread</argument>
-            <argument>--enable-native-access=ALL-UNNAMED</argument>
-            <argument>-cp</argument>
-            <classpath/>
-            <argument>${main.class}</argument>
-          </arguments>
-        </configuration>
-      </plugin>
     </plugins>
   </build>
 </project>

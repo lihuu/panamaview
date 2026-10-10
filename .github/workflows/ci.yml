@@ -29,6 +29,48 @@ jobs:
       - name: Check the deploy script's decisions
         run: ./scripts/verify-deploy.sh
 
+  framework:
+    name: framework — the artifact carries no application
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '25'
+
+      - name: Build and install the framework
+        run: mvn -q install -DskipTests
+
+      # The demo used to live in this tree, so the published jar shipped the demo's classes and
+      # its pages: a consumer's classpath acquired an application it never asked for, and the
+      # framework's own declared entry point was the demo's main(). Nothing else here would
+      # notice if that came back — the jar still builds, and every template still works.
+      - name: The jar is a library and nothing else
+        run: |
+          set -eu
+          jar tf target/panamaview-0.1.0.jar > target/jar-contents.txt
+          cat target/jar-contents.txt
+
+          fail=0
+          for pattern in '^panamaview/App' '^panamaview/macos/Main' '^demo/' '^web/'; do
+            if grep -qE "$pattern" target/jar-contents.txt; then
+              echo "::error::the framework jar carries an application: $pattern"
+              fail=1
+            fi
+          done
+          [ "$fail" -eq 0 ]
+          echo "no application classes, no pages: the jar is the framework"
+
+      # The other half of the claim, and the half that fails quietly: that the jar is still
+      # usable from outside its own tree. This is the demo's headless mode — it stages its own
+      # assets plus the framework's client bridge and exits without loading AppKit, which is the
+      # only end-to-end check that can run on a runner with no window server.
+      - name: A consumer can build and stage a page
+        run: (cd demo-app && JAVA_OPTS=-Dpanamaview.check=true ./run.sh)
+
   templates:
     name: ${{ matrix.template }} — template and scaffolded project, JVM + native
     runs-on: macos-latest

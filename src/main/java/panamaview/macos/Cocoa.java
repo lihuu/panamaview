@@ -3,7 +3,7 @@ package panamaview.macos;
 import java.lang.foreign.MemorySegment;
 
 /**
- * The sliver of AppKit this PoC needs: an application object, a menu bar, one window.
+ * The sliver of AppKit this framework needs: an application object, a menu bar, one window.
  *
  * <p>Every call here must happen on the process' first thread — see {@link ObjC}.
  */

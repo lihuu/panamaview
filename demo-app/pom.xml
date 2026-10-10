@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>io.github.lihuu</groupId>
+  <artifactId>panamaview-demo</artifactId>
+  <version>0.1.0</version>
+  <packaging>jar</packaging>
+
+  <name>panamaview demo</name>
+  <description>The bridge self-test in a real window. An ordinary consumer of the framework.</description>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>25</maven.compiler.release>
+    <main.class>panamaview.demo.Main</main.class>
+    <panamaview.version>0.1.0</panamaview.version>
+  </properties>
+
+  <!--
+    The one dependency, and the point of this project: everything the demo needs is what any
+    consumer gets. If this stops building, the framework stopped being usable from outside
+    its own source tree, which is a bug in the framework and not in the demo.
+
+    Nothing here is ever published. This project exists to be built, not to be depended on.
+  -->
+  <dependencies>
+    <dependency>
+      <groupId>io.github.lihuu</groupId>
+      <artifactId>panamaview</artifactId>
+      <version>${panamaview.version}</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+      </plugin>
+
+      <!--
+        Two JVM flags, both compulsory when this runs as an app.
+
+        The first keeps AppKit happy: it requires the event loop to own the process' first
+        thread, and the java launcher hands main() a freshly created one. A GraalVM native
+        executable does not need it, because its main thread already is the first thread.
+
+        The second grants native access, since the calls into Cocoa and WebKit are native.
+
+        exec:exec rather than exec:java: the app has to own the process' first thread, and
+        that can only be arranged at JVM start-up.
+
+        (No double dashes anywhere in this comment: XML forbids them, and Maven fails the
+        whole build with a parse error rather than ignoring it.)
+      -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.5.0</version>
+        <configuration>
+          <executable>${java.home}/bin/java</executable>
+          <arguments>
+            <argument>-XstartOnFirstThread</argument>
+            <argument>--enable-native-access=ALL-UNNAMED</argument>
+            <argument>-cp</argument>
+            <classpath/>
+            <argument>${main.class}</argument>
+          </arguments>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

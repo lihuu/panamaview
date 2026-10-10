@@ -1,16 +1,22 @@
 name: Release
 
-# Tag-triggered, like the framework's own release would be. Nothing here runs on a branch push —
-# ci.yml already did that, and a tag points at a commit ci.yml has already taken all the way to a
-# native executable. So this workflow does not repeat the end-to-end verification; it does the
-# cheap checks that are specific to *releasing* (that the tag and the poms agree, that the packaged
-# scaffolder can read its own resources), and then builds and publishes.
+# Tag-triggered. A tag is the one thing this repository publishes: pushing one gives the source, as
+# GitHub archives it, and nothing else.
+#
+# Nothing here builds a download. It did -- native scaffolder archives for macOS arm64 and Linux
+# x64, plus the framework's jar and pom, attached to the Release. Those were withdrawn the day
+# after v0.1.0 went up, because a download page says *this is a tool, take it*, and panamaview has
+# not been used to build a real application yet. Consumer first, distribution second.
+#
+# What is left is what is specific to tagging: the tag and every version field must agree. It runs
+# here and not only in release.sh because a tag cannot be quietly taken back, and because this
+# repository is private and cannot use branch protection -- the tag is the last moment to notice.
 on:
   push:
     tags: ["v*"]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   verify:
@@ -75,185 +81,3 @@ jobs:
           jar="$(ls scaffold/target/panamaview-scaffold-*.jar)"
           case "$jar" in *" "*) echo "more than one scaffolder jar in target/" >&2; exit 1 ;; esac
           java -jar "$jar" --selftest
-
-  # Built once, and handed to every platform job, rather than rebuilt in each.
-  #
-  # A jar carries timestamps, so building it twice produces two different files — and the first
-  # release did exactly that, shipping panamaview-0.1.0.jar with one SHA-256 inside the macOS
-  # archive and another inside the Linux one. Same code either way, and still wrong: a version
-  # number that names two different files cannot be checked against a checksum.
-  framework:
-    name: the framework jar, once
-    needs: verify
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up GraalVM
-        uses: graalvm/setup-graalvm@v1
-        with:
-          java-version: '25'
-          distribution: 'graalvm-community'
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build
-        run: mvn -q -B package -DskipTests
-
-      - name: Keep it
-        uses: actions/upload-artifact@v4
-        with:
-          name: framework
-          path: |
-            target/panamaview-*.jar
-            pom.xml
-
-  build:
-    name: ${{ matrix.asset }}
-    needs: framework
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: macos-latest
-            asset: macos-arm64
-          - runner: ubuntu-latest
-            asset: linux-x64
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up GraalVM
-        uses: graalvm/setup-graalvm@v1
-        with:
-          java-version: '25'
-          distribution: 'graalvm-community'
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Version
-        id: version
-        run: echo "value=$(python3 -c "import re;print(re.search(r'<version>([^<]+)</version>', open('pom.xml').read()).group(1))")" >> "$GITHUB_OUTPUT"
-
-      - name: The framework, as built once
-        uses: actions/download-artifact@v4
-        with:
-          name: framework
-          path: framework
-
-      # The scaffolder is a separate project with no dependencies, so its native build needs none of
-      # the reachability metadata the framework's does.
-      - name: Build the scaffolder
-        run: (cd scaffold && ./build-native.sh)
-
-      # One archive, rather than a binary plus a jar floating as separate assets: the framework is
-      # not on Maven Central, so a download that cannot build anything is not a download worth
-      # offering. lib/ is what makes the generated project buildable somewhere else.
-      - name: Assemble the archive
-        run: |
-          set -eu
-          version="${{ steps.version.outputs.value }}"
-          name="panamaview-$version-${{ matrix.asset }}"
-          out="dist/$name"
-
-          mkdir -p "$out/lib"
-          cp scaffold/target/panamaview "$out/panamaview"
-          cp "framework/target/panamaview-$version.jar" "$out/lib/panamaview-$version.jar"
-          cp framework/pom.xml "$out/lib/panamaview-$version.pom"
-          cp scaffold/dist/README.md "$out/README.md"
-
-          tar -czf "dist/$name.tar.gz" -C dist "$name"
-          rm -rf "$out"
-
-          # Both here and attached separately, so the hash can be checked without downloading the
-          # archive again to compute it.
-          ( cd dist && sha256sum "$name.tar.gz" | tee "$name.tar.gz.sha256" )
-
-          # A tarball whose executable bit was lost is a tarball that fails with "permission denied"
-          # on a machine that has no way to know better.
-          tar -tzf "dist/$name.tar.gz" | grep -q "^$name/panamaview$"
-          tar -xzf "dist/$name.tar.gz" -C dist
-          [ -x "dist/$name/panamaview" ] || { echo "panamaview is not executable in the archive" >&2; exit 1; }
-          rm -rf "dist/$name"
-          echo "archive ok"
-
-      - name: Keep the archive
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.asset }}
-          path: dist/*
-
-  release:
-    name: publish
-    needs: [framework, build]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/download-artifact@v4
-        with:
-          path: assets
-          merge-multiple: true
-
-      # The jar attached on its own is the same file the archives carry, not a third build of it —
-      # which is only true because it is the same artifact, and is the reason for the separate job.
-      - name: Put the framework beside the archives
-        run: |
-          set -eu
-          version="$(python3 -c "import re;print(re.search(r'<version>([^<]+)</version>', open('pom.xml').read()).group(1))")"
-          mv "assets/target/panamaview-$version.jar" "assets/panamaview-$version.jar"
-          mv assets/pom.xml "assets/panamaview-$version.pom"
-          rmdir assets/target
-          ls -la assets
-
-      # The two platform archives must carry the same jar, or the version number refers to two
-      # different files and no checksum can be checked against it.
-      - name: Both archives carry the same framework
-        run: |
-          set -eu
-          version="$(python3 -c "import re;print(re.search(r'<version>([^<]+)</version>', open('pom.xml').read()).group(1))")"
-          for asset in macos-arm64 linux-x64; do
-              tar -xzf "assets/panamaview-$version-$asset.tar.gz" -C /tmp
-          done
-          a="$(sha256sum "/tmp/panamaview-$version-macos-arm64/lib/panamaview-$version.jar" | cut -d' ' -f1)"
-          b="$(sha256sum "/tmp/panamaview-$version-linux-x64/lib/panamaview-$version.jar" | cut -d' ' -f1)"
-          c="$(sha256sum "assets/panamaview-$version.jar" | cut -d' ' -f1)"
-          echo "  macos-arm64 $a"
-          echo "  linux-x64   $b"
-          echo "  standalone  $c"
-          [ "$a" = "$b" ] && [ "$b" = "$c" ] || {
-              echo "the archives do not all carry the same jar" >&2
-              exit 1
-          }
-
-      # The release body leads with what is not ready, because that is the thing a reader needs
-      # first. A scaffolder whose generated projects cannot resolve their dependency without a
-      # manual step is worth publishing, and is not worth presenting as finished.
-      - name: Publish
-        uses: softprops/action-gh-release@v2
-        with:
-          files: assets/*
-          generate_release_notes: true
-          body: |
-            The scaffolder, for macOS arm64 and Linux x64, plus the framework's own jar and pom.
-
-            **panamaview is at 0.1.0 and has not been used to build a real application yet.** It is
-            published so that trying it does not require a checkout of the repository — not because
-            it is finished. The version on Maven Central would be a claim nobody has tested, so it
-            is not there yet.
-
-            Each archive contains the scaffolder, the framework in `lib/`, and a README explaining
-            the one command that installs the bundled framework into your local Maven repository.
-            That step exists because the framework is not on Central; once it is, the archives will
-            not need to carry it.
-
-            ```sh
-            tar xzf panamaview-<version>-<platform>.tar.gz
-            cd panamaview-<version>-<platform>
-            ./panamaview templates
-            ./panamaview create my-app --template vue
-            ```
-
-            Three of the five templates need Node to build. A released app never does — see
-            [where your page runs](https://github.com/lihuu/panamaview/blob/main/docs/page-environment.md).
-
-            The `.sha256` files are attached separately so the hash can be checked without
-            downloading the archive a second time to compute it.

@@ -10,8 +10,9 @@ library and no bundled browser engine — everything crosses into Objective-C th
 > [Project Panama](https://openjdk.org/projects/panama/) — named after the canal that joined
 > two oceans. Joining Java and native code is roughly the same trick.
 >
-> This is a **macOS proof of concept**, not a finished framework. See
-> [Not done](#not-done-deliberately) for the honest list.
+> **Status.** macOS only. No application outside this repository has been built on it yet,
+> which is the one thing a framework cannot prove about itself — see
+> [Not done](#not-done-deliberately) for the rest of the honest list.
 
 **The Phase 1 acceptance criterion is met.** Both chains below run end to end, on the JVM
 *and* as a GraalVM native executable:
@@ -23,7 +24,7 @@ Java → FFM → Cocoa → WKWebView → HTML/JS → JS→Java → Java→JS
 macOS is the only platform implemented. It is the one being used to prove the approach, not
 the one the design is bound to — see [Keeping the platform isolated](#keeping-the-platform-isolated).
 
-![The PoC running](docs/screenshot.png)
+![The demo app running](docs/screenshot.png)
 
 <sub>A real window, photographed by the app itself through WebKit's snapshot API. The bridge log
 is the self-test reporting: every `PASS` there is a check that would fail if the mechanism under
@@ -38,22 +39,33 @@ it were removed.</sub>
 
 There are **no runtime dependencies**. FFM is the entire binding layer.
 
-## Run it
+## Run the demo
+
+There is nothing to launch in this directory, and that is the point: a library has no `main()`.
+`demo-app/` is a small application that depends on `panamaview` the way anyone else would — one
+dependency, its own sources, its own assets — and is also the acceptance test, because every
+mechanism in the bridge has a probe there.
 
 ```sh
-./run.sh                       # JVM mode
-./build-native.sh              # → target/panamaview, a standalone executable
-./target/panamaview            # ~20 MB Mach-O arm64, no JVM involved
+cd demo-app
+./run.sh                       # JVM mode; prints [selftest] 13 passed, 0 failed
+./build-native.sh              # → target/panamaview-demo, a standalone executable
+./target/panamaview-demo       # ~20 MB Mach-O arm64, no JVM involved
 ```
 
 The Maven equivalent of `run.sh` is `mvn compile exec:exec`.
 
-Two system properties change what happens on start-up:
+Three system properties change what happens on start-up:
 
 ```sh
+cd demo-app
+JAVA_OPTS="-Dpanamaview.check=true" ./run.sh               # stage the assets and stop; no window server needed
 JAVA_OPTS="-Dpanamaview.snapshot=/tmp/shot.png" ./run.sh   # photograph the window when loaded
 JAVA_OPTS="-Dpanamaview.navigateAway=true" ./run.sh        # end the run by navigating away
 ```
+
+`panamaview.check` is what CI runs, on a machine with no window server: it proves the framework
+resolves and the assets are on the classpath, without loading AppKit at all.
 
 `panamaview.snapshot` is handy when you cannot see the desktop, and is an end-to-end test of the
 Objective-C block bridge in its own right. `panamaview.navigateAway` exercises the page-unload
@@ -209,8 +221,7 @@ stdout and can be checked mechanically rather than by reading a screenshot:
 
 ```
 src/main/java/panamaview/              portable — JDK types only
-  WebApp.java        lifecycle and the exploratory entry point
-  App.java           the PoC application: handlers and the self-test handshake
+  WebApp.java        lifecycle and the entry point
   Bridge.java        request framing, dispatch, deadlines, cancellation, replies
   UiHost.java        the seam a platform implements
   WindowSpec.java    what a host needs to open a window
@@ -221,7 +232,6 @@ src/main/java/panamaview/              portable — JDK types only
 
 src/main/java/panamaview/macos/        the only platform implementation
   MacOsHost.java     Cocoa + WKWebView behind UiHost; platform extras
-  Main.java          composition root
   UiThread.java      libdispatch: hop onto the UI thread
   ObjC.java          objc_msgSend re-typed per call site, autorelease pools, class creation
   Cocoa.java         NSApplication, menu bar, NSWindow
@@ -232,8 +242,12 @@ src/main/java/panamaview/macos/        the only platform implementation
   NativeBlock.java   builds an Objective-C block by hand
 
 src/main/resources/
-  demo/              the demo app's page: index.html, app.js, style.css, blank.html
   panamaview/panamaview.js   the client bridge — staged into your web root, not copied
+
+demo-app/              an ordinary consumer: the self-test in a real window
+  src/main/java/panamaview/demo/App.java   handlers and the self-test handshake
+  src/main/java/panamaview/demo/Main.java  composition root
+  src/main/resources/web/                  the demo's page: index.html, app.js, style.css, blank.html
 
 templates/vanilla/     a working app to start from — plain HTML, no Node
 templates/vanilla-tailwind/  the same, styled with Tailwind CSS and no Node at all
@@ -248,11 +262,16 @@ scripts/deploy-private.sh    publishes to a private repository, then fetches it 
   META-INF/native-image/…/reachability-metadata.json
 ```
 
-The API is intentionally minimal and exploratory:
+The API is intentionally minimal:
 
 ```java
 MacOsHost host = new MacOsHost();
-new App(host).install().web().run();
+new WebApp(host)
+        .title("My App")
+        .size(1000, 700)
+        .load("/web/index.html")            // staged out of your own resources
+        .bind("hello", params -> "Hello " + params.get("name"))
+        .run();
 ```
 
 ## The bridge
@@ -349,14 +368,14 @@ public interface UiHost {
 }
 ```
 
-Inside `panamaview.macos`, only `MacOsHost` and `Main` are public — the native classes are
-package-private, so the application cannot reach them. The portable package has been checked to
-import nothing but the JDK.
+Inside `panamaview.macos`, only `MacOsHost` is public — the native classes are package-private, so
+an application cannot reach them, and the composition root that wires a host to an app lives with
+the app, not with the platform. The portable package has been checked to import nothing but the JDK.
 
 Deliberately **not** on the seam: `snapshot`, `geometry`, `resize`. Those are macOS capabilities
-today, so they are ordinary bindings registered by `panamaview.macos.Main`. Inventing
-cross-platform signatures before a second implementation exists would be a guess; each earns a
-place on `UiHost` when a second platform wants it.
+today, so they are ordinary bindings registered where the app is composed — `demo-app`'s `Main`
+registers them with `bindUi`. Inventing cross-platform signatures before a second implementation
+exists would be a guess; each earns a place on `UiHost` when a second platform wants it.
 
 This is package-level isolation, not module-level — one Maven module, all by convention. The day
 a second platform is real, moving `panamaview.macos` into its own module turns that convention
@@ -386,7 +405,6 @@ Measured on this machine, not inferred. Both builds pass the same checks.
 | Scaffolder | 78 files across five templates; generated under a hyphenated name and a package outside `com.example`, then checked for any surviving template name |
 | Scaffolded projects | each one builds on the JVM and to a native executable, using the scripts it was generated with |
 | Scaffolder native build | 13 MB Mach-O arm64, carrying every template file — including the `.gitignore` files, which two Maven plugins drop by default |
-| Release archive | 4.6 MB; the scaffolder runs from the extracted location and generates projects, and the bundled `lib/` installs into an empty local repository after which a generated project builds |
 | Native executable | 19 MB Mach-O arm64; links only libSystem, libobjc, Foundation, CoreFoundation, libz |
 | Native build time | ~18 s, no fallback (`--no-fallback` fails rather than silently emitting a JVM launcher) |
 | Startup, process → page loaded | native 631–730 ms, JVM 592–723 ms — **statistically identical** |
@@ -409,9 +427,14 @@ version number that has not been taken all the way to a native executable — th
 commits, tags, and pushes. Order matters: a pushed tag is a public claim that the version is real,
 and it cannot be quietly taken back, so nothing that can fail is left until after it exists.
 
-**CI builds the release from the tag**, not from this machine: `.github/workflows/release.yml` builds
-the scaffolder for macOS arm64 and Linux x64, packages each one, and attaches both to the GitHub
-Release with the framework's own jar and pom.
+**The tag is the release.** Pushing it publishes the source, as GitHub archives it, and nothing
+else — `.github/workflows/release.yml` only checks that the tag and the version fields below agree.
+
+v0.1.0 did carry downloads: native scaffolder archives for macOS arm64 and Linux x64, plus the
+framework's jar and pom. They were withdrawn the day after publication. The artifacts were fine —
+both were unpacked and taken end to end, on real Mach-O arm64 and real ELF x86-64. The claim was
+what was wrong: a download page says *this is a tool, take it*, and no application outside this
+repository has been built on panamaview yet. When one has been, the archives come back.
 
 ### The version lives in eight places, and only seven of them move
 
@@ -432,21 +455,6 @@ than remembered — and it is why the release script runs verification *before* 
 quotes what the tool printed, and NOTES.md quotes what past releases actually published — that is
 evidence, so it is listed for a human to look at rather than rewritten.
 
-### What a release archive contains
-
-```
-panamaview-<version>-<platform>/
-  panamaview                   the scaffolder; a native executable, so no JVM is needed to run it
-  lib/panamaview-<version>.jar the framework
-  lib/panamaview-<version>.pom
-  README.md                    what to do with it
-```
-
-`lib/` is there because the framework is not on Maven Central yet. Without it, a download could
-generate a project and then be unable to build it — so the release would be offering something that
-does not work. The archive's README gives the one `mvn install:install-file` command that installs
-that copy locally, after which the generated project builds with no repository configured at all.
-
 ## Not done (deliberately)
 
 - One window; no multi-window, tabs, menus beyond Quit, clipboard, file dialogs, drag & drop,
@@ -461,7 +469,6 @@ that copy locally, after which the generated project builds with no repository c
   long-running app with many transient objects would leak
 - No cross-platform abstraction beyond `UiHost`, no JavaFX backend, no plugin system
 - No `.app`, code signing, notarisation or `.dmg`
-- Vanilla HTML/CSS/JS only
 
 ## Notes
 

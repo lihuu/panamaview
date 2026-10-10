@@ -248,5 +248,5 @@ git push -q origin "v$NEXT"
 echo "  main and v$NEXT pushed"
 
 say "v$NEXT is tagged"
-echo "The release workflow builds the scaffolder for each platform from this tag, and attaches it"
-echo "to the GitHub Release. Watch it with:  gh run list --workflow=release.yml --limit 1"
+echo "The tag is the release: source only, nothing attached. The workflow on it checks that the tag"
+echo "and the version fields agree:  gh run list --workflow=release.yml --limit 1"

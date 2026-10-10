@@ -1,11 +1,5 @@
 #!/bin/sh
-# Build a standalone macOS executable with GraalVM Native Image.
-#
-# Everything native-image needs to know beyond plain code lives in
-# src/main/resources/META-INF/native-image/panamaview/panamaview/reachability-metadata.json:
-# the web assets to embed, the reflection used to reach the upcall targets, and — the
-# part that is not optional — every java.lang.foreign signature the runtime is allowed
-# to call. See the comment at the top of that file.
+# Build the demo as a standalone macOS executable with GraalVM Native Image.
 set -e
 cd "$(dirname "$0")"
 
@@ -24,12 +18,17 @@ fi
 
 mvn -q compile
 
+# Resolve the dependency classpath. panamaview's own native-image metadata travels with its
+# jar, so the foreign-function registrations and the client bridge are already covered —
+# what this build still has to declare is *our* web assets, which are not inheritable.
+mvn -q dependency:build-classpath -Dmdep.outputFile=target/classpath.txt
+
 exec "$NATIVE_IMAGE" \
     --no-fallback \
-    -H:IncludeResources='demo/.*' \
+    -H:IncludeResources='web/.*' \
     -H:+ReportExceptionStackTraces \
     -J-Xmx4g \
     --enable-native-access=ALL-UNNAMED \
-    -cp target/classes \
-    -o target/panamaview \
-    panamaview.macos.Main
+    -cp "target/classes:$(cat target/classpath.txt)" \
+    -o target/panamaview-demo \
+    panamaview.demo.Main
