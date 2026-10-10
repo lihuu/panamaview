@@ -838,7 +838,81 @@ No window opens. CI has no window server, so the headless check is what is left:
 and resolves every `src`/`href` in the built page against them. That catches the failure that matters
 most — page loads, script does not, window is blank — but it is not the same as seeing it.
 
-## 16. Reproducing any of this
+## 16. Publishing to a private repository
+
+Before Maven Central, and before anyone else has tried to build on this. A generated project depends
+on `io.github.lihuu:panamaview`; `mvn install` satisfies that on one machine, and a private
+repository satisfies it on every machine the owner configures. `scripts/deploy-private.sh` does it.
+
+The deploy target is read out of `settings.xml`, at run time, every run. A private repository URL
+carries an account identifier and this repository is public; committing it would publish a
+stranger's namespace for no benefit, since the URL is useless without credentials and no reader
+needs it. Keeping it in `settings.xml` — where the credentials already are — means the script
+contains nothing specific to one account, and works against anyone's repository.
+
+The poms deliberately have no `<distributionManagement>`. Plain `mvn deploy` then fails with
+"no distributionManagement" instead of pushing a library into whichever private repository happens
+to be configured on the machine.
+
+### Two things the repository does that Maven does not expect
+
+**A 404 with a JSON content type breaks deploy, and only on the first version of an artifact.**
+Maven Resolver 2.0.24's default Apache transport reads the `Content-Type` of a failed response and,
+on seeing `application/json`, decodes the body as an RFC 9457 problem document. Aliyun answers a
+missing `maven-metadata.xml` with exactly that: 404, an empty body, `Content-Type: application/json`.
+The decode fails, so instead of the "resource does not exist" that the deploy plugin handles, it
+raises a malformed-error exception and aborts.
+
+The failure is worth describing because of where it lands: the pom and jar are uploaded **first**,
+and the metadata merge comes after. So the deploy reports failure having already published the
+artifact. Measured:
+
+```
+uploaded panamaview-0.1.0.pom     2015 B      → HTTP 200 when fetched back
+uploaded panamaview-0.1.0.jar    84652 B      → HTTP 200 when fetched back
+maven-metadata.xml               → PUT succeeds (201); GET is what fails
+```
+
+`-Dmaven.resolver.transport=wagon` fixes it. The legacy wagon transport does not inspect the content
+type of a 404, and the metadata step completes. It is applied to the deploy command only: the
+verification that follows uses the **default** transport on purpose, because that is what a
+consuming project uses, and proving resolution works under a different transport would prove the
+wrong thing.
+
+**A release repository refuses to overwrite a published version, with a bare `409`.** Maven reports
+that as "Failed to deploy artifacts", which reads like a credentials or network problem and is
+neither. Retrying cannot help. The script checks whether the version is already published before
+uploading, and says which two things would work: bump the version, or publish a `-SNAPSHOT` while
+iterating — snapshots exist to be replaced, and the script chooses the snapshot repository from the
+version string on its own.
+
+### What the check actually establishes
+
+"Uploaded" and "another machine can fetch it" are different claims. After deploying, the script
+resolves both artifacts into an **empty** local repository and compares SHA-256 against the jars it
+just built. An empty repository is the only version of this check that means anything: any other
+one can be satisfied by the copy `mvn install` left on this machine.
+
+End to end, with that empty repository, and with no framework checkout on the path:
+
+```
+$ java -jar panamaview-scaffold-0.1.0.jar create demo-app --template vanilla --package dev.acme.demo
+  10 files written
+
+$ MAVEN_OPTS="-Dmaven.repo.local=/tmp/fresh" JAVA_OPTS=-Dpanamaview.check=true ./run.sh
+  [check] staged index.html (1178 bytes)
+  [check] staged panamaview.js (5473 bytes)
+  [check] ok
+
+$ cat /tmp/fresh/io/github/lihuu/panamaview/0.1.0/_remote.repositories
+  panamaview-0.1.0.jar>2375652-release-Yr1Eef-52f3300f...=
+```
+
+`_remote.repositories` is Maven's own record of where each artifact came from. It names the private
+repository, and the jar's hash matches the build in this checkout — so the generated project built
+against the artifact that was published, not against a local copy of something similar.
+
+## 17. Reproducing any of this
 
 ```sh
 ./run.sh                                       # JVM, 13 self-test checks
@@ -856,6 +930,9 @@ otool -L target/panamaview                     # what the binary actually links
 
 ./scripts/verify-scaffold.sh                   # generate from every template, then build each one
 ./scripts/verify-scaffold.sh vue               # or just one
+
+./scripts/deploy-private.sh                    # publish to the repository in ~/.m2/settings.xml
+./scripts/deploy-private.sh --verify-only      # just check it still serves these versions
 
 # Every class and method named in the native-image metadata must still exist in the sources.
 # Worth running before any native build: nothing else catches a class that moved.

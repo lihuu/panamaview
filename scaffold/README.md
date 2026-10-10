@@ -54,12 +54,20 @@ nothing else: the artifact is `my-chat-app`, the package `com.example.mychatapp`
 ## Before it will build
 
 A generated project depends on `io.github.lihuu:panamaview`, so that artifact has to be resolvable.
-Until it is published to Maven Central, install it from the framework checkout:
+Until it is published to Maven Central, there are two ways:
 
 ```sh
-# in the panamaview checkout
+# in the panamaview checkout — resolvable on this machine only
 mvn install -DskipTests
+
+# or publish it somewhere, so a generated project builds on a machine that has no checkout
+./scripts/deploy-private.sh
 ```
+
+The second is what makes the scaffolder useful to anyone but its author. It is verified the same way
+everything else here is: after uploading, it resolves both artifacts back from an empty local
+repository and compares hashes. An upload that returns 201 is not evidence that another machine can
+fetch what was built.
 
 ## Building the scaffolder
 

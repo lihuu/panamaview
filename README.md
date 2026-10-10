@@ -59,6 +59,32 @@ JAVA_OPTS="-Dpanamaview.navigateAway=true" ./run.sh        # end the run by navi
 Objective-C block bridge in its own right. `panamaview.navigateAway` exercises the page-unload
 path and leaves the window on a blank document, so it is off by default.
 
+## Getting the framework
+
+A generated project depends on `io.github.lihuu:panamaview`, so that artifact has to be resolvable
+before anything will build. Until it is published to Maven Central, there are two ways:
+
+```sh
+mvn install -DskipTests       # in this repository; makes it resolvable on this machine only
+```
+
+```sh
+./scripts/deploy-private.sh   # publish to your own repository; resolvable by any machine that
+                              # has it configured, which is what makes a generated project
+                              # buildable somewhere that has no checkout of this one
+```
+
+The script reads the repository URL and its credentials from `~/.m2/settings.xml` rather than
+carrying them itself — a private repository URL contains an account identifier, and this repository
+is public. It decides between the release and snapshot repository from the version, refuses to
+republish a version that is already there, and then **resolves both artifacts back from an empty
+local repository and compares hashes**, because "the upload returned 201" and "another machine can
+get the file that was just built" are different claims. `--verify-only` runs that check on its own.
+
+It targets a private repository, not Maven Central. Publishing the framework publicly is a later
+step, and it waits on something this repository cannot supply by itself: evidence that someone has
+built a real application on it.
+
 ## Starting a project
 
 A scaffolder generates a working project from any of the templates:
@@ -100,15 +126,14 @@ executable plus static files, with no Node anywhere. [Where your page
 runs](docs/page-environment.md#when-node-is-needed-and-when-it-is-not) has the measured details.
 
 ```sh
-mvn install                        # this repository, until panamaview is on Maven Central
 cp -R templates/react ../myapp && cd ../myapp
 ./dev.sh                           # dev server, hot module replacement
 ./run.sh                           # production build, loaded from disk
 ./build-native.sh                  # → target/myapp
 ```
 
-Either way, the project needs `io.github.lihuu:panamaview` to be resolvable; until it is published,
-that means `mvn install` in this checkout.
+Either way, the project needs `io.github.lihuu:panamaview` to be resolvable first — see
+[Getting the framework](#getting-the-framework).
 
 Every template is deliberately small — a window, one binding, and the bridge in both directions — and
 neither contains any bridge plumbing: the framework stages `panamaview.js` into the web root at
@@ -219,6 +244,7 @@ scaffold/              the generator: embeds the templates, renames them, writes
   scripts/embed-templates.sh   stages templates/ into the jar, with a manifest
 scripts/verify-templates.sh  builds each template the way a user receives it
 scripts/verify-scaffold.sh   generates from each template, then builds the result
+scripts/deploy-private.sh    publishes to a private repository, then fetches it back to check
   META-INF/native-image/…/reachability-metadata.json
 ```
 
