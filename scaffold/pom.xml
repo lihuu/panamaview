@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>io.github.lihuu</groupId>
+  <artifactId>panamaview-scaffold</artifactId>
+  <!-- Must track the framework version in the root pom: the templates are staged from this same
+       working tree and pin that version, so a mismatch would ship a scaffolder that generates
+       projects depending on a release that does not exist. verify-scaffold.sh asserts it. -->
+  <version>0.1.0</version>
+  <packaging>jar</packaging>
+
+  <name>panamaview-scaffold</name>
+  <description>Creates panamaview projects from the templates in this repository.</description>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>25</maven.compiler.release>
+    <main.class>panamaview.scaffold.Main</main.class>
+  </properties>
+
+  <!--
+    No dependencies. The scaffolder writes files and reads its own resources; it does not use the
+    framework, WebKit, or anything native. That is what keeps its native image a plain one: no
+    foreign registration, no reachability metadata, no JVM flags to remember.
+  -->
+
+  <build>
+    <!--
+      Resources come only from the staging step. There is deliberately no src/main/resources:
+      everything the scaffolder ships is derived from templates/, and a hand-written resource
+      would be a second source of truth for what a template contains.
+    -->
+    <resources>
+      <resource>
+        <directory>target/embedded</directory>
+      </resource>
+    </resources>
+
+    <plugins>
+      <!--
+        addDefaultExcludes defaults to true, and the excludes include `.gitignore`,
+        `.gitattributes` and `.gitmodules`. That is what dropped the bundled .gitignore files:
+        avoiding the same trap in the staging script is not enough, because the files are dropped
+        again on the way into target/classes. A generated project with no .gitignore commits
+        target/ and node_modules/.
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-resources-plugin</artifactId>
+        <version>3.3.1</version>
+        <configuration>
+          <addDefaultExcludes>false</addDefaultExcludes>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.5.0</version>
+        <executions>
+          <execution>
+            <id>embed-templates</id>
+            <!-- generate-resources runs before process-resources, which is what copies the
+                 directory this produces. -->
+            <phase>generate-resources</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <executable>sh</executable>
+              <arguments>
+                <argument>scripts/embed-templates.sh</argument>
+              </arguments>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.4.2</version>
+        <configuration>
+          <!--
+            The same trap as the resources plugin above, in the other half of the build: the jar
+            goal also defaults addDefaultExcludes to true and also drops .gitignore. Both have to
+            be turned off, because target/classes being correct proves nothing about what ends up
+            in the jar.
+          -->
+          <addDefaultExcludes>false</addDefaultExcludes>
+          <archive>
+            <manifest>
+              <mainClass>${main.class}</mainClass>
+            </manifest>
+          </archive>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

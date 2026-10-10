@@ -102,14 +102,16 @@ carried two workarounds — `base: "./"` and inlining the whole bundle — both 
 being served over `file://`, where an absolute path resolves to the filesystem root and a module
 script is refused outright because the origin is opaque. The host serves over its own URL scheme
 instead, so none of that is needed here. See the framework's
-[docs/page-environment.md](../../docs/page-environment.md).
+[docs/page-environment.md](https://github.com/lihuu/panamaview/blob/main/docs/page-environment.md).
+(An absolute URL rather than a relative one, because this README is also the README of a
+generated project, where `../../docs/` would point outside it.)
 
 ## Adding assets
 
 `scripts/build-frontend.sh` writes `src/main/resources/web/manifest.txt` from the build output, so
 anything Angular emits is picked up automatically. Note the output path: Angular nests it as
-`dist/myapp/browser/`, and that browser directory is the web root — `dist/myapp/` holds only build
-metadata.
+`dist/browser/`, and that browser directory is the web root — `dist/` holds only build metadata.
+`angular.json` pins `outputPath` so the path does not depend on the project name.
 
 `-H:IncludeResources='web/.*'` in `build-native.sh` is the part it cannot do for you: resources
 are not inherited from a dependency, so each app declares its own. Miss it and the app compiles,

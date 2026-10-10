@@ -748,7 +748,97 @@ Three more faults came out of the same pass, each cheap to fix and expensive to 
   script is a hard error — one that only showed up in the template that used `set -eu`, which is
   how the two scripts drifted apart.
 
-## 15. Reproducing any of this
+## 15. Generating a project from a template
+
+`scaffold/` is a separate Maven project that depends on nothing — not even on panamaview. It reads
+the templates out of its own resources, renames three things, and writes files. Its native build
+therefore needs no reachability metadata and no JVM flags, and comes out at 13 MB rather than the
+framework's 19 MB.
+
+That simplicity is the reason to keep it separate: the moment the scaffolder wants a type from the
+framework, its native build inherits the framework's problems.
+
+### Four things that had to be got right, and each was a real failure
+
+**"Which files are a template" is a version-control question.** The first version used
+`find templates -type f` and promptly tried to copy `node_modules/` — which is not part of any
+template, and is not something a scaffolder should ship. The obvious repair, an exclusion list, does
+not work either: `vanilla-tailwind` generates `tailwind.css` and `manifest.txt` *inside its own
+source tree*, so pruning by directory name misses them, and a file-level list goes stale the moment
+a template generates something new. `git ls-files --cached --others --exclude-standard` is the same
+set `git status` would offer to commit, so it is right by construction.
+
+**A jar carries no file modes.** `run.sh` would come back out `0644` and `./run.sh` would fail with
+"permission denied" — in a project that otherwise looks complete. The staging step records the
+executable bit in the manifest as a `*` suffix, the same convention tar and `ls -F` use. (Git's
+index would be the natural source, but it prints no mode for an untracked file, and the manifest is
+built before anything is committed.)
+
+**`addDefaultExcludes` defaults to true, and it has to be turned off twice.** Maven's default
+excludes include `.gitignore` — along with `.gitattributes` and `.gitmodules` — and the resources
+plugin applies them on the way into `target/classes` *and* the jar plugin applies them again on the
+way into the jar. Avoiding the same trap in the staging script is not enough; the files are dropped
+a second time. The symptom is a generated project with no `.gitignore`, which commits `target/` and
+`node_modules/`, and nothing in the build says so.
+
+**A resource lookup without a leading slash resolves against the caller's package.**
+`Catalog.class.getResourceAsStream("templates-manifest.txt")` looked for
+`panamaview/scaffold/templates-manifest.txt` and found nothing. The manifest had been in the jar the
+whole time.
+
+### Renaming is one pass, not three replaces
+
+Substitution runs a single `Matcher` pass over `com\.example|com/example|myapp|My App`. Three
+sequential `replace` calls would be wrong, not merely slower: with `--package com.example.myapp`,
+the `myapp` rule would rewrite text the `com.example` rule had just inserted, silently producing
+`com.example.<app>`. One pass cannot see its own output. `verify-scaffold.sh` generates a project
+with exactly that package for that reason.
+
+Both spellings of a package are handled, in both file contents and file paths. The slash form
+appears inside a *text* file: the templates' READMEs name `src/main/java/com/example/Main.java`.
+Handling only the dot form in text left that one behind — found by scanning a generated project for
+the original tokens, not by reading the code.
+
+Text versus binary is decided from the bytes. The only binary file in the templates is a
+`favicon.ico`, and an extension list has to be maintained; a UTF-8 decode that rejects malformed
+input does not. Nothing depends on the guess being right, because a file wrongly treated as binary
+keeps its original tokens and the verification fails on a single surviving one.
+
+### The check and the build fail for different reasons
+
+`verify-scaffold.sh` generates each template into an unrelated directory and takes the result to a
+native executable using the generated project's own scripts. Two separate checks:
+
+- **A leftover token** means a rename was missed. The project may still build, and it is wrong.
+- **A build failure** means a coupling was missed that no rename could have fixed — a path derived
+  from the app name, or a name shape Maven or Angular will not accept. The residual check passes
+  cleanly on a project like that, because every token *was* substituted.
+
+It generates under a name with a hyphen and a package **outside** `com.example`. That detail matters:
+searching a project whose package is `com.example.x` for `com.example` matches the correct answer, so
+the first version of the check passed while being unable to fail.
+
+The `.gitignore` check has already earned its place. The vanilla template had none — it was the only
+one of the five — and it went unnoticed until a generated project turned out to have one file fewer
+than its template. Nothing else would have caught it, because a project without a `.gitignore`
+builds perfectly.
+
+Two couplings were removed rather than taught to the generator:
+
+- **Angular's output path.** `build-frontend.sh` derived it from `angular.json`'s project name, which
+  comes from the app — a two-file agreement that nothing enforced. `angular.json` now pins
+  `outputPath: "dist"`, so the path is `dist/browser/` regardless of what the app is called.
+- **The frontend package name.** `package.json` and `package-lock.json` carried the app's name, which
+  put it in a machine-generated file the generator then had to rewrite. It is now the constant
+  `frontend`, which is what that package is.
+
+### What is not covered
+
+No window opens. CI has no window server, so the headless check is what is left: it stages the assets
+and resolves every `src`/`href` in the built page against them. That catches the failure that matters
+most — page loads, script does not, window is blank — but it is not the same as seeing it.
+
+## 16. Reproducing any of this
 
 ```sh
 ./run.sh                                       # JVM, 13 self-test checks
@@ -757,8 +847,15 @@ JAVA_OPTS=-Dpanamaview.navigateAway=true ./run.sh          # also exercise the u
 ./build-native.sh && ./target/panamaview -Dpanamaview.snapshot=/tmp/s.png
 otool -L target/panamaview                     # what the binary actually links
 
-./scripts/verify-templates.sh                  # both templates, all the way to a native binary
+./scripts/verify-templates.sh                  # every template, all the way to a native binary
 ./scripts/verify-templates.sh react            # or just one
+
+./scaffold/build-native.sh                     # → scaffold/target/panamaview
+./scaffold/target/panamaview --selftest        # every resource the manifest promises is readable
+./scaffold/target/panamaview templates
+
+./scripts/verify-scaffold.sh                   # generate from every template, then build each one
+./scripts/verify-scaffold.sh vue               # or just one
 
 # Every class and method named in the native-image metadata must still exist in the sources.
 # Worth running before any native build: nothing else catches a class that moved.

@@ -61,7 +61,31 @@ path and leaves the window on a blank document, so it is off by default.
 
 ## Starting a project
 
-Five templates, all working apps to copy:
+A scaffolder generates a working project from any of the templates:
+
+```console
+$ ./scaffold/build-native.sh            # → scaffold/target/panamaview
+$ ./scaffold/target/panamaview templates
+panamaview 0.1.0
+
+  vanilla           no Node       plain HTML, CSS and JS — no build step
+  vanilla-tailwind  no Node       plain HTML styled with Tailwind
+  react             needs Node    React, built by Vite
+  vue               needs Node    Vue 3 with a history-mode router, built by Vite
+  angular           needs Node    Angular with a history-mode router
+
+$ ./scaffold/target/panamaview create my-chat-app --template vue
+creating /work/my-chat-app
+  template  vue               Vue 3 with a history-mode router, built by Vite
+  package   com.example.mychatapp
+  title     My Chat App
+  18 files written
+```
+
+The name, package and title all come from the directory, so one option is usually enough. It writes
+no build output, and never overwrites a directory that has something in it without `--force`.
+
+Five templates, which you can also copy by hand:
 
 | | frontend | needs Node | routing | editing experience |
 | --- | --- | --- | --- | --- |
@@ -83,12 +107,15 @@ cp -R templates/react ../myapp && cd ../myapp
 ./build-native.sh                  # → target/myapp
 ```
 
-Both are deliberately small — a window, one binding, and the bridge in both directions — and
+Either way, the project needs `io.github.lihuu:panamaview` to be resolvable; until it is published,
+that means `mvn install` in this checkout.
+
+Every template is deliberately small — a window, one binding, and the bridge in both directions — and
 neither contains any bridge plumbing: the framework stages `panamaview.js` into the web root at
 startup, straight out of the jar. That file is half the protocol, so the copy you get always
 matches the panamaview on your classpath.
 
-A few things neither template hides from you, each explained in its own README:
+A few things no template hides from you, each explained in its own README:
 
 - **The two JVM flags** in `pom.xml`. Dropping either misbehaves in a way that never names the
   cause.
@@ -188,7 +215,10 @@ templates/vanilla-tailwind/  the same, styled with Tailwind CSS and no Node at a
 templates/react/       the same, with a React frontend built by Vite
 templates/vue/         the same, with a Vue frontend and a history-mode router
 templates/angular/     the same, with an Angular frontend and a history-mode router
+scaffold/              the generator: embeds the templates, renames them, writes a project
+  scripts/embed-templates.sh   stages templates/ into the jar, with a manifest
 scripts/verify-templates.sh  builds each template the way a user receives it
+scripts/verify-scaffold.sh   generates from each template, then builds the result
   META-INF/native-image/…/reachability-metadata.json
 ```
 
@@ -327,6 +357,9 @@ Measured on this machine, not inferred. Both builds pass the same checks.
 | Bundled frontend, in production | React template builds to `index.html` + `assets/*.js` + `assets/*.css`, served over `panamaview://app/` |
 | Code splitting | a lazy route loads its own chunk (`assets/Lazy-*.js`) on demand — impossible over `file://` |
 | Asset references | the template's check resolves every `src`/`href` in the built page against the staged files |
+| Scaffolder | 78 files across five templates; generated under a hyphenated name and a package outside `com.example`, then checked for any surviving template name |
+| Scaffolded projects | each one builds on the JVM and to a native executable, using the scripts it was generated with |
+| Scaffolder native build | 13 MB Mach-O arm64, carrying every template file — including the `.gitignore` files, which two Maven plugins drop by default |
 | Native executable | 19 MB Mach-O arm64; links only libSystem, libobjc, Foundation, CoreFoundation, libz |
 | Native build time | ~18 s, no fallback (`--no-fallback` fails rather than silently emitting a JVM launcher) |
 | Startup, process → page loaded | native 631–730 ms, JVM 592–723 ms — **statistically identical** |

@@ -10,11 +10,14 @@ cd "$(dirname "$0")/.."
 FRONTEND=frontend
 OUT=src/main/resources/web
 
-# Angular's application builder nests its output: dist/<project>/browser/ holds the page, and
-# dist/<project>/ holds only build metadata (3rdpartylicenses.txt). The browser directory is the
-# web root. Vite, by contrast, emits straight into dist/ — which is why this line differs between
-# templates and is not an abstraction.
-FRONTEND_DIST="$FRONTEND/dist/myapp/browser"
+# Angular's application builder always nests its output one level under a "browser" directory
+# (the builder also has a server half), so the web root is dist/browser/ and dist/ holds only build
+# metadata (3rdpartylicenses.txt).
+#
+# angular.json sets outputPath explicitly. Without that it defaults to dist/<project name>, and the
+# project name comes from the app — which would put the app's name in this path and make renaming
+# the app a two-file edit that nothing enforces. Named constants beat remembered coupling.
+FRONTEND_DIST="$FRONTEND/dist/browser"
 
 command -v node >/dev/null 2>&1 || {
     echo "build-frontend.sh: node is required for this template." >&2

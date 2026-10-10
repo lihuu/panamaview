@@ -1,0 +1,134 @@
+#!/bin/sh
+# Stage templates/ into the scaffolder's resources, and write the manifest it reads at run time.
+#
+# Four things here are load-bearing, and each one is a mistake that produces a generated project
+# which is subtly, silently wrong:
+#
+# 1. **"Which files are a template?" is answered by version control, not by `find`.**
+#    `find templates -type f` walks `node_modules/`, `dist/` and `target/` — gigabytes of build
+#    output that is not part of any template and does not belong in a scaffolder. Worse, an
+#    exclusion list cannot be made correct: `vanilla-tailwind` generates `tailwind.css` and
+#    `manifest.txt` *inside* its own source tree, so pruning by directory name misses them, and a
+#    file-level list goes stale the moment a template generates something new.
+#    `--cached --others --exclude-standard` means "tracked, plus untracked files that are not
+#    ignored", which is the same set `git status` would offer to commit. So a file added to a
+#    template takes effect immediately, without having to be committed first.
+#
+# 2. **The mode comes from the filesystem, not from git.** A jar carries no file modes, so
+#    `run.sh` would come back out 0644 and `./run.sh` would fail with "permission denied" — in a
+#    project that otherwise looks complete. `git ls-files -s` would be the natural source, but it
+#    prints no mode for an untracked file, and files are staged before they are committed.
+#
+# 3. **The manifest is written from what was actually staged**, not from a list kept by hand, so it
+#    cannot disagree with the files beside it. Same reason the web asset manifests are generated.
+#
+# 4. **Every template directory must appear in the manifest.** A template that exists on disk but
+#    has no files git knows about would otherwise be skipped without a word, and the scaffolder
+#    would quietly offer one fewer choice than the repository has.
+set -eu
+cd "$(dirname "$0")/.."                 # scaffold/
+
+REPO=$(cd .. && pwd)
+SRC="$REPO/templates"
+OUT=target/embedded
+MANIFEST="$OUT/templates-manifest.txt"
+WORK="$OUT.work"
+
+if [ ! -d "$SRC" ]; then
+    echo "embed-templates.sh: no templates/ directory at $SRC" >&2
+    exit 1
+fi
+
+if ! git -C "$REPO" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "embed-templates.sh: $REPO is not a git checkout." >&2
+    echo "embed-templates.sh: a template is defined as the files that would be committed, so this" >&2
+    echo "embed-templates.sh: step reads the index. Build the scaffolder from a clone." >&2
+    exit 1
+fi
+
+# The version pins what generated projects will depend on. It has to be *this* repository's
+# version, because that is the only version of the framework the templates can be known to work
+# with — they are staged from the same working tree.
+VERSION=$(python3 - "$REPO/pom.xml" <<'PY'
+import re, sys
+text = open(sys.argv[1]).read()
+# The first <version> in a pom with no <parent> is the project's own.
+m = re.search(r"<version>([^<]+)</version>", text)
+if not m:
+    sys.exit("no <version> in " + sys.argv[1])
+print(m.group(1))
+PY
+)
+
+# Work files live outside the resource directory, so a failure part-way through cannot leave
+# something behind that the next build would copy into the jar.
+rm -rf "$OUT" "$WORK"
+mkdir -p "$OUT/templates" "$WORK"
+trap 'rm -rf "$WORK"' EXIT INT TERM
+
+git -C "$REPO" ls-files --cached --others --exclude-standard -- templates \
+    | sed 's|^templates/||' | LC_ALL=C sort > "$WORK/paths"
+
+if [ ! -s "$WORK/paths" ]; then
+    echo "embed-templates.sh: git lists no files under templates/" >&2
+    exit 1
+fi
+
+while IFS= read -r rel; do
+    case "$rel" in
+        */) echo "embed-templates.sh: $rel is a directory, not a file" >&2; exit 1 ;;
+    esac
+    if [ -L "$SRC/$rel" ]; then
+        echo "embed-templates.sh: $rel is a symlink; a template must be real files" >&2
+        exit 1
+    fi
+    if [ ! -f "$SRC/$rel" ]; then
+        echo "embed-templates.sh: $rel is not a regular file" >&2
+        exit 1
+    fi
+    # x = executable, - = not. One character, because that is all the jar will carry.
+    if [ -x "$SRC/$rel" ]; then
+        printf 'x\t%s\n' "$rel" >> "$WORK/staged"
+    else
+        printf -- '-\t%s\n' "$rel" >> "$WORK/staged"
+    fi
+done < "$WORK/paths"
+
+while IFS='	' read -r mode rel; do
+    mkdir -p "$OUT/templates/$(dirname "$rel")"
+    cp "$SRC/$rel" "$OUT/templates/$rel"
+done < "$WORK/staged"
+
+# Every directory directly under templates/ has to be represented.
+find "$SRC" -mindepth 1 -maxdepth 1 -type d | sed "s|^$SRC/||" | LC_ALL=C sort > "$WORK/dirs-on-disk"
+cut -f2 "$WORK/staged" | cut -d/ -f1 | LC_ALL=C sort -u > "$WORK/dirs-staged"
+if ! diff -u "$WORK/dirs-on-disk" "$WORK/dirs-staged" > "$WORK/dirs-diff"; then
+    echo "embed-templates.sh: these directories exist under templates/ but hold no files git would" >&2
+    echo "embed-templates.sh: commit:" >&2
+    sed 's/^/  /' "$WORK/dirs-diff" >&2
+    exit 1
+fi
+
+{
+    echo "# panamaview template manifest — generated by scaffold/scripts/embed-templates.sh"
+    echo "#"
+    echo "# <path>          a file, written with ordinary permissions"
+    echo "# <path> *        a file, written executable"
+    echo "# Blank lines and lines starting with # are ignored."
+    echo "version $VERSION"
+    while IFS='	' read -r mode rel; do
+        if [ "$mode" = "x" ]; then
+            printf '%s *\n' "$rel"
+        else
+            printf '%s\n' "$rel"
+        fi
+    done < "$WORK/staged"
+} > "$MANIFEST"
+
+files=$(awk '!/^#/ && NF && $1 != "version"' "$MANIFEST" | wc -l | tr -d ' ')
+count=$(awk '!/^#/ && NF && $1 != "version" {print $1}' "$MANIFEST" | cut -d/ -f1 | sort -u | wc -l | tr -d ' ')
+exec_count=$(grep -c '[[:space:]]\*$' "$MANIFEST" || true)
+
+echo "==> embedded $files file(s) from $count template(s), framework version $VERSION"
+echo "    $exec_count marked executable"
+echo "    $MANIFEST"
