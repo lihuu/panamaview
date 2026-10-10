@@ -156,7 +156,7 @@ public final class WebApp {
 
         // Staged before the window opens: WebKit needs real files, and a native image has no
         // classpath directory to serve them from.
-        Path webRoot = Resources.extract(directory);
+        Path webRoot = Resources.stage(directory);
 
         bridge.verbose(verbose);
         if (verbose) {

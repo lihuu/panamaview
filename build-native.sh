@@ -26,7 +26,7 @@ mvn -q compile
 
 exec "$NATIVE_IMAGE" \
     --no-fallback \
-    -H:IncludeResources='web/.*' \
+    -H:IncludeResources='demo/.*' \
     -H:+ReportExceptionStackTraces \
     -J-Xmx4g \
     --enable-native-access=ALL-UNNAMED \

@@ -537,7 +537,50 @@ native types: the core package's imports are JDK-only, and no `MemorySegment`, `
 `panamaview.macos` into its own Maven module turns the convention into a build-time
 guarantee — the application's classpath would simply not contain the native code.
 
-## 13. Reproducing any of this
+## 13. What a consumer inherits, and what they must declare
+
+Building the vanilla template the way a user receives it — framework installed, template copied
+somewhere unrelated to this checkout — turned out to be the most informative test in the
+project. Resource handling in GraalVM native image is **asymmetric**, and the asymmetry stays
+invisible until an executable runs.
+
+| | crosses the jar boundary? |
+| --- | --- |
+| `reachability-metadata.json` (foreign registrations, reflection, resources) | **yes** |
+| JVM launch flags | **no** — they belong in the app's own pom |
+| `-H:IncludeResources` for the app's own assets | **no** |
+
+Two consequences worth stating plainly.
+
+**A jar can hand you the hard part.** The foreign-function registrations — the thing that
+otherwise fails *at run time* with a message naming a `libc` entry point rather than your call
+site (§5.1) — travel with the dependency. A consumer writes nothing for them. That is a
+genuinely good property of the metadata design and it is not obvious from the documentation.
+
+**Resources are not inherited, and the failure lands at start-up.** An application that lists
+its assets in `manifest.txt` but forgets `-H:IncludeResources` compiles, links, and dies with
+`IOException: missing resource: /web/index.html`. Compilation proves nothing about it. That is
+why the template ships a headless check mode, and why CI uses it: a macOS runner has no window
+server, so the only runnable verification is "stage the assets and say what you found".
+
+### Three things the template found that review did not
+
+1. **The framework's `resources` entry listed its own demo pages.** Because that file applies
+   transitively, every consumer's native build was embedding this repository's demo into its
+   binary — and those demo pages then sat on the classpath where `manifest.txt` could shadow a
+   consumer's own. Fixed by moving the demo to `demo/` and listing only the framework's asset.
+2. **`blank.html` was not listed at all.** The framework's own native build hid this behind a
+   command-line flag that a consumer has no equivalent of.
+3. **The client bridge was never published.** It lived inside the demo's `app.js`, so every
+   consumer was expected to copy it — precisely the arrangement that rots silently. It is now
+   `panamaview/panamaview.js` in the jar, staged into the web root at startup, with
+   `panamaview.js` reserved there.
+
+The verification script found all three within a minute, then found two bugs in itself: XML
+comments cannot contain a double dash, and a classpath is more than `target/classes`. That is
+the argument for writing the script rather than for being careful.
+
+## 14. Reproducing any of this
 
 ```sh
 ./run.sh                                       # JVM, 13 self-test checks

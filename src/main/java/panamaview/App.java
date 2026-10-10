@@ -34,7 +34,7 @@ public final class App {
         this.web = new WebApp(host)
                 .title("Java WebView PoC")
                 .size(1000, 700)
-                .load("/web/index.html");
+                .load("/demo/index.html");
     }
 
     /** The underlying app, for wiring platform-specific extras onto. */

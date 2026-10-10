@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  template:
+    name: vanilla template, JVM + native
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up GraalVM
+        uses: graalvm/setup-graalvm@v1
+        with:
+          # Matches the environment the framework is developed and verified against:
+          # GraalVM CE 25, which carries native-image.
+          java-version: '25'
+          distribution: 'graalvm-community'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Toolchain
+        run: |
+          java --version
+          native-image --version
+          mvn --version
+
+      # One script, run exactly as the README describes it: install the framework, copy the
+      # template somewhere unrelated to this checkout, and take it to a native executable.
+      #
+      # This is what stops the template rotting. Everything it checks — the pinned version,
+      # the two required JVM flags, the asset manifest, the native resource embedding — fails
+      # *quietly* otherwise: a template with a stale version, or with assets missing from the
+      # executable, still looks fine until somebody uses it.
+      - name: Verify the template end to end
+        run: ./scripts/verify-template.sh
+
+      - name: Native build log on failure
+        if: failure()
+        run: |
+          find /var/folders /tmp -name "native.log" -newermt "-10 minutes" 2>/dev/null \
+            -exec sh -c 'echo "--- {}"; tail -60 "{}"' \; || true

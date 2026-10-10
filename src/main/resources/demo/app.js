@@ -1,33 +1,20 @@
 "use strict";
 
 /*
- * The JavaScript half of the bridge.
+ * The demo application — and deliberately *application* code.
  *
- * WebKit gives the page exactly one primitive: `postMessage` into a named script message
- * handler. Everything else — request/reply correlation, promises, cancellation, Java→JS
- * delivery — is built on top of it here.
+ * The bridge itself is not here. It lives in panamaview.js, which the framework stages
+ * into the web root next to this file, so it always matches the panamaview on the
+ * classpath. An app written with panamaview is wiring, not plumbing:
  *
- * Protocols, both directions, JSON text:
- *   page → Java   { type: "invoke", id, method, params }
- *                 { type: "cancel", id, reason, notify }
- *   Java → page   window.__pvResolve({ id, ok, result | error })
- *                 window.onJavaMessage(payload)
+ *     const greeting = await java.invoke("hello", { name: "World" });
+ *     window.onJavaMessage = (payload) => { … };
  *
- * Replies are correlated by id, never by order. They have to be: the reply crosses a process
- * boundary and Java may answer from a different thread than the one that took the call, so the
- * first request answered is routinely not the first one sent.
+ * Replies are matched by id and may arrive out of order; nothing here assumes otherwise.
  */
 
 (() => {
   const $ = (id) => document.getElementById(id);
-  const pending = new Map();
-  let seq = 0;
-
-  // Java's own deadline defaults to 30 s. This fuse sits just behind it so that the more
-  // precise error ("timed out in the handler") normally arrives first, and this only catches
-  // the case where the reply itself never made it back.
-  const JAVA_DEADLINE_MS = 30000;
-  const FUSE_MS = JAVA_DEADLINE_MS + 5000;
 
   const log = (line) => {
     const el = $("log");
@@ -35,63 +22,8 @@
     el.scrollTop = el.scrollHeight;
   };
 
-  // ---------------------------------------------------------------- the bridge
+  // ------------------------------------------------------------- Java → page
 
-  const post = (message) => window.webkit.messageHandlers.java.postMessage(JSON.stringify(message));
-
-  function invoke(method, params, options = {}) {
-    const id = ++seq;
-    const deadline = options.deadlineMs === undefined ? FUSE_MS : options.deadlineMs;
-
-    const entry = { id, timer: null, settled: false };
-
-    const promise = new Promise((resolve, reject) => {
-      entry.resolve = resolve;
-      entry.reject = reject;
-    });
-
-    entry.settle = (settle, value) => {
-      if (entry.settled) return false;
-      entry.settled = true;
-      clearTimeout(entry.timer);
-      pending.delete(id);
-      settle(value);
-      return true;
-    };
-
-    if (deadline !== null) {
-      entry.timer = setTimeout(() => {
-        // Tell Java to stop working as well; the reply is already moot, but the work is not.
-        post({ type: "cancel", id, reason: `no reply within ${deadline} ms` });
-        entry.settle(entry.reject, new Error(`no reply within ${deadline} ms`));
-      }, deadline);
-    }
-
-    pending.set(id, entry);
-    post({ type: "invoke", id, method, params: params ?? null });
-
-    // Cancellation is a request, not a command — Java interrupts the handler, and a handler
-    // that never checks for interruption will keep going. See the note in Bridge.java.
-    promise.cancel = () => {
-      post({ type: "cancel", id, reason: "cancelled by the page" });
-      entry.settle(entry.reject, new Error("cancelled"));
-    };
-
-    return promise;
-  }
-
-  window.java = { invoke };
-
-  window.__pvResolve = (reply) => {
-    const entry = pending.get(reply.id);
-    if (!entry) return;
-    if (reply.ok) entry.settle(entry.resolve, reply.result);
-    else entry.settle(entry.reject, new Error(reply.error));
-  };
-
-  // ------------------------------------------------------- Java → JavaScript
-
-  // Called by Java via evaluateJavaScript.
   window.onJavaMessage = async (payload) => {
     $("inbox").textContent = JSON.stringify(payload, null, 2);
     log(`java → js  ${JSON.stringify(payload)}`);
@@ -108,17 +40,6 @@
     log(`${ok ? "PASS" : "FAIL"}     ${name}${detail ? " — " + detail : ""}`);
     return ok;
   };
-
-  /** Milliseconds until a promise settles, regardless of which way. */
-  async function settleTime(promise) {
-    const started = performance.now();
-    try {
-      await promise;
-    } catch (ignored) {
-      // the outcome is not what is being measured here
-    }
-    return performance.now() - started;
-  }
 
   async function selfTest(snapshotPath, handOff) {
     // 1. A plain call, the shape the brief asks for.
@@ -141,9 +62,9 @@
     }
 
     // 3. The threading fix. Hold a slow call open, then see whether anything else gets
-    //    answered while it is in flight. Replies are delivered *by the UI thread*, so if a slow
-    //    handler still occupied the UI thread, the fast call could not return until the slow
-    //    one finished — and the elapsed time below would be ~600 ms, not a few.
+    //    answered while it is in flight. Replies are delivered *by the UI thread*, so if a
+    //    slow handler still occupied the UI thread, the fast call could not return until the
+    //    slow one finished — and the elapsed time below would be ~600 ms, not a few.
     try {
       const slow = java.invoke("slow", { ms: 600 });
       const started = performance.now();
@@ -211,7 +132,8 @@
         message = String(error.message);
       }
       const elapsed = performance.now() - started;
-      check("java-side deadline fires on its own", elapsed < 2000 && /no answer within 300 ms/.test(message),
+      check("java-side deadline fires on its own",
+            elapsed < 2000 && /no answer within 300 ms/.test(message),
             `rejected after ${elapsed.toFixed(0)} ms with "${message}"`);
     } catch (error) {
       check("java-side deadline fires on its own", false, String(error.message));
@@ -366,7 +288,7 @@
 
   $("snapshot").addEventListener("click", async () => {
     try {
-      const path = await java.invoke("snapshot", { path: "/tmp/panamaview.png" });
+      const path = await java.invoke("snapshot", { path: "/tmp/panamaview-poc.png" });
       log(`js → java  snapshot → ${path}`);
     } catch (error) {
       log(`error    snapshot: ${error.message}`);

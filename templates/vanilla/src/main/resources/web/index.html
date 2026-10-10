@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My App</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <h1>My App</h1>
+
+    <section>
+      <h2>Java → JavaScript</h2>
+      <pre id="from-java">waiting for Java…</pre>
+    </section>
+
+    <section>
+      <h2>JavaScript → Java</h2>
+      <button id="call">Call Java</button>
+      <pre id="result">—</pre>
+    </section>
+  </main>
+</body>
+
+<!--
+  panamaview.js is the client half of the bridge. The framework stages it into this
+  directory at startup, so it always matches the panamaview on your classpath.
+  Reference it; do not copy it into the project — a copy goes stale silently.
+-->
+<script src="panamaview.js"></script>
+<script src="app.js"></script>
+</html>

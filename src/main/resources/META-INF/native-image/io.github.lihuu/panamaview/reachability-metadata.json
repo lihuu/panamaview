@@ -22,7 +22,8 @@
     "first, then the two by-value NSRect call shapes, then the three unused helper signatures,",
     "then the libobjc / dlopen / pthread entry points.",
     "The UI-thread hop (panamaview.macos.UiThread) adds one more downcall shape -- void(void*,void*,void*) for dispatch_async_f, already listed above -- and one direct upcall, drain. _dispatch_main_q is a data symbol, so it needs no downcall entry.",
-    "handleDidStartNavigation is the page-unload hook: it lets the bridge abandon every in-flight request when the document that made them goes away."
+    "handleDidStartNavigation is the page-unload hook: it lets the bridge abandon every in-flight request when the document that made them goes away.",
+    "resources lists only the framework's own asset, the client bridge. It must NOT list the demo pages under demo/: a consumer's native build applies this file transitively, so listing them would embed this repository's demo into every consumer's binary. The demo's own native build passes -H:IncludeResources='demo/.*' on its command line instead, which is exactly how a consumer embeds its own assets."
   ],
   "reflection": [
     {
@@ -134,16 +135,7 @@
   ],
   "resources": [
     {
-      "glob": "web/app.js"
-    },
-    {
-      "glob": "web/index.html"
-    },
-    {
-      "glob": "web/manifest.txt"
-    },
-    {
-      "glob": "web/style.css"
+      "glob": "panamaview/panamaview.js"
     }
   ],
   "foreign": {

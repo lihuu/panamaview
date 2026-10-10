@@ -57,6 +57,31 @@ JAVA_OPTS="-Dpanamaview.navigateAway=true" ./run.sh        # end the run by navi
 Objective-C block bridge in its own right. `panamaview.navigateAway` exercises the page-unload
 path and leaves the window on a blank document, so it is off by default.
 
+## Starting a project
+
+`templates/vanilla/` is a working app to copy:
+
+```sh
+mvn install                      # this repository, until panamaview is on Maven Central
+cp -R templates/vanilla ../myapp && cd ../myapp
+./run.sh
+```
+
+It is deliberately small — a window, one binding, and the bridge in both directions. Its
+`app.js` contains no bridge plumbing, because the framework stages `panamaview.js` into the
+web root at startup, straight out of the jar. That file is part of the protocol, so the copy
+you get always matches the panamaview on your classpath.
+
+Two things the template cannot hide from you, both explained in its README: the two JVM flags
+in its `pom.xml` (dropping either misbehaves in a way that never names the cause), and the fact
+that **your own web assets are not inherited from a dependency** — they need a line in
+`manifest.txt` and a matching `-H:IncludeResources` in the native build. The framework's
+metadata, including the bridge, *is* inherited; nothing in the template mentions it.
+
+The template pins a panamaview version. `scripts/verify-template.sh` builds it the way a user
+receives it — framework installed, template copied somewhere unrelated, taken all the way to a
+native executable — and fails if that pin has drifted. CI runs it on every push.
+
 ## The self-test
 
 The page runs a self-test on load and sends its verdict back to Java, so the result appears in
@@ -102,7 +127,11 @@ src/main/java/panamaview/macos/        the only platform implementation
   NativeBlock.java   builds an Objective-C block by hand
 
 src/main/resources/
-  web/               index.html, app.js, style.css, blank.html, manifest.txt
+  demo/              the demo app's page: index.html, app.js, style.css, blank.html
+  panamaview/panamaview.js   the client bridge — staged into your web root, not copied
+
+templates/vanilla/     a working app to start from
+scripts/verify-template.sh   builds the template the way a user receives it
   META-INF/native-image/…/reachability-metadata.json
 ```
 

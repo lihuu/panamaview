@@ -1,0 +1,12 @@
+# Assets staged out of the classpath before the window opens.
+#
+# A classpath directory cannot be enumerated portably — and not at all inside a GraalVM
+# native image — so this list is explicit. Add a line for every file you add, and add the
+# same directory to the native build's -H:IncludeResources (see build-native.sh), or the
+# file will be there on the JVM and missing from the executable.
+#
+# panamaview.js is not listed here on purpose: the framework stages it. It is a reserved
+# name in the web root.
+index.html
+app.js
+style.css
