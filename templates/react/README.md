@@ -72,25 +72,23 @@ useEffect(() => {
 }, []);
 ```
 
-## Why the Vite config looks like that
+## Why the Vite config is boring
 
-The built page is loaded from disk over `file://`, which is a much more limited environment than a
-dev server, and three settings exist for that reason alone. `vite.config.js` explains each one at
-length; the short version:
+It is boring on purpose. Earlier versions of this file carried two workarounds:
 
-- **`base: "./"`** — an absolute `/assets/x.js` resolves to the filesystem root from a `file://`
-  page, not to the page.
-- **`viteSingleFile()`** — this is the one that matters. Vite emits ES modules, a module script is
-  fetched under CORS rules, and `file://` has an opaque origin, so the fetch is refused and
-  **nothing runs** — a blank window, a clean console, and a page that reports it loaded fine.
-  Inlining the bundle removes the fetch. It also collapses the build to a single `index.html`,
-  which is why the asset manifest is one line instead of a list of hashed filenames.
-- **the bridge rewrite** — dev serves the bridge at `/panamaview.js` from `public/`; the built app
-  has a copy staged beside `index.html` and needs a relative reference. One `index.html` cannot
-  say both, so it says the dev form and a build-only transform rewrites it.
+- **`base: "./"`** — because an absolute `/assets/x.js` resolves to the *filesystem root* from a
+  `file://` page rather than to the page.
+- **`vite-plugin-singlefile`** — because a module script is fetched under CORS rules and a
+  `file://` origin is opaque, so the fetch was refused and nothing ran. Inlining the bundle
+  removed the fetch, and with it code splitting.
 
-The trade for inlining: no code splitting, and the bundle rides inside the HTML. For assets read
-from local disk that costs nothing — there is no network and nothing to cache between loads.
+Both were symptoms of the page being loaded over `file://`. The host now serves the app's own
+assets over a private URL scheme, so the page has an origin of its own: absolute paths resolve
+normally, the module graph loads, dynamic imports work, `fetch` works, and Workers work.
+
+So the config is one plugin and nothing else. If you ever see a blank window with a clean console
+here, check that the page is being served over `panamaview://` and not over `file://` — that
+pairing is the entire failure mode, and it is silent.
 
 ## Adding assets
 

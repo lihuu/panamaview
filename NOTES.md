@@ -594,39 +594,77 @@ prod   staged files over file://                    one inlined HTML document
 
 ```java
 sealed interface PageSource {
-    record FromFile(Path entry, Path readAccessRoot) implements PageSource {}
+    record FromAssets(String scheme, Path root, String entry) implements PageSource {}
     record FromUrl(URI url) implements PageSource {}
 }
 ```
 
-The reason to separate them is that they are not interchangeable. A file load carries a
-*read-access root*, without which the page loads and none of its assets do. A URL load has no
-such notion. A nullable field would have let callers hand the wrong shape to the wrong case and
-find out at run time.
+The reason to separate them is that they are not interchangeable. One carries an asset root and
+the scheme to serve it under; the other has no use for either, because a dev server is already
+serving everything. A nullable field would have let callers hand the wrong shape to the wrong case
+and find out at run time.
+
+`FromAssets` started life as `FromFile`, loading over `file://` with a read-access root. That case
+is gone — not renamed, replaced — because it cannot run a bundled frontend at all (see below).
+Keeping it would have meant maintaining two production paths where one is known to be deficient,
+and a caller who picks the deficient one gets a blank window and no explanation.
 
 This is also the first thing to earn a place on the seam since the seam was drawn. The rule stays
 what it was — add to it when a second real need appears, not in anticipation — and a second real
 need appeared.
 
-### What actually breaks with a bundled frontend
+### What actually breaks, and why inlining was the wrong fix
 
 Both of the following were found by building a real Vite app and loading it, not by reading
-documentation.
+documentation. The first was originally reported here as "ES modules do not load over `file://`;
+inlining them removes the fetch" — which was true, and was the wrong conclusion to draw from it.
 
-**ES modules do not load over `file://`.** Vite emits `<script type="module">`. A module script is
-fetched under CORS rules, and a `file://` page has an opaque origin, so the fetch is refused —
-and the symptom is nasty: a blank window, a clean console, and a page that reports it loaded
-successfully, because it did. Relative paths do not help; `base: "./"` fixes 404s and leaves this
-intact. Inlining the bundle into the HTML removes the fetch, and an inline module runs fine. That
-is what `vite-plugin-singlefile` is doing in the React template.
+**A `file://` origin is opaque, and everything that goes through the fetch machinery is refused.**
 
-It has a pleasing second effect: the build collapses to a single `index.html`, so the asset
-manifest is one line rather than a list of hashed filenames that change on every build. The cost
-is no code splitting, which for assets read off local disk buys nothing anyway.
+| capability | `file://` | private scheme |
+| --- | --- | --- |
+| classic `<script src>` (separate file) | **works** | works |
+| ES module `<script type="module">` | **refused** | works |
+| static `import` | refused | works |
+| dynamic `import()` — code splitting | refused | works |
+| `fetch()` | refused | works |
+| `XMLHttpRequest` | refused | works |
+| `new Worker()` | refused | works |
+| `location.origin` | `file://` (opaque) | `panamaview://app` |
 
-**Vite binds to `::1`, not `127.0.0.1`.** The dev server prints `http://localhost:5173/` and
-listens on the IPv6 loopback only, so a URL written as `http://127.0.0.1:5173/` connects to
-nothing and produces a window that waits forever. The template uses the hostname, and says why.
+Classic scripts survive because they are fetched in no-cors mode; module scripts are *always*
+fetched in CORS mode, which an opaque origin can never satisfy. That asymmetry is why a
+hand-written page works and a bundled one does not — and it is why the first version of this
+project never noticed.
+
+So "you cannot split a frontend into files" was the wrong lesson. **Splitting is fine; ES modules
+over `file://` are not.** Inlining the bundle fixed exactly one symptom — an inline module needs
+no fetch — while leaving `fetch`, `XHR` and Workers broken and making code splitting impossible.
+The page still was not a normal web page, which is what it needs to be.
+
+**The fix is a private URL scheme, which is what Tauri and Electron do.** Neither loads the app's
+own content over `file://`. WebKit's `WKURLSchemeHandler` gives the page an origin it owns, and
+the whole table above turns green — verified with a standalone AppKit harness before any of it was
+wired into the framework, and then end to end: the React template's production build now emits a
+separate `assets/Lazy-*.js` chunk that loads on demand.
+
+Cost: `setURLSchemeHandler:forURLScheme:` on the configuration before the web view exists, a
+handler class implementing `webView:startURLSchemeTask:` / `stopURLSchemeTask:`, and an
+`NSHTTPURLResponse` to answer with. That last one is why `AssetSchemeHandler` exists in the macOS
+package — and why `ObjC` needed a four-object message shape, since
+`initWithURL:statusCode:HTTPVersion:headerFields:` will not fit in three.
+
+Two details worth keeping, both learned the hard way:
+
+- **`Content-Type` must be right.** A `.js` served as `application/octet-stream` is refused by the
+  module loader, and the failure looks like an empty page rather than a MIME error.
+- **Answer with real status codes, not task failures.** A missing file should be a 404 — the URL is
+  in the log, the Web Inspector understands it, and nothing else has to explain itself.
+
+**Vite binds to `::1`, not `127.0.0.1`.** Unrelated to the above and equally invisible: the dev
+server prints `http://localhost:5173/` and listens on the IPv6 loopback only, so a URL written as
+`http://127.0.0.1:5173/` connects to nothing and produces a window that waits forever. The
+templates use the hostname, and say why.
 
 ### Live reload for people who do not want Node
 

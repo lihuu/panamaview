@@ -2,7 +2,6 @@ package panamaview.macos;
 
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.MemorySegment;
-import java.nio.file.Path;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_DOUBLE;
@@ -34,8 +33,17 @@ final class WebView {
      * @param dispatch the runtime-created object acting as script message handler and
      *                 navigation delegate
      */
-    public static WebView create(ObjC.Scope scope, double width, double height, MemorySegment dispatch) {
+    public static WebView create(ObjC.Scope scope, double width, double height,
+                                 MemorySegment dispatch, AssetScheme assets) {
         MemorySegment configuration = ObjC.newObject("WKWebViewConfiguration");
+
+        // Registered before the web view exists: the configuration is where a scheme handler
+        // lives, and a view cannot be given one after it has been created.
+        if (assets != null) {
+            MemorySegment handler = AssetSchemeHandler.create(assets);
+            ObjC.sendVoid(configuration, ObjC.selector("setURLSchemeHandler:forURLScheme:"),
+                    handler, ObjC.nsString(scope, AssetSchemeHandler.schemeName()));
+        }
 
         MemorySegment contentController = ObjC.send(configuration, ObjC.selector("userContentController"));
         ObjC.sendVoid(contentController, ObjC.selector("addScriptMessageHandler:name:"),
@@ -51,16 +59,7 @@ final class WebView {
         return new WebView(webView);
     }
 
-    /**
-     * Loads a file from disk, granting read access to its whole directory so relative
-     * references to sibling assets ({@code app.js}, {@code style.css}) resolve.
-     */
-    public void loadFile(ObjC.Scope scope, Path file, Path readAccessRoot) {
-        ObjC.send(handle, ObjC.selector("loadFileURL:allowingReadAccessToURL:"),
-                fileUrl(scope, file), fileUrl(scope, readAccessRoot));
-    }
-
-    /** Loads a page served over the network, e.g. a frontend dev server. */
+    /** Loads a page served over the network, e.g. a frontend dev server, or a private scheme. */
     public void loadUrl(ObjC.Scope scope, java.net.URI url) {
         MemorySegment nsUrl = ObjC.send(ObjC.classNamed("NSURL"), ObjC.selector("URLWithString:"),
                 ObjC.nsString(scope, url.toString()));
@@ -74,12 +73,6 @@ final class WebView {
     /** Re-fetches the current page. On a file URL this re-reads from disk. */
     public void reload() {
         ObjC.send(handle, ObjC.selector("reload"));
-    }
-
-    private static MemorySegment fileUrl(ObjC.Scope scope, Path path) {
-        return ObjC.send(ObjC.send(ObjC.classNamed("NSURL"), ObjC.selector("alloc")),
-                ObjC.selector("initFileURLWithPath:"),
-                ObjC.nsString(scope, path.toAbsolutePath().toString()));
     }
 
     /**

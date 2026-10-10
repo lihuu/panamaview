@@ -23,7 +23,8 @@
     "then the libobjc / dlopen / pthread entry points.",
     "The UI-thread hop (panamaview.macos.UiThread) adds one more downcall shape -- void(void*,void*,void*) for dispatch_async_f, already listed above -- and one direct upcall, drain. _dispatch_main_q is a data symbol, so it needs no downcall entry.",
     "handleDidStartNavigation is the page-unload hook: it lets the bridge abandon every in-flight request when the document that made them goes away.",
-    "resources lists only the framework's own asset, the client bridge. It must NOT list the demo pages under demo/: a consumer's native build applies this file transitively, so listing them would embed this repository's demo into every consumer's binary. The demo's own native build passes -H:IncludeResources='demo/.*' on its command line instead, which is exactly how a consumer embeds its own assets."
+    "resources lists only the framework's own asset, the client bridge. It must NOT list the demo pages under demo/: a consumer's native build applies this file transitively, so listing them would embed this repository's demo into every consumer's binary. The demo's own native build passes -H:IncludeResources='demo/.*' on its command line instead, which is exactly how a consumer embeds its own assets.",
+    "AssetSchemeHandler serves the app's assets over a private URL scheme instead of file://, because an opaque file:// origin refuses ES modules, fetch and Workers. It adds one downcall shape -- NSHTTPURLResponse's initWithURL:statusCode:HTTPVersion:headerFields: takes four objects and an NSInteger -- and two upcalls for the WKURLSchemeHandler protocol."
   ],
   "reflection": [
     {
@@ -131,6 +132,29 @@
           "parameterTypes": []
         }
       ]
+    },
+    {
+      "type": "panamaview.macos.AssetSchemeHandler",
+      "methods": [
+        {
+          "name": "startTask",
+          "parameterTypes": [
+            "java.lang.foreign.MemorySegment",
+            "java.lang.foreign.MemorySegment",
+            "java.lang.foreign.MemorySegment",
+            "java.lang.foreign.MemorySegment"
+          ]
+        },
+        {
+          "name": "stopTask",
+          "parameterTypes": [
+            "java.lang.foreign.MemorySegment",
+            "java.lang.foreign.MemorySegment",
+            "java.lang.foreign.MemorySegment",
+            "java.lang.foreign.MemorySegment"
+          ]
+        }
+      ]
     }
   ],
   "resources": [
@@ -205,6 +229,28 @@
       {
         "class": "panamaview.macos.ObjCDispatch",
         "method": "handleDidStartNavigation",
+        "returnType": "void",
+        "parameterTypes": [
+          "void*",
+          "void*",
+          "void*",
+          "void*"
+        ]
+      },
+      {
+        "class": "panamaview.macos.AssetSchemeHandler",
+        "method": "startTask",
+        "returnType": "void",
+        "parameterTypes": [
+          "void*",
+          "void*",
+          "void*",
+          "void*"
+        ]
+      },
+      {
+        "class": "panamaview.macos.AssetSchemeHandler",
+        "method": "stopTask",
         "returnType": "void",
         "parameterTypes": [
           "void*",
@@ -411,6 +457,17 @@
       {
         "returnType": "jint",
         "parameterTypes": []
+      },
+      {
+        "returnType": "void*",
+        "parameterTypes": [
+          "void*",
+          "void*",
+          "void*",
+          "jlong",
+          "void*",
+          "void*"
+        ]
       }
     ]
   }

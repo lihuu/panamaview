@@ -88,9 +88,11 @@ A few things neither template hides from you, each explained in its own README:
 - **Your own web assets are not inherited from a dependency.** They need a line in
   `manifest.txt` and a matching `-H:IncludeResources` in the native build. The framework's
   metadata, including the bridge, *is* inherited — nothing in the templates mentions it.
-- **For a bundled frontend, how the built page is loaded matters.** Vite's default output does
-  not work from disk, and the failure is a blank window with a clean console. The React
-  template's `vite.config.js` explains what has to change and why.
+- **Your assets are served over a private URL scheme, not `file://`.** That is not a detail: an
+  opaque `file://` origin refuses ES modules, `fetch` and Workers, which is to say a bundled
+  frontend cannot run under it. `panamaview://app/…` gives the page a real origin, so a plain
+  Vite / webpack config works unmodified. See [One page, two
+  sources](NOTES.md#14-one-page-two-sources).
 
 Each template pins a panamaview version. `scripts/verify-templates.sh` builds them the way a user
 receives them — framework installed, template copied somewhere unrelated, taken all the way to a
@@ -154,7 +156,9 @@ src/main/java/panamaview/macos/        the only platform implementation
   UiThread.java      libdispatch: hop onto the UI thread
   ObjC.java          objc_msgSend re-typed per call site, autorelease pools, class creation
   Cocoa.java         NSApplication, menu bar, NSWindow
-  WebView.java       WKWebView: load files, evaluate JS, snapshot, geometry
+  WebView.java       WKWebView: load pages, evaluate JS, snapshot, geometry
+  AssetScheme.java   the app's private URL scheme — what makes the page a normal web page
+  AssetSchemeHandler.java  serves assets over it (WKURLSchemeHandler, defined at runtime)
   ObjCDispatch.java  the ObjC class defined at runtime whose methods are Java methods
   NativeBlock.java   builds an Objective-C block by hand
 
@@ -300,6 +304,9 @@ Measured on this machine, not inferred. Both builds pass the same checks.
 | Structured round trip | `{a:1,b:"two",c:[3,4],d:{nested:true},e:null}` returned byte-identical |
 | By-value `NSRect` get/set | `frame` read, written back, re-read → `roundTripStable: true` |
 | Resize | content set to 900×620 → web view frame 900×620 (`followed: true`), restored to 1000×700 |
+| Bundled frontend, in production | React template builds to `index.html` + `assets/*.js` + `assets/*.css`, served over `panamaview://app/` |
+| Code splitting | a lazy route loads its own chunk (`assets/Lazy-*.js`) on demand — impossible over `file://` |
+| Asset references | the template's check resolves every `src`/`href` in the built page against the staged files |
 | Native executable | 19 MB Mach-O arm64; links only libSystem, libobjc, Foundation, CoreFoundation, libz |
 | Native build time | ~18 s, no fallback (`--no-fallback` fails rather than silently emitting a JVM launcher) |
 | Startup, process → page loaded | native 631–730 ms, JVM 592–723 ms — **statistically identical** |

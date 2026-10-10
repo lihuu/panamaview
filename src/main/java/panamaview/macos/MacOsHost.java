@@ -5,6 +5,7 @@ import panamaview.UiHost;
 import panamaview.WindowSpec;
 
 import java.lang.foreign.MemorySegment;
+import java.net.URI;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -51,13 +52,13 @@ public final class MacOsHost implements UiHost {
             Cocoa.setDelegate(application, dispatch);
 
             window = Cocoa.createWindow(scope, spec.title(), spec.width(), spec.height());
-            webView = WebView.create(scope, spec.width(), spec.height(), dispatch);
+            webView = WebView.create(scope, spec.width(), spec.height(), dispatch, assets(spec.page()));
             Cocoa.setContentView(window, webView.handle());
             Cocoa.show(window);
             Cocoa.activate(application);
 
             switch (spec.page()) {
-                case PageSource.FromFile file -> webView.loadFile(scope, file.entry(), file.readAccessRoot());
+                case PageSource.FromAssets assets -> webView.loadUrl(scope, URI.create(assets.url()));
                 case PageSource.FromUrl url -> webView.loadUrl(scope, url.url());
             }
         }
@@ -84,6 +85,11 @@ public final class MacOsHost implements UiHost {
     @Override
     public boolean isUiThread() {
         return ObjC.onMainThread();
+    }
+
+    /** The scheme to serve for a page held on disk; null for a page a dev server already serves. */
+    private static AssetScheme assets(PageSource page) {
+        return page instanceof PageSource.FromAssets a ? new AssetScheme(a.scheme(), a.root()) : null;
     }
 
     // ------------------------------------------------------- callbacks for ObjCDispatch

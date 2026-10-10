@@ -28,6 +28,14 @@ import java.util.function.Consumer;
  */
 public final class WebApp {
 
+    /**
+     * The URL scheme the app's own assets are served under.
+     *
+     * <p>Not {@code file://}, because an opaque origin cannot load ES modules, {@code fetch}, or
+     * Web Workers — a bundled frontend needs all three. See {@link PageSource.FromAssets}.
+     */
+    private static final String SCHEME = "panamaview";
+
     /** A Java method JavaScript can call. The return value is serialised as JSON. */
     @FunctionalInterface
     public interface Fn {
@@ -236,7 +244,7 @@ public final class WebApp {
             Optional<Path> source = Resources.directory(directory);
             source.ifPresent(this::watchForChanges);
         }
-        return new PageSource.FromFile(stagedRoot.resolve(fileName), stagedRoot);
+        return new PageSource.FromAssets(SCHEME, stagedRoot, fileName);
     }
 
     /**

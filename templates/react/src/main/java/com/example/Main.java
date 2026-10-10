@@ -71,16 +71,38 @@ public final class Main {
             System.out.println("[check] staged " + required + " (" + Files.size(file) + " bytes)");
         }
 
-        // The bundle is inlined into the HTML, so the page must not be asking for any asset the
-        // build did not produce. A reference to an absolute path here would work on the dev
-        // server and silently fail from disk.
+        // Every asset the built page asks for must actually be staged.
+        //
+        // This is the check that earns its keep in a native build. The page and its bundle are
+        // embedded as resources; the build config that embeds them is a command-line flag that
+        // nothing type-checks. Miss it and the app compiles, links, starts, and then shows a
+        // blank window — because the HTML loaded and the script did not.
         String html = Files.readString(webRoot.resolve("index.html"));
-        if (html.contains("src=\"/")) {
-            throw new IllegalStateException(
-                    "index.html references an absolute path, which will not resolve when the page "
-                    + "is loaded from disk. Check base: \"./\" in vite.config.js.");
+        var references = java.util.regex.Pattern
+                .compile("(?:src|href)=\"([^\"]+)\"")
+                .matcher(html);
+        int checked = 0;
+        while (references.find()) {
+            String reference = references.group(1);
+            if (reference.startsWith("http:") || reference.startsWith("https:")
+                    || reference.startsWith("data:") || reference.startsWith("#")
+                    || reference.startsWith("mailto:")) {
+                continue;
+            }
+            Path target = webRoot.resolve(reference.startsWith("/")
+                    ? reference.substring(1) : reference).normalize();
+            if (!Files.isRegularFile(target)) {
+                throw new IllegalStateException("index.html references " + reference
+                        + " but it was not staged. Add it to the manifest, and make sure the "
+                        + "native build embeds it.");
+            }
+            checked++;
         }
-        System.out.println("[check] index.html has no absolute asset references");
+        if (checked == 0) {
+            throw new IllegalStateException("index.html references no local assets at all, which "
+                    + "means the frontend build produced nothing the page can use");
+        }
+        System.out.println("[check] all " + checked + " asset reference(s) staged");
         System.out.println("[check] ok");
     }
 

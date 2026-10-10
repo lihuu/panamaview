@@ -1,46 +1,25 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { viteSingleFile } from "vite-plugin-singlefile";
 
 /*
- * Three settings here are load-bearing, and each one was arrived at by watching the app fail
- * without it. They are not taste.
+ * A plain Vite config. Nothing here exists to work around the host, and that is the point.
  *
- * 1. base: "./"
- *    The built page is loaded from disk over file://, where an absolute "/assets/x.js" resolves
- *    to the filesystem root rather than to the page. Relative references are what a file:// load
- *    can follow.
+ * An earlier version of this file carried two workarounds, both of which were symptoms of the
+ * page being loaded over file://:
  *
- * 2. viteSingleFile()
- *    This is the one that actually bites. Vite emits ES modules, and a module script is fetched
- *    with CORS rules — under file:// the page's origin is opaque, so the fetch is refused and
- *    NOTHING runs. Relative paths alone do not fix it; the symptom is a blank window with a
- *    clean console and a page that reports it loaded successfully. Inlining the bundle into the
- *    HTML removes the fetch entirely, and an inline module executes without one.
+ *   base: "./"              because an absolute /assets/x.js resolves to the filesystem root
+ *                           from a file:// page rather than to the page
+ *   vite-plugin-singlefile  because a module script is fetched under CORS rules, and a file://
+ *                           origin is opaque, so the fetch was refused and nothing ran. Inlining
+ *                           removed the fetch. It also removed code splitting.
  *
- *    It also collapses the output to a single index.html, which means the asset manifest the
- *    Java side needs is one line rather than a list of hashed filenames that change every build.
+ * The host now serves the app's assets over its own URL scheme, so the page has a real origin
+ * and neither workaround is needed — nor is the bridge-script rewrite that went with them.
+ * Absolute paths resolve normally, and the module graph loads, including dynamic imports.
  *
- *    The trade: no code splitting, and the whole bundle rides in the HTML. For a desktop app
- *    whose assets are read from local disk that costs nothing, since there is no network and
- *    nothing to cache between loads.
- *
- * 3. The bridge script rewrite, below.
- *    In development the page is served by this dev server, so the bridge is fetched from the
- *    public directory at "/panamaview.js". In the built app the page is loaded from disk
- *    alongside a copy of the same file, so the reference has to be relative. One index.html
- *    cannot say both things, so it says the dev-server form and this rewrites it for build
- *    output only.
+ * If you ever see a blank window with a clean console in this app, check that the page is being
+ * served over that scheme and not over file://. That pairing is the whole failure mode.
  */
 export default defineConfig({
-  plugins: [
-    react(),
-    viteSingleFile(),
-    {
-      name: "panamaview-relative-bridge",
-      apply: "build",
-      transformIndexHtml: (html) => html.replace('src="/panamaview.js"', 'src="panamaview.js"'),
-    },
-  ],
-  base: "./",
+  plugins: [react()],
 });

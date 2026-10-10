@@ -257,6 +257,9 @@ final class ObjC {
     private static final FunctionDescriptor VOID2 = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, ADDRESS, ADDRESS);
     private static final FunctionDescriptor VOID3 = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, ADDRESS, ADDRESS, ADDRESS);
     private static final FunctionDescriptor BOOL1 = FunctionDescriptor.of(JAVA_BYTE, ADDRESS, ADDRESS, JAVA_BYTE);
+    /** receiver + selector + object + NSInteger + object + object — {@code NSHTTPURLResponse}'s designated init. */
+    private static final FunctionDescriptor ID_OBJ_LONG_OBJ_OBJ =
+            FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS);
     private static final FunctionDescriptor LONG0 = FunctionDescriptor.of(JAVA_LONG, ADDRESS, ADDRESS);
     private static final FunctionDescriptor VOID_BOOL = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_BYTE);
     private static final FunctionDescriptor VOID_LONG = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_LONG);
@@ -379,6 +382,19 @@ final class ObjC {
     public static MemorySegment sendRectObject(MemorySegment receiver, MemorySegment sel,
                                                MemorySegment rect, MemorySegment object) {
         return (MemorySegment) call(ID_RECT_ID, receiver, sel, rect, object);
+    }
+
+    /**
+     * A four-object message, or three objects around an {@code NSInteger}.
+     *
+     * <p>Four arguments is where hand-written bindings usually stop being written, and
+     * {@code initWithURL:statusCode:HTTPVersion:headerFields:} is exactly that call — you cannot
+     * synthesise an {@code NSHTTPURLResponse} without it, and without a real HTTP response a custom
+     * URL scheme cannot serve a page.
+     */
+    public static MemorySegment send(MemorySegment receiver, MemorySegment sel,
+                                     MemorySegment a, long b, MemorySegment c, MemorySegment d) {
+        return (MemorySegment) call(ID_OBJ_LONG_OBJ_OBJ, receiver, sel, a, b, c, d);
     }
 
     /** {@code representationUsingType:properties:} — an NSUInteger plus an object. */
