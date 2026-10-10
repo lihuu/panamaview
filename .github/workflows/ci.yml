@@ -9,6 +9,26 @@ permissions:
   contents: read
 
 jobs:
+  scripts:
+    name: shell scripts
+    # No macOS, no GraalVM, no Node: these check decisions, not builds, so they run on the cheapest
+    # runner available and finish in seconds.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint
+        run: |
+          command -v shellcheck >/dev/null || sudo apt-get install -y shellcheck
+          shellcheck scripts/*.sh scaffold/*.sh scaffold/scripts/*.sh \
+                     templates/*/*.sh templates/*/scripts/*.sh
+
+      # deploy-private.sh itself cannot run here — it needs credentials this repository must not
+      # hold. Everything it decides before uploading anything can be checked without them, and that
+      # is the part where being wrong publishes an artifact to the wrong repository.
+      - name: Check the deploy script's decisions
+        run: ./scripts/verify-deploy.sh
+
   templates:
     name: ${{ matrix.template }} — template and scaffolded project, JVM + native
     runs-on: macos-latest

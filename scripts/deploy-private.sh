@@ -64,73 +64,12 @@ say() { printf '\n=== %s\n' "$1"; }
 
 # ------------------------------------------------------------------ which repository
 #
-# Auto-detection is a heuristic, so it is allowed to fail and is not allowed to guess. It looks for
-# credentialed repositories whose id or url says "snapshot" or "release", and picks the one matching
-# the version. If that leaves anything other than exactly one candidate, it stops and lists what it
-# found, because uploading to the wrong repository is not something to be approximately right about.
+# The selection logic lives in scripts/choose-repo.py rather than in a heredoc here, because it is
+# the fiddliest part of this script and nothing could exercise it while it was embedded.
+# scripts/verify-deploy.sh drives it against fixture settings files, with no repository, network or
+# credentials — which is the only way CI can cover any of this.
 say "choosing the repository for this version"
-DECISION=$(python3 - "$SETTINGS" "$ROOT/pom.xml" "$DEPLOY_REPO" <<'PICK_REPO'
-import pathlib, re, sys
-
-settings_path, pom_path, explicit = sys.argv[1], sys.argv[2], sys.argv[3].strip()
-text = pathlib.Path(settings_path).read_text(encoding="utf-8")
-
-def inner(block, name):
-    m = re.search(rf"<{name}>(.*?)</{name}>", block, re.S)
-    return m.group(1).strip() if m else None
-
-credentials = set()
-for m in re.finditer(r"<server>(.*?)</server>", text, re.S):
-    block = m.group(1)
-    if inner(block, "username") and inner(block, "password"):
-        credentials.add(inner(block, "id"))
-
-repos = {}
-for m in re.finditer(r"<repository>(.*?)</repository>", text, re.S):
-    block = m.group(1)
-    repos[inner(block, "id")] = inner(block, "url")
-
-version = re.search(r"<version>([^<]+)</version>",
-                    pathlib.Path(pom_path).read_text(encoding="utf-8")).group(1)
-wants_snapshot = version.upper().endswith("-SNAPSHOT")
-
-def looks_like(repo_id, url, word):
-    return word in (repo_id or "").lower() or word in (url or "").lower()
-
-if explicit:
-    if explicit not in repos:
-        sys.exit(f"{explicit} is not a <repository> in {settings_path}")
-    if explicit not in credentials:
-        sys.exit(f"{explicit} has no <server> credentials in {settings_path}")
-    chosen = explicit
-else:
-    candidates = [
-        rid for rid, url in repos.items()
-        if rid in credentials
-        and (looks_like(rid, url, "snapshot") if wants_snapshot else looks_like(rid, url, "release"))
-        and not (looks_like(rid, url, "snapshot") is False and wants_snapshot)
-    ]
-    # A release repo often has "release" in its id; a snapshot repo has "snapshot". A repository
-    # that advertises both is ambiguous, so drop it rather than pick a lane for it.
-    if not wants_snapshot:
-        candidates = [c for c in candidates if not looks_like(c, repos[c], "snapshot")]
-    else:
-        candidates = [c for c in candidates if looks_like(c, repos[c], "snapshot")]
-    if len(candidates) != 1:
-        usable = "\n".join(f"    {r}  {u}" for r, u in sorted(repos.items()) if r in credentials)
-        sys.exit(
-            f"cannot tell which repository to use for version {version} "
-            f"({len(candidates)} match).\n"
-            f"  Repositories with credentials in {settings_path}:\n{usable}\n"
-            f"  Name one explicitly:  DEPLOY_REPO=<id> ./scripts/deploy-private.sh"
-        )
-    chosen = candidates[0]
-
-print(chosen)
-print(repos[chosen])
-print(version)
-PICK_REPO
-)
+DECISION=$(python3 "$ROOT/scripts/choose-repo.py" "$SETTINGS" "$ROOT/pom.xml" "$DEPLOY_REPO")
 
 REPO_ID=$(printf '%s\n' "$DECISION" | sed -n 1p)
 REPO_URL=$(printf '%s\n' "$DECISION" | sed -n 2p)
