@@ -1,0 +1,21 @@
+<main>
+  <h1>My App</h1>
+
+  <nav>
+    <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">home</a>
+    <a routerLink="/about" routerLinkActive="active">about</a>
+  </nav>
+
+  <router-outlet />
+
+  <section>
+    <h2>Java → JavaScript</h2>
+    <pre>{{ bridge.fromJava() ? (bridge.fromJava() | json) : "waiting for Java…" }}</pre>
+  </section>
+
+  <section>
+    <h2>JavaScript → Java</h2>
+    <button (click)="ask()">Call Java</button>
+    <pre>{{ answer() ?? "—" }}</pre>
+  </section>
+</main>

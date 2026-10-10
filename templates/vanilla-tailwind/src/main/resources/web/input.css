@@ -1,0 +1,12 @@
+/*
+ * Tailwind's entry point. Nothing here is shipped as-is: scripts/build-css.sh compiles this into
+ * tailwind.css, generated next to it and gitignored.
+ *
+ * @source tells Tailwind which files to scan for class names. Being explicit rather than relying
+ * on automatic detection keeps the build reproducible — a class that only appears in a file this
+ * list omits simply will not be generated, and that failure is silent.
+ */
+@import "tailwindcss";
+
+@source "./index.html";
+@source "./app.js";

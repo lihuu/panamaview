@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>My App</title>
+  <!--
+    The client half of the bridge. The leading slash is required, not stylistic: a relative
+    "panamaview.js" resolves against the page's own directory, so it works from /index.html and
+    breaks the moment a route adds a segment. Angular sets <base href="/"> below, but this script
+    tag comes first and is not affected by it — so say the absolute path outright.
+
+    One absolute path is correct in both places: the dev server serves it from public/, and the
+    built app is served over the host's scheme, where the framework stages it at the root.
+  -->
+  <script src="/panamaview.js"></script>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+</head>
+<body>
+  <app-root></app-root>
+</body>
+</html>

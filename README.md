@@ -61,13 +61,15 @@ path and leaves the window on a blank document, so it is off by default.
 
 ## Starting a project
 
-Three templates, all working apps to copy:
+Five templates, all working apps to copy:
 
 | | frontend | needs Node | routing | editing experience |
 | --- | --- | --- | --- | --- |
-| `templates/vanilla/` | plain HTML, CSS, JS | no | — | edits reload the window |
+| `templates/vanilla/` | plain HTML, hand-written CSS | no | — | edits reload the window |
+| `templates/vanilla-tailwind/` | plain HTML + Tailwind CSS | **no** | — | edits reload; re-run the CSS build |
 | `templates/react/` | React, built by Vite | yes | — | hot module replacement |
 | `templates/vue/` | Vue + vue-router, built by Vite | yes | history mode | hot module replacement |
+| `templates/angular/` | Angular, built by the Angular CLI | yes | history mode | dev server |
 
 ```sh
 mvn install                        # this repository, until panamaview is on Maven Central
@@ -89,6 +91,9 @@ A few things neither template hides from you, each explained in its own README:
 - **Your own web assets are not inherited from a dependency.** They need a line in
   `manifest.txt` and a matching `-H:IncludeResources` in the native build. The framework's
   metadata, including the bridge, *is* inherited — nothing in the templates mentions it.
+- **Tailwind needs a build step**, but not Node: the `vanilla-tailwind` template uses Tailwind's
+  standalone binary, fetched once and checksum-verified. The stylesheet is generated, so run
+  `./run.sh` rather than Maven directly.
 - **A relative path to the bridge breaks on any route with a segment.** Use
   `<script src="/panamaview.js">`. A relative `panamaview.js` resolves against the page's own
   directory, so it works from `/index.html` and fails from `/chat/42`, with no error worth reading.
@@ -175,8 +180,10 @@ src/main/resources/
   panamaview/panamaview.js   the client bridge — staged into your web root, not copied
 
 templates/vanilla/     a working app to start from — plain HTML, no Node
+templates/vanilla-tailwind/  the same, styled with Tailwind CSS and no Node at all
 templates/react/       the same, with a React frontend built by Vite
 templates/vue/         the same, with a Vue frontend and a history-mode router
+templates/angular/     the same, with an Angular frontend and a history-mode router
 scripts/verify-templates.sh  builds each template the way a user receives it
   META-INF/native-image/…/reachability-metadata.json
 ```

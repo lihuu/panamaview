@@ -82,12 +82,15 @@ public final class Main {
         // nothing type-checks. Miss it and the app compiles, links, starts, and then shows a
         // blank window — because the HTML loaded and the script did not.
         String html = Files.readString(webRoot.resolve("index.html"));
+        // Only real asset references: src= on anything, and href= on <link>. Deliberately not
+        // every href — <base href="/"> and <a href="/about"> are not files, and treating them as
+        // files fails on the directory case and lies about the anchor case.
         var references = java.util.regex.Pattern
-                .compile("(?:src|href)=\"([^\"]+)\"")
+                .compile("src=\"([^\"]+)\"|<link\\b[^>]*?href=\"([^\"]+)\"", java.util.regex.Pattern.CASE_INSENSITIVE)
                 .matcher(html);
         int checked = 0;
         while (references.find()) {
-            String reference = references.group(1);
+            String reference = references.group(1) != null ? references.group(1) : references.group(2);
             if (reference.startsWith("http:") || reference.startsWith("https:")
                     || reference.startsWith("data:") || reference.startsWith("#")
                     || reference.startsWith("mailto:")) {

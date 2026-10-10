@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         # Each template is verified in its own job, so one failing does not hide the other.
-        template: [vanilla, react, vue]
+        template: [vanilla, vanilla-tailwind, react, vue, angular]
     steps:
       - uses: actions/checkout@v4
 
@@ -38,8 +38,17 @@ jobs:
 
       # node_modules for the react template, keyed on the lockfile. Skipped for vanilla, which
       # has no frontend toolchain at all — that is the point of having both templates.
+      # Tailwind's standalone binary is ~80 MB and fetched on first build. Cached separately from
+      # node_modules because it is not a Node dependency at all.
+      - name: Restore the Tailwind build tool
+        if: matrix.template == 'vanilla-tailwind'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/panamaview-tailwind
+          key: tailwind-${{ runner.os }}-${{ hashFiles('templates/vanilla-tailwind/scripts/build-css.sh') }}
+
       - name: Restore frontend dependencies
-        if: matrix.template != 'vanilla'
+        if: matrix.template != 'vanilla' && matrix.template != 'vanilla-tailwind'
         uses: actions/cache@v4
         with:
           path: templates/${{ matrix.template }}/frontend/node_modules
