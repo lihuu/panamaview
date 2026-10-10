@@ -1,5 +1,7 @@
 # panamaview
 
+[![CI](https://github.com/lihuu/panamaview/actions/workflows/ci.yml/badge.svg)](https://github.com/lihuu/panamaview/actions/workflows/ci.yml)
+
 Drive the operating system's web view from Java over the FFM API. No JNI, no JNA, no shim
 library and no bundled browser engine — everything crosses into Objective-C through
 `java.lang.foreign`.
