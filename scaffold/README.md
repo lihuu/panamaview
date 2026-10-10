@@ -73,7 +73,7 @@ fetch what was built.
 
 ```sh
 ./build-native.sh        # → target/panamaview, a native executable
-mvn -q package           # → target/panamaview-scaffold-0.1.0.jar, runnable with java -jar
+mvn -q package           # → target/panamaview-scaffold-<version>.jar, runnable with java -jar
 ```
 
 Nothing about this needs GraalVM-specific knowledge, which is the point: the scaffolder uses no

@@ -386,6 +386,7 @@ Measured on this machine, not inferred. Both builds pass the same checks.
 | Scaffolder | 78 files across five templates; generated under a hyphenated name and a package outside `com.example`, then checked for any surviving template name |
 | Scaffolded projects | each one builds on the JVM and to a native executable, using the scripts it was generated with |
 | Scaffolder native build | 13 MB Mach-O arm64, carrying every template file — including the `.gitignore` files, which two Maven plugins drop by default |
+| Release archive | 4.6 MB; the scaffolder runs from the extracted location and generates projects, and the bundled `lib/` installs into an empty local repository after which a generated project builds |
 | Native executable | 19 MB Mach-O arm64; links only libSystem, libobjc, Foundation, CoreFoundation, libz |
 | Native build time | ~18 s, no fallback (`--no-fallback` fails rather than silently emitting a JVM launcher) |
 | Startup, process → page loaded | native 631–730 ms, JVM 592–723 ms — **statistically identical** |
@@ -395,6 +396,56 @@ AppKit and WebKit initialisation dominate, and they cost the same either way. It
 design is distribution — a single file with no JVM requirement — and one real ergonomic win: a
 native executable does **not** need `-XstartOnFirstThread`, because its main thread already is
 the process' first thread. The JVM does need it. See `NOTES.md`.
+
+## Releasing
+
+```sh
+./scripts/release.sh patch        # or minor, major, or an explicit x.y.z
+./scripts/release.sh --dry-run patch
+```
+
+It verifies first — both `verify-templates.sh` and `verify-scaffold.sh`, so a release cannot carry a
+version number that has not been taken all the way to a native executable — then bumps the version,
+commits, tags, and pushes. Order matters: a pushed tag is a public claim that the version is real,
+and it cannot be quietly taken back, so nothing that can fail is left until after it exists.
+
+**CI builds the release from the tag**, not from this machine: `.github/workflows/release.yml` builds
+the scaffolder for macOS arm64 and Linux x64, packages each one, and attaches both to the GitHub
+Release with the framework's own jar and pom.
+
+### The version lives in eight places, and only seven of them move
+
+| | field | moves with a release? |
+| --- | --- | --- |
+| `pom.xml` | `<version>` | yes — the framework |
+| `scaffold/pom.xml` | `<version>` | yes — the scaffolder |
+| `templates/*/pom.xml` (×5) | `<panamaview.version>` | yes — what a generated project depends on |
+| `templates/*/pom.xml` | `<version>` | **no** — that is the version of the app the template describes |
+| `templates/*/frontend/package.json` | `version` | **no** — same thing, for the frontend package |
+
+The seven that move are one value, because the templates are staged from this working tree: a
+template pinning anything other than the framework's version generates projects that cannot
+resolve. `verify-templates.sh` fails on exactly that, which is how the invariant is enforced rather
+than remembered — and it is why the release script runs verification *before* it bumps anything.
+
+`release.sh` also reports which documents still name the old version. Sample output in these docs
+quotes what the tool printed, and NOTES.md quotes what past releases actually published — that is
+evidence, so it is listed for a human to look at rather than rewritten.
+
+### What a release archive contains
+
+```
+panamaview-<version>-<platform>/
+  panamaview                   the scaffolder; a native executable, so no JVM is needed to run it
+  lib/panamaview-<version>.jar the framework
+  lib/panamaview-<version>.pom
+  README.md                    what to do with it
+```
+
+`lib/` is there because the framework is not on Maven Central yet. Without it, a download could
+generate a project and then be unable to build it — so the release would be offering something that
+does not work. The archive's README gives the one `mvn install:install-file` command that installs
+that copy locally, after which the generated project builds with no repository configured at all.
 
 ## Not done (deliberately)
 

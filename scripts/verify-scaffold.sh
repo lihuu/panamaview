@@ -25,7 +25,13 @@ say() { printf '\n=== %s\n' "$1"; }
 say "building the scaffolder"
 (cd "$ROOT/scaffold" && mvn -q -B clean package)
 
-JAR="$(ls "$ROOT"/scaffold/target/panamaview-scaffold-*.jar)"
+set -- "$ROOT"/scaffold/target/panamaview-scaffold-*.jar
+if [ "$#" -ne 1 ]; then
+    echo "verify-scaffold.sh: expected one panamaview-scaffold-*.jar in scaffold/target, found $#" >&2
+    echo "verify-scaffold.sh: 'mvn -q clean package' in scaffold/ clears out older ones." >&2
+    exit 1
+fi
+JAR="$1"
 echo "  $JAR"
 
 # ---------------------------------------------------------------- versions agree

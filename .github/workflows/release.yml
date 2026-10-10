@@ -1,0 +1,209 @@
+name: Release
+
+# Tag-triggered, like the framework's own release would be. Nothing here runs on a branch push —
+# ci.yml already did that, and a tag points at a commit ci.yml has already taken all the way to a
+# native executable. So this workflow does not repeat the end-to-end verification; it does the
+# cheap checks that are specific to *releasing* (that the tag and the poms agree, that the packaged
+# scaffolder can read its own resources), and then builds and publishes.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    name: the tag and the poms agree
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # A JDK 25 is all this needs; GraalVM is used because the elsewhere-proven action is simpler
+      # than wiring Java and Maven separately, and the version is the one everything is built with.
+      - name: Set up GraalVM
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '25'
+          distribution: 'graalvm-community'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # The tag is what the outside world will believe, and the poms are what the build will
+      # produce. When they disagree, the release publishes artifacts whose own version contradicts
+      # its name — and a published tag cannot be quietly taken back.
+      - name: The tag matches every version that has to move with it
+        run: |
+          python3 - "$GITHUB_REF_NAME" <<'PY'
+          import pathlib, re, sys
+
+          tag = sys.argv[1]
+          if not re.fullmatch(r"v\d+\.\d+\.\d+", tag):
+              sys.exit(f"tag '{tag}' is not v<major>.<minor>.<patch>")
+          expected = tag[1:]
+
+          problems = []
+
+          def first_version(path):
+              m = re.search(r"<version>([^<]+)</version>", pathlib.Path(path).read_text())
+              return m.group(1) if m else None
+
+          for rel in ("pom.xml", "scaffold/pom.xml"):
+              found = first_version(rel)
+              if found != expected:
+                  problems.append(f"{rel} is {found}, tag says {expected}")
+
+          for pom in sorted(pathlib.Path("templates").glob("*/pom.xml")):
+              m = re.search(r"<panamaview\.version>([^<]+)</panamaview\.version>", pom.read_text())
+              if not m:
+                  problems.append(f"{pom} does not pin <panamaview.version>")
+              elif m.group(1) != expected:
+                  problems.append(f"{pom} pins {m.group(1)}, tag says {expected}")
+
+          if problems:
+              print("\n".join("  " + p for p in problems), file=sys.stderr)
+              sys.exit("cut the tag with scripts/release.sh, which moves all of these together")
+          print(f"  everything at {expected}")
+          PY
+
+      # The check that catches a scaffolder packed without its templates. It lists templates either
+      # way; only reading every file in the manifest notices that the dotfiles were dropped.
+      - name: The scaffolder can read everything it ships
+        run: |
+          (cd scaffold && mvn -q -B package -DskipTests)
+          # Resolved to one path rather than a bare glob: a second match would become a second
+          # argument to java instead of an error.
+          jar="$(ls scaffold/target/panamaview-scaffold-*.jar)"
+          case "$jar" in *" "*) echo "more than one scaffolder jar in target/" >&2; exit 1 ;; esac
+          java -jar "$jar" --selftest
+
+  build:
+    name: ${{ matrix.asset }}
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+            asset: macos-arm64
+          - runner: ubuntu-latest
+            asset: linux-x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up GraalVM
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '25'
+          distribution: 'graalvm-community'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Version
+        id: version
+        run: echo "value=$(python3 -c "import re;print(re.search(r'<version>([^<]+)</version>', open('pom.xml').read()).group(1))")" >> "$GITHUB_OUTPUT"
+
+      - name: Build the framework
+        run: mvn -q -B package -DskipTests
+
+      # The scaffolder is a separate project with no dependencies, so its native build needs none of
+      # the reachability metadata the framework's does.
+      - name: Build the scaffolder
+        run: (cd scaffold && ./build-native.sh)
+
+      # One archive, rather than a binary plus a jar floating as separate assets: the framework is
+      # not on Maven Central, so a download that cannot build anything is not a download worth
+      # offering. lib/ is what makes the generated project buildable somewhere else.
+      - name: Assemble the archive
+        run: |
+          set -eu
+          version="${{ steps.version.outputs.value }}"
+          name="panamaview-$version-${{ matrix.asset }}"
+          out="dist/$name"
+
+          mkdir -p "$out/lib"
+          cp scaffold/target/panamaview "$out/panamaview"
+          cp "target/panamaview-$version.jar" "$out/lib/panamaview-$version.jar"
+          cp pom.xml "$out/lib/panamaview-$version.pom"
+          cp scaffold/dist/README.md "$out/README.md"
+
+          tar -czf "dist/$name.tar.gz" -C dist "$name"
+          rm -rf "$out"
+
+          # Both here and attached separately, so the hash can be checked without downloading the
+          # archive again to compute it.
+          ( cd dist && shasum -a 256 "$name.tar.gz" | tee "$name.tar.gz.sha256" )
+
+          # A tarball whose executable bit was lost is a tarball that fails with "permission denied"
+          # on a machine that has no way to know better.
+          tar -tzf "dist/$name.tar.gz" | grep -q "^$name/panamaview$"
+          tar -xzf "dist/$name.tar.gz" -C dist
+          [ -x "dist/$name/panamaview" ] || { echo "panamaview is not executable in the archive" >&2; exit 1; }
+          rm -rf "dist/$name"
+          echo "archive ok"
+
+      - name: Keep the archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/*
+
+  release:
+    name: publish
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+
+      # Taken out of one of the archives rather than rebuilt here. Two reasons: this job then needs
+      # no JDK and no Maven at all, and the jar attached on its own is provably the same one the
+      # archives contain, instead of a second build that merely ought to match.
+      - name: Attach the framework on its own too
+        run: |
+          set -eu
+          version="$(python3 -c "import re;print(re.search(r'<version>([^<]+)</version>', open('pom.xml').read()).group(1))")"
+          archive="$(ls assets/panamaview-"$version"-macos-arm64.tar.gz)"
+          tar -xzf "$archive" -C /tmp
+          cp /tmp/panamaview-"$version"-macos-arm64/lib/* assets/
+          ls -la assets/
+
+      - name: What is in the release
+        run: ls -la assets
+
+      # The release body leads with what is not ready, because that is the thing a reader needs
+      # first. A scaffolder whose generated projects cannot resolve their dependency without a
+      # manual step is worth publishing, and is not worth presenting as finished.
+      - name: Publish
+        uses: softprops/action-gh-release@v2
+        with:
+          files: assets/*
+          generate_release_notes: true
+          body: |
+            The scaffolder, for macOS arm64 and Linux x64, plus the framework's own jar and pom.
+
+            **panamaview is at 0.1.0 and has not been used to build a real application yet.** It is
+            published so that trying it does not require a checkout of the repository — not because
+            it is finished. The version on Maven Central would be a claim nobody has tested, so it
+            is not there yet.
+
+            Each archive contains the scaffolder, the framework in `lib/`, and a README explaining
+            the one command that installs the bundled framework into your local Maven repository.
+            That step exists because the framework is not on Central; once it is, the archives will
+            not need to carry it.
+
+            ```sh
+            tar xzf panamaview-<version>-<platform>.tar.gz
+            cd panamaview-<version>-<platform>
+            ./panamaview templates
+            ./panamaview create my-app --template vue
+            ```
+
+            Three of the five templates need Node to build. A released app never does — see
+            [where your page runs](https://github.com/lihuu/panamaview/blob/main/docs/page-environment.md).
+
+            The `.sha256` files are attached separately so the hash can be checked without
+            downloading the archive a second time to compute it.

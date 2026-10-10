@@ -23,8 +23,18 @@ fi
 
 mvn -q -B package
 
-JAR="$(ls target/panamaview-scaffold-*.jar)"
-[ -f "$JAR" ] || { echo "build-native.sh: no jar in target/" >&2; exit 1; }
+# A glob that matched nothing passes through unchanged, and one that matched two things makes a
+# single string containing both — neither of which `[ -f ]` reports accurately. `set --` counts the
+# matches instead, so the message can say which of the two happened. (Found by doing it: a leftover
+# -SNAPSHOT.jar from trying the snapshot repository made this fail with "no jar in target/" while a
+# jar was sitting right there.)
+set -- target/panamaview-scaffold-*.jar
+if [ "$#" -ne 1 ]; then
+    echo "build-native.sh: expected one panamaview-scaffold-*.jar in target/, found $#" >&2
+    echo "build-native.sh: run 'mvn -q clean package' to clear out any older ones." >&2
+    exit 1
+fi
+JAR="$1"
 
 # The templates have to be named explicitly. Resources are not discovered by the compiler, and a
 # native image built without this still starts and still lists templates — it only fails when
