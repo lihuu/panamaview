@@ -60,15 +60,37 @@ public final class Resources {
             dir = dir.substring(0, dir.length() - 1);
         }
 
-        List<String> names = readManifest(dir);
-        if (names.contains(BRIDGE_FILE)) {
+        if (readManifest(dir).contains(BRIDGE_FILE)) {
             throw new IOException("'" + BRIDGE_FILE + "' in /" + dir + "/manifest.txt is a "
                     + "reserved name: the framework stages its own copy of the client bridge "
                     + "there. Rename your file.");
         }
 
         Path target = Files.createTempDirectory("panamaview-web-");
-        for (String name : names) {
+        stageInto(target, dir);
+        deleteTreeOnExit(target);
+        return target;
+    }
+
+    /**
+     * Copies the assets for {@code resourceDir} into an existing directory, overwriting.
+     *
+     * <p>Separate from {@link #stage} so the development reloader can refresh a staged root in
+     * place: on a file change the assets are re-copied into the <em>same</em> directory the page
+     * is already loaded from, and a reload then picks up the new files.
+     *
+     * <p>Re-copying rather than pointing the page at the source directory is deliberate. The
+     * staged root is also where the framework's own client bridge lands, so a page can always
+     * rely on {@code panamaview.js} being beside it — and nothing has to be written into the
+     * project's source tree to make that true.
+     */
+    static void stageInto(Path target, String resourceDir) throws IOException {
+        String dir = resourceDir.startsWith("/") ? resourceDir.substring(1) : resourceDir;
+        if (dir.endsWith("/")) {
+            dir = dir.substring(0, dir.length() - 1);
+        }
+
+        for (String name : readManifest(dir)) {
             String resource = "/" + dir + "/" + name;
             Path out = target.resolve(name).normalize();
             if (!out.startsWith(target)) {
@@ -84,8 +106,30 @@ public final class Resources {
         }
 
         stageBridge(target);
-        deleteTreeOnExit(target);
-        return target;
+    }
+
+    /**
+     * The real directory behind a classpath resource, when there is one.
+     *
+     * <p>While running from compiled classes — that is, during development — {@code /web} is an
+     * ordinary directory and this returns it, which is what the reloader watches. Inside a
+     * native executable, or a jar, there is no directory and this is empty; that is not a
+     * failure, it just means there is nothing to watch.
+     */
+    static java.util.Optional<Path> directory(String resourceDir) {
+        String dir = resourceDir.startsWith("/") ? resourceDir.substring(1) : resourceDir;
+        if (dir.endsWith("/")) {
+            dir = dir.substring(0, dir.length() - 1);
+        }
+        try {
+            var url = Resources.class.getResource("/" + dir);
+            if (url != null && "file".equals(url.getProtocol())) {
+                return java.util.Optional.of(Path.of(url.toURI()));
+            }
+        } catch (Exception ignored) {
+            // a jar or a native image: nothing to watch, and nothing to report
+        }
+        return java.util.Optional.empty();
     }
 
     /**

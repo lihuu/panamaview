@@ -60,6 +60,22 @@ final class WebView {
                 fileUrl(scope, file), fileUrl(scope, readAccessRoot));
     }
 
+    /** Loads a page served over the network, e.g. a frontend dev server. */
+    public void loadUrl(ObjC.Scope scope, java.net.URI url) {
+        MemorySegment nsUrl = ObjC.send(ObjC.classNamed("NSURL"), ObjC.selector("URLWithString:"),
+                ObjC.nsString(scope, url.toString()));
+        if (ObjC.isNull(nsUrl)) {
+            throw new IllegalArgumentException("not a URL WebKit will accept: " + url);
+        }
+        ObjC.send(handle, ObjC.selector("loadRequest:"),
+                ObjC.send(ObjC.classNamed("NSURLRequest"), ObjC.selector("requestWithURL:"), nsUrl));
+    }
+
+    /** Re-fetches the current page. On a file URL this re-reads from disk. */
+    public void reload() {
+        ObjC.send(handle, ObjC.selector("reload"));
+    }
+
     private static MemorySegment fileUrl(ObjC.Scope scope, Path path) {
         return ObjC.send(ObjC.send(ObjC.classNamed("NSURL"), ObjC.selector("alloc")),
                 ObjC.selector("initFileURLWithPath:"),

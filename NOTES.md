@@ -580,7 +580,97 @@ The verification script found all three within a minute, then found two bugs in 
 comments cannot contain a double dash, and a classpath is more than `target/classes`. That is
 the argument for writing the script rather than for being careful.
 
-## 14. Reproducing any of this
+## 14. One page, two sources
+
+A panamaview app serves the same page two ways, and the difference is not cosmetic — it decides
+how the page is built and what the platform is handed.
+
+```
+dev    Vite dev server at http://localhost:5173     live reload, hot module replacement
+prod   staged files over file://                    one inlined HTML document
+```
+
+`PageSource` models that as a sealed pair rather than a nullable field:
+
+```java
+sealed interface PageSource {
+    record FromFile(Path entry, Path readAccessRoot) implements PageSource {}
+    record FromUrl(URI url) implements PageSource {}
+}
+```
+
+The reason to separate them is that they are not interchangeable. A file load carries a
+*read-access root*, without which the page loads and none of its assets do. A URL load has no
+such notion. A nullable field would have let callers hand the wrong shape to the wrong case and
+find out at run time.
+
+This is also the first thing to earn a place on the seam since the seam was drawn. The rule stays
+what it was — add to it when a second real need appears, not in anticipation — and a second real
+need appeared.
+
+### What actually breaks with a bundled frontend
+
+Both of the following were found by building a real Vite app and loading it, not by reading
+documentation.
+
+**ES modules do not load over `file://`.** Vite emits `<script type="module">`. A module script is
+fetched under CORS rules, and a `file://` page has an opaque origin, so the fetch is refused —
+and the symptom is nasty: a blank window, a clean console, and a page that reports it loaded
+successfully, because it did. Relative paths do not help; `base: "./"` fixes 404s and leaves this
+intact. Inlining the bundle into the HTML removes the fetch, and an inline module runs fine. That
+is what `vite-plugin-singlefile` is doing in the React template.
+
+It has a pleasing second effect: the build collapses to a single `index.html`, so the asset
+manifest is one line rather than a list of hashed filenames that change on every build. The cost
+is no code splitting, which for assets read off local disk buys nothing anyway.
+
+**Vite binds to `::1`, not `127.0.0.1`.** The dev server prints `http://localhost:5173/` and
+listens on the IPv6 loopback only, so a URL written as `http://127.0.0.1:5173/` connects to
+nothing and produces a window that waits forever. The template uses the hostname, and says why.
+
+### Live reload for people who do not want Node
+
+A dev server is the right answer when there is a frontend toolchain. When there is not — plain
+HTML, the vanilla template — the framework does it: it watches the classpath resource directory
+and re-stages on change. Two details that are easy to get wrong:
+
+- **Watch recursively.** A flat watch misses `assets/…`, which is exactly where generated output
+  lives.
+- **Debounce.** One save in an editor is routinely three events plus the compiler's own output,
+  and three reloads in a row is visibly janky.
+
+The page is pointed at the *staged* directory and the staged copy is refreshed, rather than
+pointing the page at the source. That keeps the framework's client bridge available beside the
+assets and never writes into the project's source tree.
+
+### 🚨 The verification script had a hole big enough to hide two bugs
+
+The first version of `verify-template.sh` assembled its own `java` invocation to run the headless
+check. Sensible-looking, and wrong in a way that took a while to surface: it never ran `./run.sh`,
+so it never noticed that **`run.sh` put only `target/classes` on the classpath**. Every template
+died with `NoClassDefFoundError: panamaview/UiHost` the first time anyone used the script the
+README actually recommends. It was found by running `./dev.sh` for real.
+
+The lesson is the same one as §11 and §5.2, in a new costume: **a test that does not exercise the
+documented entry point is not testing the thing users will do.** The script now calls
+`JAVA_OPTS=-Dpanamaview.check=true ./run.sh` — the real script, its compile step, its classpath
+assembly and its two JVM flags — and the check mode is what makes that possible without a window.
+
+Three more faults came out of the same pass, each cheap to fix and expensive to find later:
+
+- **A reserved-name collision.** Vite copies `public/` into `dist/`, so the dev-server copy of
+  `panamaview.js` arrived in the staged web root and tripped the framework's own reservation.
+  Caught loudly, by the guard, at build time — which is what the guard is for.
+- **`exec` in a launcher script discards its trap.** `dev.sh` ran Java with `exec`, replacing the
+  shell and orphaning the dev server on every exit. It also recorded the PID of a subshell rather
+  than of Vite, so cleanup killed the wrapper and left the server holding the port — surfacing as
+  the *next* run failing to start, a confusing distance from the cause. Both fixed by not using
+  `exec` and by having the subshell `exec` instead.
+- **`set -u` plus an unset variable.** `JAVA_OPTS` unset is normal, and `${JAVA_OPTS}` in a `set -u`
+  script is a hard error — one that only showed up in the template that used `set -eu`, which is
+  how the two scripts drifted apart.
+
+## 15. Reproducing any of this
 
 ```sh
 ./run.sh                                       # JVM, 13 self-test checks
@@ -588,6 +678,9 @@ JAVA_OPTS=-Dpanamaview.snapshot=/tmp/s.png ./run.sh
 JAVA_OPTS=-Dpanamaview.navigateAway=true ./run.sh          # also exercise the unload path
 ./build-native.sh && ./target/panamaview -Dpanamaview.snapshot=/tmp/s.png
 otool -L target/panamaview                     # what the binary actually links
+
+./scripts/verify-templates.sh                  # both templates, all the way to a native binary
+./scripts/verify-templates.sh react            # or just one
 
 # Every class and method named in the native-image metadata must still exist in the sources.
 # Worth running before any native build: nothing else catches a class that moved.

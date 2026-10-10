@@ -61,28 +61,56 @@ path and leaves the window on a blank document, so it is off by default.
 
 ## Starting a project
 
-`templates/vanilla/` is a working app to copy:
+Two templates, both working apps to copy:
+
+| | frontend | needs Node | editing experience |
+| --- | --- | --- | --- |
+| `templates/vanilla/` | plain HTML, CSS, JS | no | edits reload the window |
+| `templates/react/` | React, built by Vite | yes | hot module replacement |
 
 ```sh
-mvn install                      # this repository, until panamaview is on Maven Central
-cp -R templates/vanilla ../myapp && cd ../myapp
-./run.sh
+mvn install                        # this repository, until panamaview is on Maven Central
+cp -R templates/react ../myapp && cd ../myapp
+./dev.sh                           # dev server, hot module replacement
+./run.sh                           # production build, loaded from disk
+./build-native.sh                  # → target/myapp
 ```
 
-It is deliberately small — a window, one binding, and the bridge in both directions. Its
-`app.js` contains no bridge plumbing, because the framework stages `panamaview.js` into the
-web root at startup, straight out of the jar. That file is part of the protocol, so the copy
-you get always matches the panamaview on your classpath.
+Both are deliberately small — a window, one binding, and the bridge in both directions — and
+neither contains any bridge plumbing: the framework stages `panamaview.js` into the web root at
+startup, straight out of the jar. That file is half the protocol, so the copy you get always
+matches the panamaview on your classpath.
 
-Two things the template cannot hide from you, both explained in its README: the two JVM flags
-in its `pom.xml` (dropping either misbehaves in a way that never names the cause), and the fact
-that **your own web assets are not inherited from a dependency** — they need a line in
-`manifest.txt` and a matching `-H:IncludeResources` in the native build. The framework's
-metadata, including the bridge, *is* inherited; nothing in the template mentions it.
+A few things neither template hides from you, each explained in its own README:
 
-The template pins a panamaview version. `scripts/verify-template.sh` builds it the way a user
-receives it — framework installed, template copied somewhere unrelated, taken all the way to a
-native executable — and fails if that pin has drifted. CI runs it on every push.
+- **The two JVM flags** in `pom.xml`. Dropping either misbehaves in a way that never names the
+  cause.
+- **Your own web assets are not inherited from a dependency.** They need a line in
+  `manifest.txt` and a matching `-H:IncludeResources` in the native build. The framework's
+  metadata, including the bridge, *is* inherited — nothing in the templates mentions it.
+- **For a bundled frontend, how the built page is loaded matters.** Vite's default output does
+  not work from disk, and the failure is a blank window with a clean console. The React
+  template's `vite.config.js` explains what has to change and why.
+
+Each template pins a panamaview version. `scripts/verify-templates.sh` builds them the way a user
+receives them — framework installed, template copied somewhere unrelated, taken all the way to a
+native executable using the template's own scripts — and fails if a pin has drifted. CI runs it
+on every push, one job per template.
+
+### Development and production pages
+
+A panamaview app has the same page in two modes, and `PageSource` models exactly that:
+
+```java
+String dev = System.getProperty("panamaview.dev");
+if (dev != null) app.dev(URI.create(dev));   // a dev server
+                                             // otherwise: the staged files
+```
+
+One flag, no other change. Nothing is staged in dev mode, because the dev server owns the page —
+which is what keeps HMR and live reloading working. For a file-backed page the framework watches
+the assets and reloads when they change, so plain HTML gets the same editing experience without
+Node being installed at all.
 
 ## The self-test
 
@@ -115,6 +143,8 @@ src/main/java/panamaview/              portable — JDK types only
   Bridge.java        request framing, dispatch, deadlines, cancellation, replies
   UiHost.java        the seam a platform implements
   WindowSpec.java    what a host needs to open a window
+  PageSource.java    the page is a staged file, or a URL from a dev server
+  DevReload.java     reloads a file-backed page when its assets change
   Resources.java     stages classpath web assets on disk for the platform
   Json.java          minimal JSON codec
 
@@ -132,8 +162,9 @@ src/main/resources/
   demo/              the demo app's page: index.html, app.js, style.css, blank.html
   panamaview/panamaview.js   the client bridge — staged into your web root, not copied
 
-templates/vanilla/     a working app to start from
-scripts/verify-template.sh   builds the template the way a user receives it
+templates/vanilla/     a working app to start from — plain HTML, no Node
+templates/react/       the same, with a React frontend built by Vite
+scripts/verify-templates.sh  builds each template the way a user receives it
   META-INF/native-image/…/reachability-metadata.json
 ```
 

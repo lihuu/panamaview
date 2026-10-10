@@ -21,6 +21,28 @@ src/main/resources/web/style.css
 
 `mvn compile exec:exec` is the equivalent of `./run.sh`.
 
+### Editing without restarting
+
+While running from `./run.sh`, the framework watches these assets and reloads the window when they
+change — so editing `app.js` or `style.css` is enough to see the result. No build step, no Node, no
+restart:
+
+```
+[panamaview] live reload watching .../target/classes/web
+[panamaview] change detected, reloading
+```
+
+Two things to know:
+
+- **It watches the compiled copy**, which is `target/classes/web`, so the edit has to reach it.
+  In an IDE that happens on save; from a terminal, `mvn compile` does it. There is nothing to
+  configure either way.
+- **Nothing reloads in a native executable**, because there are no files to watch. That build is
+  for shipping.
+
+Turn it off with `app.liveReload(false)` if you would rather not have it. If you want hot module
+replacement rather than a full reload, use the react template — that is what a dev server buys.
+
 ## The bridge
 
 ```js

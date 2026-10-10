@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My App</title>
+  <!--
+    The client half of the bridge. The leading slash is right for development, where this dev
+    server serves the file out of public/. vite.config.js rewrites it to a relative path for the
+    built app, which is loaded from disk. Both forms point at the same panamaview.js.
+  -->
+  <script src="/panamaview.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+</html>

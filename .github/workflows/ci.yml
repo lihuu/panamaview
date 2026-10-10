@@ -9,9 +9,14 @@ permissions:
   contents: read
 
 jobs:
-  template:
-    name: vanilla template, JVM + native
+  templates:
+    name: ${{ matrix.template }} template, JVM + native
     runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Each template is verified in its own job, so one failing does not hide the other.
+        template: [vanilla, react]
     steps:
       - uses: actions/checkout@v4
 
@@ -29,19 +34,29 @@ jobs:
           java --version
           native-image --version
           mvn --version
+          node --version || echo "node is only needed by the react template"
+
+      # node_modules for the react template, keyed on the lockfile. Skipped for vanilla, which
+      # has no frontend toolchain at all — that is the point of having both templates.
+      - name: Restore frontend dependencies
+        if: matrix.template == 'react'
+        uses: actions/cache@v4
+        with:
+          path: templates/react/frontend/node_modules
+          key: node-${{ runner.os }}-${{ hashFiles('templates/react/frontend/package-lock.json') }}
 
       # One script, run exactly as the README describes it: install the framework, copy the
-      # template somewhere unrelated to this checkout, and take it to a native executable.
+      # template somewhere unrelated to this checkout, then take it to a native executable using
+      # the template's own run.sh and build-native.sh.
       #
-      # This is what stops the template rotting. Everything it checks — the pinned version,
-      # the two required JVM flags, the asset manifest, the native resource embedding — fails
-      # *quietly* otherwise: a template with a stale version, or with assets missing from the
-      # executable, still looks fine until somebody uses it.
+      # This is what stops the templates rotting. Everything it checks fails *quietly* otherwise:
+      # a stale pinned version, assets listed but not embedded, an absolute asset reference that
+      # works on a dev server and breaks from disk.
       - name: Verify the template end to end
-        run: ./scripts/verify-template.sh
+        run: ./scripts/verify-templates.sh ${{ matrix.template }}
 
       - name: Native build log on failure
         if: failure()
         run: |
-          find /var/folders /tmp -name "native.log" -newermt "-10 minutes" 2>/dev/null \
+          find /var/folders /tmp -name "*-native.log" -newermt "-15 minutes" 2>/dev/null \
             -exec sh -c 'echo "--- {}"; tail -60 "{}"' \; || true

@@ -1,7 +1,9 @@
 package panamaview;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Path;
+import java.util.Optional;
 import java.time.Duration;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -42,6 +44,9 @@ public final class WebApp {
     private Duration timeout = Bridge.DEFAULT_TIMEOUT;
     private Consumer<WebApp> onReady;
     private boolean verbose = true;
+    private URI devUrl;
+    private boolean liveReload = true;
+    private Path stagedRoot;
 
     public WebApp(UiHost host) {
         this.host = host;
@@ -115,6 +120,40 @@ public final class WebApp {
         return this;
     }
 
+    /**
+     * Loads {@code pageUrl} instead of the staged file — normally a frontend dev server.
+     *
+     * <p>Pass {@code null} to turn it off. The usual wiring is a system property, so one flag
+     * switches a run between the two modes without touching code:
+     *
+     * <pre>{@code
+     * String dev = System.getProperty("panamaview.dev");
+     * if (dev != null) app.dev(URI.create(dev));
+     * }</pre>
+     *
+     * <p>Nothing is staged in this mode: the dev server owns the whole page, which is what keeps
+     * hot module replacement and live reloading working. That also means the framework's client
+     * bridge is not written to disk, so a dev-server page has to include it itself — the
+     * frontend project is expected to import it from the installed node package, which is the
+     * frontend-toolchain equivalent of not copying a file.
+     */
+    public WebApp dev(URI pageUrl) {
+        this.devUrl = pageUrl;
+        return this;
+    }
+
+    /**
+     * Enables or disables reloading a file-backed page when its assets change.
+     *
+     * <p>On by default. It is what gives a plain-HTML project the same editing experience a
+     * frontend dev server provides, without requiring Node to be installed. It has no effect on
+     * a page served by a {@link #dev(URI) dev server}, which reloads itself.
+     */
+    public WebApp liveReload(boolean enabled) {
+        this.liveReload = enabled;
+        return this;
+    }
+
     /** Called once the page has loaded — the first safe moment to call into JavaScript. */
     public WebApp onReady(Consumer<WebApp> callback) {
         this.onReady = callback;
@@ -144,9 +183,91 @@ public final class WebApp {
         bridge.push(payload);
     }
 
+    /**
+     * Runs a script in the page. Fire and forget — there is no return value.
+     *
+     * <p>Nothing is reported back, which is worth knowing before reaching for this to read state
+     * out of the page: a result has to come back through the bridge as a normal call. For a
+     * one-way instruction — a key binding, a focus change, a nudge to some page API — it is the
+     * shortest path there is.
+     */
+    public void eval(String script) {
+        host.evaluate(script);
+    }
+
+    /** Re-fetches the current page. Used by live reload; also handy from a key binding. */
+    public void reload() {
+        host.evaluate("window.location.reload()");
+    }
+
     /** Stops every request still in flight. Called automatically when the page goes away. */
     public void cancelInFlight(String reason) {
         bridge.cancelAll(reason);
+    }
+
+    /**
+     * Decides what to load, and starts watching for changes when that is meaningful.
+     *
+     * <p>Three cases, in order of precedence:
+     * <ol>
+     *   <li>a dev server was configured — load its URL and stage nothing, because the dev server
+     *       is already serving the whole page;</li>
+     *   <li>otherwise the assets are staged to disk, and if the classpath resources exist as a
+     *       real directory (true when running from compiled classes) that directory is watched
+     *       so edits show up without a restart.</li>
+     * </ol>
+     */
+    private PageSource resolvePage(String directory, String fileName) throws IOException {
+        if (devUrl != null) {
+            if (verbose) {
+                System.out.println("[panamaview] dev server: " + devUrl);
+            }
+            return new PageSource.FromUrl(devUrl);
+        }
+
+        // Staged before the window opens: WebKit needs real files, and a native image has no
+        // classpath directory to serve them from.
+        stagedRoot = Resources.stage(directory);
+        if (verbose) {
+            System.out.println("[panamaview] web root: " + stagedRoot);
+        }
+
+        if (liveReload && host.isUiThread()) {
+            Optional<Path> source = Resources.directory(directory);
+            source.ifPresent(this::watchForChanges);
+        }
+        return new PageSource.FromFile(stagedRoot.resolve(fileName), stagedRoot);
+    }
+
+    /**
+     * Re-copies the assets into the staged root and reloads, whenever the source changes.
+     *
+     * <p>The page is reloaded from the staged directory rather than pointed at the source, so
+     * the framework's client bridge stays available beside the assets and the project's own
+     * source tree is never written to.
+     */
+    private void watchForChanges(Path sourceDir) {
+        String resourceDir = "/" + sourceDir.getFileName();
+        try {
+            DevReload.watch(sourceDir, () -> host.onUiThread(() -> {
+                try {
+                    Resources.stageInto(stagedRoot, resourceDir);
+                    if (verbose) {
+                        System.out.println("[panamaview] change detected, reloading");
+                    }
+                    reload();
+                } catch (IOException e) {
+                    System.err.println("[panamaview] reload failed: " + e);
+                }
+            }));
+            if (verbose) {
+                System.out.println("[panamaview] live reload watching " + sourceDir);
+            }
+        } catch (IOException e) {
+            // A missing or unwatchable directory is not worth failing a run over; the app
+            // works, it just will not reload by itself.
+            System.err.println("[panamaview] live reload unavailable: " + e.getMessage());
+        }
     }
 
     /** Runs the platform event loop. Blocks until the application quits. */
@@ -154,14 +275,9 @@ public final class WebApp {
         String directory = entry.substring(0, entry.lastIndexOf('/'));
         String fileName = entry.substring(entry.lastIndexOf('/') + 1);
 
-        // Staged before the window opens: WebKit needs real files, and a native image has no
-        // classpath directory to serve them from.
-        Path webRoot = Resources.stage(directory);
+        PageSource page = resolvePage(directory, fileName);
 
         bridge.verbose(verbose);
-        if (verbose) {
-            System.out.println("[panamaview] web root: " + webRoot);
-        }
 
         host.start(new UiHost.Callbacks() {
 
@@ -196,6 +312,6 @@ public final class WebApp {
             public boolean shouldQuitWhenLastWindowCloses() {
                 return true;
             }
-        }, new WindowSpec(title, width, height, webRoot.resolve(fileName), webRoot));
+        }, new WindowSpec(title, width, height, page));
     }
 }

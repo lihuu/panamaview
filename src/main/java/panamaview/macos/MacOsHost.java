@@ -1,5 +1,6 @@
 package panamaview.macos;
 
+import panamaview.PageSource;
 import panamaview.UiHost;
 import panamaview.WindowSpec;
 
@@ -55,7 +56,10 @@ public final class MacOsHost implements UiHost {
             Cocoa.show(window);
             Cocoa.activate(application);
 
-            webView.loadFile(scope, spec.entry(), spec.webRoot());
+            switch (spec.page()) {
+                case PageSource.FromFile file -> webView.loadFile(scope, file.entry(), file.readAccessRoot());
+                case PageSource.FromUrl url -> webView.loadUrl(scope, url.url());
+            }
         }
 
         // Blocks until the application terminates; everything after this is a callback.
@@ -149,6 +153,16 @@ public final class MacOsHost implements UiHost {
             result.put("followed", frame[2] == requestedWidth && frame[3] == requestedHeight);
             result.put("onUiThread", isUiThread());
             return result;
+        }
+    }
+
+    /** Re-fetches the current page; on a file URL this re-reads from disk. */
+    public void reload() {
+        if (webView == null) {
+            return;
+        }
+        try (ObjC.Scope scope = ObjC.scope()) {
+            webView.reload();
         }
     }
 
