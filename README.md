@@ -98,8 +98,9 @@ A few things neither template hides from you, each explained in its own README:
 - **Your assets are served over a private URL scheme, not `file://`.** That is not a detail: an
   opaque `file://` origin refuses ES modules, `fetch` and Workers, which is to say a bundled
   frontend cannot run under it. `panamaview://app/…` gives the page a real origin, so a plain
-  Vite / webpack config works unmodified. See [One page, two
-  sources](NOTES.md#14-one-page-two-sources).
+  Vite / webpack config works unmodified. [Where your page runs](docs/page-environment.md)
+  explains what the web view is, what it is not, and why every problem in this area came from
+  serving rather than from the engine.
 
 Each template pins a panamaview version. `scripts/verify-templates.sh` builds them the way a user
 receives them — framework installed, template copied somewhere unrelated, taken all the way to a

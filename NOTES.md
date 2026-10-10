@@ -615,6 +615,12 @@ need appeared.
 
 ### What actually breaks, and why inlining was the wrong fix
 
+> The short version is now its own document — [Where your page
+> runs](docs/page-environment.md) — because it answers a question that comes up every time somebody
+> touches this area: is a system web view a cut-down browser, and why does serving from disk break
+> a bundled frontend. The detail stays here.
+
+
 Both of the following were found by building a real Vite app and loading it, not by reading
 documentation. The first was originally reported here as "ES modules do not load over `file://`;
 inlining them removes the fetch" — which was true, and was the wrong conclusion to draw from it.
