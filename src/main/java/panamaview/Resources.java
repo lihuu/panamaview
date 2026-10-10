@@ -15,10 +15,10 @@ import java.util.List;
 /**
  * Stages the assets a web view needs onto disk before the window opens.
  *
- * <p>WebKit's {@code loadFileURL:allowingReadAccessToURL:} needs real files, and a classpath
- * is not a filesystem — in a GraalVM native executable there is no {@code target/classes}
- * directory at all. Extracting to a temp directory is the one approach that behaves
- * identically in both modes, and it costs a few milliseconds.
+ * <p>The page is served by the platform out of a real directory, and a classpath is not a
+ * filesystem — in a GraalVM native executable there is no {@code target/classes} directory at
+ * all. Staging to a temp directory is the one approach that behaves identically in both modes,
+ * and it costs a few milliseconds.
  *
  * <h2>Directory listing is the awkward part</h2>
  * You cannot enumerate a classpath directory portably, and not at all in a native image. So
