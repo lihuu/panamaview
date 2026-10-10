@@ -25,6 +25,14 @@ build-native.sh                            → target/myapp
 **generated**. None are checked in, because all three are derived and a committed copy of a
 derived file goes stale without saying so.
 
+## Before it will build
+
+`io.github.lihuu:panamaview` has to be resolvable first — from Maven Central once it is published
+there, from a private repository the machine is configured for, or from a framework checkout with
+`mvn install -DskipTests`. Until one of those is true the build stops at
+`could not resolve io.github.lihuu:panamaview`, which names the artifact but not the fix. [Getting
+the framework](https://github.com/lihuu/panamaview#getting-the-framework).
+
 ## Run it
 
 ```sh
