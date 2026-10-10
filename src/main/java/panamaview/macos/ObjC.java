@@ -261,6 +261,7 @@ final class ObjC {
     private static final FunctionDescriptor ID_OBJ_LONG_OBJ_OBJ =
             FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS);
     private static final FunctionDescriptor LONG0 = FunctionDescriptor.of(JAVA_LONG, ADDRESS, ADDRESS);
+    private static final FunctionDescriptor ID_OBJ_LONG = FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, ADDRESS, JAVA_LONG);
     private static final FunctionDescriptor VOID_BOOL = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_BYTE);
     private static final FunctionDescriptor VOID_LONG = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_LONG);
     private static final FunctionDescriptor VOID_RECT = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, NSRECT);
@@ -395,6 +396,19 @@ final class ObjC {
     public static MemorySegment send(MemorySegment receiver, MemorySegment sel,
                                      MemorySegment a, long b, MemorySegment c, MemorySegment d) {
         return (MemorySegment) call(ID_OBJ_LONG_OBJ_OBJ, receiver, sel, a, b, c, d);
+    }
+
+    /**
+     * An object followed by an {@code NSInteger} — {@code dataWithBytes:length:} and the many
+     * other Cocoa calls shaped that way.
+     *
+     * <p>Distinct from {@link #sendLongObject}, which is the same two arguments the other way
+     * round. Objective-C selectors read as sentences, so the order is part of the signature and
+     * getting it backwards is not a type error the compiler can catch.
+     */
+    public static MemorySegment sendObjectLong(MemorySegment receiver, MemorySegment sel,
+                                               MemorySegment object, long value) {
+        return (MemorySegment) call(ID_OBJ_LONG, receiver, sel, object, value);
     }
 
     /** {@code representationUsingType:properties:} — an NSUInteger plus an object. */

@@ -2,6 +2,7 @@ package panamaview.macos;
 
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.MemorySegment;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
@@ -19,7 +20,7 @@ import static java.lang.foreign.ValueLayout.ADDRESS;
  * methods are Java static methods — so this is also the answer to "can a protocol carrying
  * {@code NSData} be implemented from Java without a shim?" It can.
  *
- * <h2>Three details that are easy to get wrong</h2>
+ * <h2>Details that are easy to get wrong</h2>
  * <ul>
  *   <li><b>The response must be an {@code NSHTTPURLResponse}.</b> A plain {@code NSURLResponse}
  *       carries no status code and no headers, and WebKit has nothing to act on — the failure
@@ -27,14 +28,12 @@ import static java.lang.foreign.ValueLayout.ADDRESS;
  *   <li><b>{@code Content-Type} must be right.</b> A {@code .js} served as
  *       {@code application/octet-stream} is refused by the module loader, which is a nasty thing
  *       to debug because the request itself succeeded.</li>
- *   <li><b>Errors should be real status codes, not task failures.</b> A missing file answers 404
- *       with the path in the URL; failing the task instead replaces that with a WebKit error that
- *       names neither the path nor the reason. Same for a request that tries to leave the asset
- *       root: 403, so the attempt is visible rather than silent.</li>
+ *   <li><b>Errors carry a body.</b> A bare 404 renders as a blank window and tells whoever is
+ *       looking at it nothing whatsoever; naming the path in the body costs one line.</li>
  * </ul>
  *
- * <p>The body is read straight from disk by {@code NSData}, so file bytes never pass through Java.
- * Java decides <em>which</em> file may be served; the platform reads it.
+ * <p>File bytes never pass through Java: {@code NSData} reads the file itself. Java decides
+ * <em>which</em> file may be served; the platform reads it.
  */
 final class AssetSchemeHandler {
 
@@ -81,7 +80,7 @@ final class AssetSchemeHandler {
             // honest answer for "something went wrong while looking for this file".
             System.err.println("[panamaview] asset request failed: " + t);
             try {
-                respond(task, 500, "text/plain", null);
+                respondText(task, 500, "text/plain", "panamaview: asset lookup failed: " + t);
             } catch (Throwable ignored) {
                 // nothing further to do
             }
@@ -107,14 +106,48 @@ final class AssetSchemeHandler {
         // This is the one place that decision is made.
         if (file == null) {
             System.err.println("[panamaview] refused asset path: " + path);
-            respond(task, 403, "text/plain", null);
+            respondText(task, 403, "text/plain", "panamaview: forbidden: " + path);
             return;
         }
+
         if (!Files.isRegularFile(file)) {
-            respond(task, 404, "text/plain", null);
+            Path fallback = spaFallbackFor(path);
+            if (fallback != null) {
+                respondFile(task, 200, contentType(fallback), fallback);
+                return;
+            }
+            respondText(task, 404, "text/plain", "panamaview: no such asset: " + path);
             return;
         }
-        respond(task, 200, contentType(file), file);
+
+        respondFile(task, 200, contentType(file), file);
+    }
+
+    /**
+     * The entry document, when a path should be handed to a client-side router.
+     *
+     * <p>A history-mode router owns URLs like {@code /settings}, and a reload or a deep link asks
+     * for something that was never built. Every bundler's dev server answers those with the entry
+     * document and lets the router sort it out.
+     *
+     * <p>Restricted to paths with <b>no file extension in the last segment</b>, which is the whole
+     * design rather than a detail: {@code /settings} and {@code /chat/42} are routes, while
+     * {@code /assets/app-9f2.js} is an asset that is missing. Answering the latter with a page of
+     * HTML would turn a clear 404 into a parse error somewhere else entirely, which is worse than
+     * having no fallback at all.
+     *
+     * @return the entry file to serve instead, or null to let the 404 stand
+     */
+    private static Path spaFallbackFor(String path) {
+        if (!scheme.spaFallback()) {
+            return null;
+        }
+        String lastSegment = path.substring(path.lastIndexOf('/') + 1);
+        if (lastSegment.contains(".")) {
+            return null;
+        }
+        Path entry = resolve(scheme.entry());
+        return entry != null && Files.isRegularFile(entry) ? entry : null;
     }
 
     private static String requestedPath(MemorySegment task) {
@@ -144,34 +177,46 @@ final class AssetSchemeHandler {
         return resolved;
     }
 
-    /**
-     * @param file the file to serve, or null for an empty body — which is all a status code with
-     *             no content needs, and keeps error responses free of byte handling
-     */
-    private static void respond(MemorySegment task, int status, String mimeType, Path file) {
+    // ------------------------------------------------------------------ responses
+
+    private static void respondFile(MemorySegment task, int status, String mimeType, Path file) {
         try (ObjC.Scope scope = ObjC.scope()) {
-            MemorySegment request = ObjC.send(task, ObjC.selector("request"));
-            MemorySegment url = ObjC.send(request, ObjC.selector("URL"));
-
-            MemorySegment headers = ObjC.send(ObjC.classNamed("NSDictionary"),
-                    ObjC.selector("dictionaryWithObject:forKey:"),
-                    ObjC.nsString(scope, mimeType),
-                    ObjC.nsString(scope, "Content-Type"));
-
-            MemorySegment response = ObjC.send(
-                    ObjC.send(ObjC.classNamed("NSHTTPURLResponse"), ObjC.selector("alloc")),
-                    ObjC.selector("initWithURL:statusCode:HTTPVersion:headerFields:"),
-                    url, status, ObjC.nsString(scope, "HTTP/1.1"), headers);
-
-            MemorySegment data = file == null
-                    ? ObjC.send(ObjC.classNamed("NSData"), ObjC.selector("data"))
-                    : ObjC.send(ObjC.classNamed("NSData"), ObjC.selector("dataWithContentsOfFile:"),
-                            ObjC.nsString(scope, file.toString()));
-
-            ObjC.sendVoid(task, ObjC.selector("didReceiveResponse:"), response);
-            ObjC.sendVoid(task, ObjC.selector("didReceiveData:"), data);
-            ObjC.sendVoid(task, ObjC.selector("didFinish"));
+            finish(scope, task, status, mimeType,
+                    ObjC.send(ObjC.classNamed("NSData"), ObjC.selector("dataWithContentsOfFile:"),
+                            ObjC.nsString(scope, file.toString())));
         }
+    }
+
+    private static void respondText(MemorySegment task, int status, String mimeType, String body) {
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        try (ObjC.Scope scope = ObjC.scope()) {
+            MemorySegment buffer = scope.arena()
+                    .allocateFrom(java.lang.foreign.ValueLayout.JAVA_BYTE, bytes);
+            finish(scope, task, status, mimeType,
+                    ObjC.sendObjectLong(ObjC.classNamed("NSData"),
+                            ObjC.selector("dataWithBytes:length:"), buffer, bytes.length));
+        }
+    }
+
+    /** The response envelope both cases share, so status and headers are assembled once. */
+    private static void finish(ObjC.Scope scope, MemorySegment task, int status,
+                               String mimeType, MemorySegment data) {
+        MemorySegment request = ObjC.send(task, ObjC.selector("request"));
+        MemorySegment url = ObjC.send(request, ObjC.selector("URL"));
+
+        MemorySegment headers = ObjC.send(ObjC.classNamed("NSDictionary"),
+                ObjC.selector("dictionaryWithObject:forKey:"),
+                ObjC.nsString(scope, mimeType),
+                ObjC.nsString(scope, "Content-Type"));
+
+        MemorySegment response = ObjC.send(
+                ObjC.send(ObjC.classNamed("NSHTTPURLResponse"), ObjC.selector("alloc")),
+                ObjC.selector("initWithURL:statusCode:HTTPVersion:headerFields:"),
+                url, status, ObjC.nsString(scope, "HTTP/1.1"), headers);
+
+        ObjC.sendVoid(task, ObjC.selector("didReceiveResponse:"), response);
+        ObjC.sendVoid(task, ObjC.selector("didReceiveData:"), data);
+        ObjC.sendVoid(task, ObjC.selector("didFinish"));
     }
 
     /**

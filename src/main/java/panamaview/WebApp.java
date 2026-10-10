@@ -54,6 +54,7 @@ public final class WebApp {
     private boolean verbose = true;
     private URI devUrl;
     private boolean liveReload = true;
+    private boolean spaFallback = true;
     private Path stagedRoot;
 
     public WebApp(UiHost host) {
@@ -162,6 +163,23 @@ public final class WebApp {
         return this;
     }
 
+    /**
+     * Whether client-side routes fall back to the entry document. On by default.
+     *
+     * <p>A router in history mode puts real paths in the URL, so a reload or a deep link asks for
+     * a file that was never built. Falling back to the entry document is what lets the router
+     * handle it — the same thing every bundler's dev server does. Turn it off for an app whose
+     * paths are always files.
+     *
+     * <p>Paths that look like assets (they have a file extension) are never rewritten, so a
+     * misspelled asset is still an honest 404 rather than a page of HTML delivered under a
+     * {@code .js} URL. See {@link PageSource.FromAssets}.
+     */
+    public WebApp spaFallback(boolean enabled) {
+        this.spaFallback = enabled;
+        return this;
+    }
+
     /** Called once the page has loaded — the first safe moment to call into JavaScript. */
     public WebApp onReady(Consumer<WebApp> callback) {
         this.onReady = callback;
@@ -244,7 +262,7 @@ public final class WebApp {
             Optional<Path> source = Resources.directory(directory);
             source.ifPresent(this::watchForChanges);
         }
-        return new PageSource.FromAssets(SCHEME, stagedRoot, fileName);
+        return new PageSource.FromAssets(SCHEME, stagedRoot, fileName, spaFallback);
     }
 
     /**

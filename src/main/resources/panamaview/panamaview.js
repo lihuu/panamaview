@@ -4,7 +4,11 @@
  * The framework stages this file into your web root at startup, so it always matches the
  * version of panamaview on your classpath. Reference it, don't copy it:
  *
- *     <script src="panamaview.js"></script>
+ *     <script src="/panamaview.js"></script>
+ *
+ * The leading slash is not decoration: a relative path resolves against the page's directory, so
+ * it breaks as soon as a client-side route adds a segment (from /chat/42 it would look for
+ * /chat/panamaview.js). Use the absolute form.
  *
  * Wire protocol — JSON text in both directions:
  *

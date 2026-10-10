@@ -61,12 +61,13 @@ path and leaves the window on a blank document, so it is off by default.
 
 ## Starting a project
 
-Two templates, both working apps to copy:
+Three templates, all working apps to copy:
 
-| | frontend | needs Node | editing experience |
-| --- | --- | --- | --- |
-| `templates/vanilla/` | plain HTML, CSS, JS | no | edits reload the window |
-| `templates/react/` | React, built by Vite | yes | hot module replacement |
+| | frontend | needs Node | routing | editing experience |
+| --- | --- | --- | --- | --- |
+| `templates/vanilla/` | plain HTML, CSS, JS | no | — | edits reload the window |
+| `templates/react/` | React, built by Vite | yes | — | hot module replacement |
+| `templates/vue/` | Vue + vue-router, built by Vite | yes | history mode | hot module replacement |
 
 ```sh
 mvn install                        # this repository, until panamaview is on Maven Central
@@ -88,6 +89,12 @@ A few things neither template hides from you, each explained in its own README:
 - **Your own web assets are not inherited from a dependency.** They need a line in
   `manifest.txt` and a matching `-H:IncludeResources` in the native build. The framework's
   metadata, including the bridge, *is* inherited — nothing in the templates mentions it.
+- **A relative path to the bridge breaks on any route with a segment.** Use
+  `<script src="/panamaview.js">`. A relative `panamaview.js` resolves against the page's own
+  directory, so it works from `/index.html` and fails from `/chat/42`, with no error worth reading.
+- **Client-side routes in history mode need the entry-document fallback**, on by default
+  (`WebApp.spaFallback`). It applies only to extension-less paths, so a missing asset is still an
+  honest 404 rather than a page of HTML under a `.js` URL.
 - **Your assets are served over a private URL scheme, not `file://`.** That is not a detail: an
   opaque `file://` origin refuses ES modules, `fetch` and Workers, which is to say a bundled
   frontend cannot run under it. `panamaview://app/…` gives the page a real origin, so a plain
@@ -168,6 +175,7 @@ src/main/resources/
 
 templates/vanilla/     a working app to start from — plain HTML, no Node
 templates/react/       the same, with a React frontend built by Vite
+templates/vue/         the same, with a Vue frontend and a history-mode router
 scripts/verify-templates.sh  builds each template the way a user receives it
   META-INF/native-image/…/reachability-metadata.json
 ```

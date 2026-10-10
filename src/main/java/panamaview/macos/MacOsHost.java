@@ -89,7 +89,9 @@ public final class MacOsHost implements UiHost {
 
     /** The scheme to serve for a page held on disk; null for a page a dev server already serves. */
     private static AssetScheme assets(PageSource page) {
-        return page instanceof PageSource.FromAssets a ? new AssetScheme(a.scheme(), a.root()) : null;
+        return page instanceof PageSource.FromAssets a
+                ? new AssetScheme(a.scheme(), a.root(), a.entry(), a.spaFallback())
+                : null;
     }
 
     // ------------------------------------------------------- callbacks for ObjCDispatch

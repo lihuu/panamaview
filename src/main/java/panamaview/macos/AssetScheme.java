@@ -23,9 +23,13 @@ import java.nio.file.Path;
  * {@code panamaview://app} — and every one of those capabilities starts working. This is what
  * Tauri and Electron do; neither uses {@code file://} for the app's own content.
  *
- * @param name  the scheme, without {@code ://}. Lowercase letters, digits, {@code +}, {@code -}
- *              and {@code .} only, as URL schemes require.
- * @param root  the directory to serve. Requests are resolved inside it and nowhere else.
+ * @param name        the scheme, without {@code ://}. Lowercase letters, digits, {@code +},
+ *                    {@code -} and {@code .} only, as URL schemes require.
+ * @param root        the directory to serve. Requests are resolved inside it and nowhere else.
+ * @param entry       document to serve for client-side routes, relative to {@code root}
+ * @param spaFallback when a path with no file extension matches nothing, serve {@code entry}
+ *                    instead of a 404. See {@link panamaview.PageSource.FromAssets} for why the
+ *                    extension check is the point rather than a detail.
  */
-record AssetScheme(String name, Path root) {
+record AssetScheme(String name, Path root, String entry, boolean spaFallback) {
 }

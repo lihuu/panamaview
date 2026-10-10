@@ -666,6 +666,40 @@ server prints `http://localhost:5173/` and listens on the IPv6 loopback only, so
 `http://127.0.0.1:5173/` connects to nothing and produces a window that waits forever. The
 templates use the hostname, and say why.
 
+### Client-side routes, and a latent bug the router exposed
+
+Adding a Vue template turned up two things about serving files that no hand-written page would
+ever have hit.
+
+**A history-mode route asks for a file that was never built.** `/about` exists only in the router,
+so a reload or a deep link is a request for a missing file, and the honest 404 is the wrong answer.
+Every bundler's dev server serves the entry document instead and lets the router sort it out;
+`AssetSchemeHandler` now does the same, controlled by `WebApp.spaFallback` (on by default).
+
+The interesting part is the restriction: **the fallback applies only to paths whose last segment
+has no file extension.** `/about` and `/chat/42` are routes; `/assets/app-9f2.js` is an asset that
+is missing. Answering the second with a page of HTML would turn a clear 404 into an
+`Unexpected token '<'` in the module loader, which is a worse bug than the one being fixed — a
+fallback that swallows asset typos is worse than no fallback.
+
+**The bridge was referenced relatively, and that only works one level deep.** The framework's own
+demo and the vanilla template both used `<script src="panamaview.js">`. From `/index.html` that
+resolves to `/panamaview.js` and everything is fine. From `/chat/42` it resolves to
+`/chat/panamaview.js`, which does not exist — so the page loads, renders nothing, has no bridge,
+and reports no error anybody would look at.
+
+Measured, on the same page and the same handler:
+
+| bridge reference | `/settings` | `/chat/42` | `/nope/with/segments` |
+| --- | --- | --- | --- |
+| `panamaview.js` | works | **no bridge** | **no bridge** |
+| `/panamaview.js` | works | works | works |
+
+`/settings` working is what made this worth chasing: a single-segment route is exactly the case
+that hides the bug, so any test using `/settings` passes while `/chat/42` is broken. Both the demo
+and the vanilla template now use the absolute form, and the reason is written down at each site —
+this is a thing that will be "simplified" back by someone who has only tested the root path.
+
 ### Live reload for people who do not want Node
 
 A dev server is the right answer when there is a frontend toolchain. When there is not — plain

@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         # Each template is verified in its own job, so one failing does not hide the other.
-        template: [vanilla, react]
+        template: [vanilla, react, vue]
     steps:
       - uses: actions/checkout@v4
 
@@ -39,11 +39,11 @@ jobs:
       # node_modules for the react template, keyed on the lockfile. Skipped for vanilla, which
       # has no frontend toolchain at all — that is the point of having both templates.
       - name: Restore frontend dependencies
-        if: matrix.template == 'react'
+        if: matrix.template != 'vanilla'
         uses: actions/cache@v4
         with:
-          path: templates/react/frontend/node_modules
-          key: node-${{ runner.os }}-${{ hashFiles('templates/react/frontend/package-lock.json') }}
+          path: templates/${{ matrix.template }}/frontend/node_modules
+          key: node-${{ runner.os }}-${{ matrix.template }}-${{ hashFiles(format('templates/{0}/frontend/package-lock.json', matrix.template)) }}
 
       # One script, run exactly as the README describes it: install the framework, copy the
       # template somewhere unrelated to this checkout, then take it to a native executable using

@@ -27,11 +27,26 @@ public sealed interface PageSource {
      * <p>The scheme name is chosen here rather than by the platform so that the URL a page is
      * given is decided in one place; the platform is responsible for actually serving it.
      *
-     * @param scheme the URL scheme to serve these assets under
-     * @param root   the directory to serve. Requests are resolved inside it and nowhere else.
-     * @param entry  file to load, relative to {@code root}
+     * <h2>Client-side routing</h2>
+     * A router in history mode puts real paths in the URL — {@code /settings}, {@code /chat/42} —
+     * and a reload or a deep link asks the platform for a file that was never built. Every
+     * bundler's dev server answers that with the app's own entry document and lets the router
+     * sort it out, and {@code spaFallback} is the same behaviour.
+     *
+     * <p>It applies <b>only to paths without a file extension</b>. That distinction is the whole
+     * design: {@code /settings} is a route and falls back, while {@code /assets/app-9f2.js} is an
+     * asset that is missing, and answering <em>that</em> with HTML turns a clear 404 into a
+     * confusing "Unexpected token '<'" somewhere further away. A fallback that swallows asset
+     * typos is worse than no fallback at all.
+     *
+     * @param scheme      the URL scheme to serve these assets under
+     * @param root        the directory to serve. Requests are resolved inside it and nowhere else.
+     * @param entry       file to load, relative to {@code root}
+     * @param spaFallback when a path matches nothing, serve {@code entry} instead of a 404. See
+     *                    {@link #FromAssets} body for what that does and does not cover.
      */
-    record FromAssets(String scheme, Path root, String entry) implements PageSource {
+    record FromAssets(String scheme, Path root, String entry, boolean spaFallback)
+            implements PageSource {
 
         /** The host part of the URL. Fixed: one app serves one asset root. */
         public static final String HOST = "app";

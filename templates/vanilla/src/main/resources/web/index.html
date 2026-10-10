@@ -27,7 +27,12 @@
   panamaview.js is the client half of the bridge. The framework stages it into this
   directory at startup, so it always matches the panamaview on your classpath.
   Reference it; do not copy it into the project — a copy goes stale silently.
+
+  The leading slash matters. A relative "panamaview.js" resolves against the page's own
+  directory, so it works from /index.html and breaks the moment a client-side route adds a
+  path segment — from /chat/42 it would look for /chat/panamaview.js, fail, and leave a page
+  with no bridge and no error worth reading.
 -->
-<script src="panamaview.js"></script>
+<script src="/panamaview.js"></script>
 <script src="app.js"></script>
 </html>

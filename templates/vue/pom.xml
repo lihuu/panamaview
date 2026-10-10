@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.example</groupId>
+  <artifactId>myapp</artifactId>
+  <version>0.1.0</version>
+  <packaging>jar</packaging>
+
+  <name>myapp</name>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>25</maven.compiler.release>
+    <main.class>com.example.Main</main.class>
+    <panamaview.version>0.1.0</panamaview.version>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>io.github.lihuu</groupId>
+      <artifactId>panamaview</artifactId>
+      <version>${panamaview.version}</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+      </plugin>
+
+      <!--
+        Two JVM flags, both compulsory, neither optional.
+
+        The first keeps AppKit happy: it requires the event loop to own the process' first
+        thread, and the java launcher hands main() a freshly created one. Without it the window
+        misbehaves in ways that never name the cause. A GraalVM native executable does not need
+        it, because its main thread already is the first thread.
+
+        The second grants native access, since the calls into Cocoa and WebKit are native.
+
+        Run the frontend build before this one: scripts/build-frontend.sh writes
+        src/main/resources/web/, which is where the page comes from.
+
+        (No double dashes anywhere in these comments: XML forbids them, and Maven fails the whole
+        build with a parse error rather than ignoring it.)
+      -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.5.0</version>
+        <configuration>
+          <executable>${java.home}/bin/java</executable>
+          <arguments>
+            <argument>-XstartOnFirstThread</argument>
+            <argument>--enable-native-access=ALL-UNNAMED</argument>
+            <argument>-cp</argument>
+            <classpath/>
+            <argument>${main.class}</argument>
+          </arguments>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>
