@@ -58,7 +58,9 @@ jobs:
               if found != expected:
                   problems.append(f"{rel} is {found}, tag says {expected}")
 
-          for pom in sorted(pathlib.Path("templates").glob("*/pom.xml")):
+          # demo-app pins the framework too; leaving it out lets a tag agree with everything
+          # except one consumer, which is a release that fails to build downstream.
+          for pom in [pathlib.Path("demo-app/pom.xml")] + sorted(pathlib.Path("templates").glob("*/pom.xml")):
               m = re.search(r"<panamaview\.version>([^<]+)</panamaview\.version>", pom.read_text())
               if not m:
                   problems.append(f"{pom} does not pin <panamaview.version>")

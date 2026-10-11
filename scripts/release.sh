@@ -190,7 +190,10 @@ for rel in ("pom.xml", "scaffold/pom.xml"):
                  f"this script's rule for finding it needs revisiting")
     rewrite(path, r"<version>[^<]+</version>", f"<version>{next_}</version>", "project version")
 
-for pom in sorted(root.glob("templates/*/pom.xml")):
+# The demo app is a consumer like the templates and pins the framework the same way. It was
+# missed when it was split out of the framework, and the miss showed up as a release that bumped
+# everything except the demo, which then failed to resolve on CI three jobs downstream.
+for pom in [root / "demo-app/pom.xml"] + sorted(root.glob("templates/*/pom.xml")):
     rewrite(pom, r"<panamaview\.version>[^<]+</panamaview\.version>",
             f"<panamaview.version>{next_}</panamaview.version>", "framework pin")
 PY

@@ -452,17 +452,18 @@ both were unpacked and taken end to end, on real Mach-O arm64 and real ELF x86-6
 what was wrong: a download page says *this is a tool, take it*, and no application outside this
 repository has been built on panamaview yet. When one has been, the archives come back.
 
-### The version lives in eight places, and only seven of them move
+### The version lives in eleven places, and only eight of them move
 
 | | field | moves with a release? |
 | --- | --- | --- |
 | `pom.xml` | `<version>` | yes — the framework |
 | `scaffold/pom.xml` | `<version>` | yes — the scaffolder |
+| `demo-app/pom.xml` | `<panamaview.version>` | yes — the demo depends on the framework |
 | `templates/*/pom.xml` (×5) | `<panamaview.version>` | yes — what a generated project depends on |
-| `templates/*/pom.xml` | `<version>` | **no** — that is the version of the app the template describes |
+| `demo-app/pom.xml`, `templates/*/pom.xml` | `<version>` | **no** — that is the version of the app each one describes |
 | `templates/*/frontend/package.json` | `version` | **no** — same thing, for the frontend package |
 
-The seven that move are one value, because the templates are staged from this working tree: a
+The eight that move are one value, because the consumers are staged from this working tree: a
 template pinning anything other than the framework's version generates projects that cannot
 resolve. `verify-templates.sh` fails on exactly that, which is how the invariant is enforced rather
 than remembered — and it is why the release script runs verification *before* it bumps anything.
