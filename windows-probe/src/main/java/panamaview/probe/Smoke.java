@@ -86,6 +86,16 @@ public final class Smoke {
             attempt[0] = () -> {
                 try {
                     Native.executeScript(webview[0], "2+2", scriptDone);
+                } catch (IllegalStateException rejected) {
+                    // ExecuteScript fails synchronously when the document is not ready; the
+                    // async path (scriptDone) would only see the failures that get queued.
+                    attempts[0]++;
+                    if (attempts[0] >= 8) {
+                        failAndQuit("ExecuteScript kept failing: " + rejected.getMessage());
+                        return;
+                    }
+                    stage("script", "attempt " + attempts[0] + " rejected - page not ready, retrying");
+                    Native.after(4000, hwnd, attempt[0]);
                 } catch (Throwable t) {
                     failAndQuit(t);
                 }
