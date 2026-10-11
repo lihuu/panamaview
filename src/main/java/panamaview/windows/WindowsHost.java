@@ -167,6 +167,8 @@ public final class WindowsHost implements UiHost {
                 return Win32.defWindowProc(hwndArg, message, wparam, lparam);
             }
         }
+        // The cases above handle-or-defer; for them a zero answer is correct.
+        return 0;
     }
 
     private void resizeWebView() {
