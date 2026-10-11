@@ -760,13 +760,19 @@ Three more faults came out of the same pass, each cheap to fix and expensive to 
 
 ## 15. Generating a project from a template
 
-`scaffold/` is a separate Maven project that depends on nothing — not even on panamaview. It reads
-the templates out of its own resources, renames three things, and writes files. Its native build
-therefore needs no reachability metadata and no JVM flags, and comes out at 13 MB rather than the
+This was `scaffold/`: a separate Maven project that depended on nothing — not even on panamaview.
+It read the templates out of its own resources, renamed three things, and wrote files. Its native
+build therefore needed no reachability metadata and no JVM flags, and came out at 13 MB rather than the
 framework's 19 MB.
 
-That simplicity is the reason to keep it separate: the moment the scaffolder wants a type from the
+That simplicity was the reason to keep it separate: the moment the scaffolder wants a type from the
 framework, its native build inherits the framework's problems.
+
+It is `npm/cli.js` now. The job turned out to be "copy a directory tree and rename three strings", and
+13 MB of per-platform binary is a strange way to do that when Node is already installed on every
+machine that can run `npm` at all. What follows is kept because of which of the four failures it is
+about: the two that were about Maven and jars are gone with them, and the two that are about the job
+itself are not.
 
 ### Four things that had to be got right, and each was a real failure
 
@@ -779,10 +785,14 @@ a template generates something new. `git ls-files --cached --others --exclude-st
 set `git status` would offer to commit, so it is right by construction.
 
 **A jar carries no file modes.** `run.sh` would come back out `0644` and `./run.sh` would fail with
-"permission denied" — in a project that otherwise looks complete. The staging step records the
+"permission denied" — in a project that otherwise looks complete. The staging step recorded the
 executable bit in the manifest as a `*` suffix, the same convention tar and `ls -F` use. (Git's
 index would be the natural source, but it prints no mode for an untracked file, and the manifest is
 built before anything is committed.)
+
+Gone with the jar: npm carries the mode through the tarball. That was measured rather than assumed —
+a tarball was packed with an executable in it and the modes read back — because the JS version's whole
+reasoning about modes is "the file's own bit is the truth, so there is nothing to restore".
 
 **`addDefaultExcludes` defaults to true, and it has to be turned off twice.** Maven's default
 excludes include `.gitignore` — along with `.gitattributes` and `.gitmodules` — and the resources
@@ -791,10 +801,24 @@ way into the jar. Avoiding the same trap in the staging script is not enough; th
 a second time. The symptom is a generated project with no `.gitignore`, which commits `target/` and
 `node_modules/`, and nothing in the build says so.
 
+**And the same failure came back under a different packer, which is the point worth keeping.** npm
+never packs a file named `.gitignore`, in any directory: it is in npm-packlist's list of names that
+are always ignored, and `files` cannot override it — measured, a tarball whose `files` names the path
+outright still comes back without it. Every other dotfile travels, so it is that one name and not
+"dotfiles". The package stages each template's as `.gitignore.packed` and the scaffolder writes it out
+under the template's own name, and `build-package.sh` refuses to stage one under the name that would
+be dropped. The earlier lesson read as a Maven quirk to be worked around once; it was a property of "a
+packer decides which files travel", and every packer has its own version of it.
+
 **A resource lookup without a leading slash resolves against the caller's package.**
 `Catalog.class.getResourceAsStream("templates-manifest.txt")` looked for
 `panamaview/scaffold/templates-manifest.txt` and found nothing. The manifest had been in the jar the
 whole time.
+
+Gone with the jar as well, and for the reason the port exists: the templates are directories in the
+package, so "where is the template" is `fs.readdirSync` and "it is not there" is an ENOENT naming the
+path it looked in. The manifest was a substitute for a directory tree, and it needed a check of its own
+to notice when it was wrong.
 
 ### Renaming is one pass, not three replaces
 
@@ -936,9 +960,9 @@ cd ..
 ./scripts/verify-templates.sh                  # every template, all the way to a native binary
 ./scripts/verify-templates.sh react            # or just one
 
-./scaffold/build-native.sh                     # → scaffold/target/panamaview
-./scaffold/target/panamaview --selftest        # every resource the manifest promises is readable
-./scaffold/target/panamaview templates
+./npm/scripts/build-package.sh                # → npm/templates/ and npm/lib/, the package as packed
+node npm/cli.js --selftest                     # every file the package ships is opened and read
+node npm/cli.js templates
 
 ./scripts/verify-scaffold.sh                   # generate from every template, then build each one
 ./scripts/verify-scaffold.sh vue               # or just one

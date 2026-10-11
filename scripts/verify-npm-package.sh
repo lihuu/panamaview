@@ -43,10 +43,10 @@ PY
 
 # ---------------------------------------------------------------- what gets packed
 #
-# The pack runs package.json's prepack hook, which is what stages bin/ and lib/ — so this is also
-# the test of that hook. A publish whose hook had been dropped would produce a tarball with neither,
-# and the assertions below are what notice.
-say "packing (prepack builds and stages bin/ and lib/)"
+# The pack runs package.json's prepack hook, which is what builds the framework and stages
+# templates/ and lib/ — so this is also the test of that hook. A publish whose hook had been dropped
+# would produce a tarball with neither, and the assertions below are what notice.
+say "packing (prepack builds the framework and stages templates/ and lib/)"
 mkdir -p "$WORK/first"
 (cd "$NPM_DIR" && npm pack --pack-destination "$WORK/first" > "$WORK/pack.out" 2>&1) \
     || { cat "$WORK/pack.out" >&2; fail "npm pack failed"; }
@@ -59,24 +59,40 @@ sed 's/^/  /' "$WORK/list-first.txt"
 # An exact list, not a set of inclusions: `files` in package.json is an allowlist, and a stray file
 # that is not in it is a stray file that would be published. Adding one to the package means adding
 # it here, which is the moment to ask whether it belongs.
+#
+# The package's own files are written out one by one. The templates are read back out of git
+# instead, because there are 78 of them and because git is the rule build-package.sh stages by --
+# so this is a check on what was staged as well as on what was packed, and a build artefact that
+# found its way into npm/templates would be in the tarball and not in this list.
+#
+# The one rename: npm never packs a file named .gitignore, in any directory, so each template's is
+# staged as .gitignore.packed and the scaffolder writes it out under the template's own name. The
+# assertion after the first generate is what holds those two names to the same file.
 cat > "$WORK/expected.txt" <<EXPECTED
 package/README.md
-package/bin/panamaview
 package/cli.js
+package/package.json
+package/src/scaffold.js
 package/lib/io/github/lihuu/panamaview-parent/$VERSION/panamaview-parent-$VERSION.pom
 package/lib/io/github/lihuu/panamaview-parent/$VERSION/panamaview-parent-$VERSION.pom.sha1
 package/lib/io/github/lihuu/panamaview/$VERSION/panamaview-$VERSION.jar
 package/lib/io/github/lihuu/panamaview/$VERSION/panamaview-$VERSION.jar.sha1
 package/lib/io/github/lihuu/panamaview/$VERSION/panamaview-$VERSION.pom
 package/lib/io/github/lihuu/panamaview/$VERSION/panamaview-$VERSION.pom.sha1
-package/package.json
 EXPECTED
+git -C "$ROOT" ls-files --cached --others --exclude-standard -- templates \
+    | while IFS= read -r file; do
+        case "$file" in
+            *.gitignore) file="${file%.gitignore}.gitignore.packed" ;;
+        esac
+        printf 'package/%s\n' "$file"
+      done >> "$WORK/expected.txt"
 sort -o "$WORK/expected.txt" "$WORK/expected.txt"
 if ! diff -u "$WORK/expected.txt" "$WORK/list-first.txt" > "$WORK/list.diff"; then
     sed 's/^/  /' "$WORK/list.diff" >&2
     fail "the tarball is not what package.json's files list describes"
 fi
-echo "  exactly the ten files package.json lists"
+echo "  $(wc -l < "$WORK/expected.txt" | tr -d ' ') files, exactly the ones package.json lists"
 
 say "a second pack is the same file list"
 # --ignore-scripts because the file list cannot depend on the hook having run again, and the point
@@ -104,8 +120,9 @@ say "the installed cli answers for itself"
 "$BIN" --version | grep -qx "panamaview $VERSION" \
     || fail "--version disagrees with package.json"
 "$BIN" --help > "$WORK/help.txt"
-# The options in the js help are a copy of the scaffolder's, and a copy drifts. This is the cheap
-# check that it still lists the options the binary really has.
+# The options the help text names are the options the parser has, and the two are written in
+# different places. A help text that has drifted lists an option that does not exist, which is only
+# discovered by whoever tries it.
 for option in --template --package --title --force; do
     grep -q -- "$option" "$WORK/help.txt" || fail "--help does not mention $option"
 done
@@ -117,8 +134,9 @@ set +e
 STATUS=$?
 set -e
 sed 's/^/  /' "$WORK/usage.out"
-# 2 is the scaffolder's "you got the command line wrong", which is a different answer from 1 and has
-# to survive the trip through node.
+# 2 is the scaffolder's "you got the command line wrong", a different answer from 1. It is the CLI's
+# own exit code now rather than the native executable's coming back through a launcher, which is one
+# more thing the port had to keep identical.
 [ "$STATUS" -eq 2 ] || fail "expected exit 2 for an unknown command, got $STATUS"
 
 # ---------------------------------------------------------------- a project, in a path with spaces
@@ -130,6 +148,19 @@ PROJECT="$WORK/a directory with spaces/my app"
 [ -f "$PROJECT/pom.xml" ] || fail "the project has no pom.xml"
 grep -q "panamaview-bundled" "$PROJECT/pom.xml" \
     || fail "the generated pom does not point at the carried copy, so nothing makes it build"
+
+# And the one file in a template that the tarball can lose without anything else noticing. npm never
+# packs a file named .gitignore, so build-package.sh stages each template's as .gitignore.packed and
+# the scaffolder writes it out under the real name; if either half of that stopped happening, the
+# project would be generated with no template .gitignore at all. What makes it worth its own check
+# is that it would still *have* a .gitignore: the scaffolder appends its own entry to one it creates,
+# so the project would look right and ignore nothing but .panamaview/ -- committing target/, and
+# node_modules/ where the template has a frontend.
+grep -q "^target/" "$PROJECT/.gitignore" \
+    || fail "the generated project does not ignore target/, so the template's .gitignore did not
+  survive packing (see .gitignore.packed in npm/scripts/build-package.sh)"
+grep -q "^\.panamaview/$" "$PROJECT/.gitignore" || fail "the carried library is not ignored"
+echo "  .gitignore carried whole, and the carried library is ignored"
 
 # ---------------------------------------------------------------- the cold machine
 say "building it with an empty local repository and no repository configured"
@@ -165,26 +196,5 @@ sed 's/^/  /' "$REMOTE"
 grep -q "panamaview-bundled" "$REMOTE" \
     || fail "the framework was not resolved from the carried copy (see $REMOTE)"
 find "$M2/io/github/lihuu/panamaview/$VERSION" -type f | sed "s|^$M2/|  |"
-
-# ---------------------------------------------------------------- and when the install is broken
-say "with the binary removed, cli.js says so instead of crashing"
-BROKEN="$WORK/broken"
-mkdir -p "$BROKEN"
-cp -R "$PREFIX/node_modules/create-panamaview" "$BROKEN/create-panamaview"
-rm -f "$BROKEN/create-panamaview/bin/panamaview"
-set +e
-OUTPUT="$(node "$BROKEN/create-panamaview/cli.js" templates 2>&1)"
-STATUS=$?
-set -e
-printf '%s\n' "$OUTPUT" | sed 's/^/  /'
-[ "$STATUS" -ne 0 ] || fail "expected a non-zero exit when the binary is missing"
-case "$OUTPUT" in
-    *bin/panamaview*) ;;
-    *) fail "the error does not name the file that is missing, so it is not actionable" ;;
-esac
-case "$OUTPUT" in
-    # A stack trace is what a crash looks like, and this is not a crash: it is an install to fix.
-    *"    at "*) fail "the failure printed a stack trace" ;;
-esac
 
 printf '\n=== the npm package verified\n'

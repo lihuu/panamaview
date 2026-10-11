@@ -1,41 +1,40 @@
 #!/bin/sh
 # Verify the scaffolder the way someone who downloads it would use it.
 #
-# Builds the jar, generates each template into an unrelated directory, and takes the result all the
-# way to a native executable — using the generated project's own scripts, not a hand-rolled
+# Stages the package, generates each template into an unrelated directory, and takes the result all
+# the way to a native executable — using the generated project's own scripts, not a hand-rolled
 # command, for the same reason scripts/verify-templates.sh does: the thing that breaks is usually
 # the entry point, not the code behind it.
 #
-# Usage: verify-scaffold.sh [template ...]      (default: everything the manifest lists)
+# There is no scaffolder build any more, and that is not a missing step. The scaffolder is
+# `npm/cli.js`, and it reads its templates out of its own package root — `npm/templates/` — which a
+# fresh checkout does not have, because npm's `files` field cannot reach outside the package
+# directory and so `npm/scripts/build-package.sh` copies them in at pack time. Staging the package
+# is therefore the first step, and it is the same tree `npx create-panamaview` unpacks. A
+# consequence worth knowing: these projects are generated with the framework bundled beside them,
+# which is the shape that ships.
+#
+# Usage: verify-scaffold.sh [template ...]      (default: everything under templates/)
 set -eu
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
 
-# The names to check come out of the built jar's own manifest, not a list written here. A template
-# added to the repository and not checked would otherwise be a template nobody builds, which is
-# exactly what this script exists to prevent.
+# The names to check come from the directories under templates/, not from a list written here. A
+# template added to the repository and not checked would otherwise be a template nobody builds,
+# which is exactly what this script exists to prevent.
+#
+# The staged directories in npm/templates, rather than the table `npm/cli.js templates` prints: that
+# table is laid out for a person to read, and parsing it back would be a second and weaker copy of
+# the same list. Nothing is lost — build-package.sh stages every directory under templates/, and the
+# CLI's loadCatalog refuses to run at all when a directory has no description in its registry, so a
+# template that arrives without one stops this script at the very next command rather than being
+# quietly skipped.
 SPECIFIC="$*"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT INT TERM
 
 say() { printf '\n=== %s\n' "$1"; }
-
-# ---------------------------------------------------------------- build the scaffolder
-say "building the framework and the scaffolder"
-# The whole reactor rather than scaffold/ alone: the scaffolder's pom inherits from the root, so
-# Maven has to be able to resolve the parent, and the framework has to be installed before the
-# templates it stages are generated against it.
-(cd "$ROOT" && mvn -q -B -pl scaffold -am clean package)
-
-set -- "$ROOT"/scaffold/target/panamaview-scaffold-*.jar
-if [ "$#" -ne 1 ]; then
-    echo "verify-scaffold.sh: expected one panamaview-scaffold-*.jar in scaffold/target, found $#" >&2
-    echo "verify-scaffold.sh: 'mvn -q clean package' in scaffold/ clears out older ones." >&2
-    exit 1
-fi
-JAR="$1"
-echo "  $JAR"
 
 # ---------------------------------------------------------------- versions agree
 #
@@ -46,42 +45,52 @@ say "checking the pinned framework version"
 # The framework's version comes from the framework's own pom; the root pom is the reactor's parent
 # and is a different fact.
 . "$ROOT/scripts/framework-coordinates.sh"
-# The scaffolder's version has to be asked of Maven. It inherits the version from the parent rather
-# than stating one, so there is no `<version>` in its pom for a reader to find, and a disagreement
-# shows up only when the module is resolved. That is the property being checked — the two used to be
-# independent numbers that a release could bump one at a time, and now one of them is derived.
-SCAFFOLDER_VERSION="$(cd "$ROOT" && mvn -q -B help:evaluate \
-    -Dexpression=project.version -DforceStdout -pl scaffold 2>/dev/null | tail -1)"
-python3 - "$FRAMEWORK_VERSION" "$SCAFFOLDER_VERSION" <<'PY'
-import sys
+# The scaffolder's version has to be read from npm/package.json. It used to have to be asked of
+# Maven, because the scaffolder was a module whose pom inherited the version from the parent and
+# stated none of its own. It is not a Maven module any more: `npm/package.json` is the only place
+# its version is written. npm/scripts/build-package.sh cross-checks the two wherever it stages
+# lib/, and the check is repeated here because this script is what a person reads to find out that
+# the invariant exists.
+python3 - "$FRAMEWORK_VERSION" "$ROOT/npm/package.json" <<'PY'
+import json, sys
 
-framework, scaffold = sys.argv[1], sys.argv[2]
-if framework != scaffold:
-    sys.exit(f"\nMISMATCH: the framework is {framework}, the scaffolder is {scaffold}.\n"
+framework, package = sys.argv[1], sys.argv[2]
+try:
+    claimed = json.load(open(package))["version"]
+except (OSError, ValueError) as exc:
+    sys.exit(f"\nnpm/package.json cannot be read: {exc}")
+if framework != claimed:
+    sys.exit(f"\nMISMATCH: the framework is {framework}, npm/package.json claims {claimed}.\n"
              f"The templates are staged from this working tree and pin {framework}, so a\n"
-             f"scaffolder built at {scaffold} would generate projects that cannot resolve.")
+             f"package claiming {claimed} would generate projects that cannot resolve.")
 print(f"  both at {framework}")
 PY
 
+# ---------------------------------------------------------------- what gets generated from
+say "staging the package (npm/templates and npm/lib)"
+# The one script that knows how the package is laid out, rather than a second copy of that layout
+# here. It installs the reactor on the way, which is also what makes the framework resolvable for
+# the projects below.
+"$ROOT/npm/scripts/build-package.sh"
+
 # ---------------------------------------------------------------- what is inside, and is it readable
 #
-# This is the check for the failure with no other symptom: a jar built without the resources still
-# starts, still lists templates, and only fails when someone runs create. The files most likely to
-# go missing are the dotfiles, which two separate Maven plugins drop by default.
-say "scaffolder selftest (every resource the manifest promises is readable)"
-java -jar "$JAR" --selftest
+# This is the check for the failure with no other symptom: a package published without some of its
+# templates still starts, still lists templates, and only fails when someone runs create. The files
+# most likely to go missing are the dotfiles, which packaging tools drop by default.
+say "scaffolder selftest (every file the package ships is readable)"
+node "$ROOT/npm/cli.js" --selftest
 
-say "the manifest lists templates, and the names come from there"
-TEMPLATES="$(unzip -p "$JAR" templates-manifest.txt \
-    | awk '!/^#/ && NF && $1 != "version" {print $1}' | cut -d/ -f1 | sort -u)"
+say "the templates, taken from the directories staged under npm/templates"
+TEMPLATES="$(cd "$ROOT/npm/templates" && for d in */; do printf '%s\n' "${d%/}"; done | sort)"
 echo "$TEMPLATES" | sed 's/^/  /'
-[ -n "$TEMPLATES" ] || { echo "no templates in the manifest" >&2; exit 1; }
+[ -n "$TEMPLATES" ] || { echo "no templates were staged, so the package would ship none" >&2; exit 1; }
 [ -n "$SPECIFIC" ] && TEMPLATES="$SPECIFIC"
 
 # ---------------------------------------------------------------- asking when there is no one to ask
 say "without --template, and without a terminal, it says so instead of guessing"
 set +e
-OUTPUT="$(java -jar "$JAR" create "$WORK/no-template" 2>&1)"
+OUTPUT="$(node "$ROOT/npm/cli.js" create "$WORK/no-template" 2>&1)"
 STATUS=$?
 set -e
 echo "$OUTPUT" | sed 's/^/  /'
@@ -109,7 +118,7 @@ for name in $TEMPLATES; do
     #     right answer — which is how the first version of this check passed while being useless)
     TARGET="$WORK/$name/sample-app"
     mkdir -p "$WORK/$name"
-    (cd "$WORK/$name" && java -jar "$JAR" create sample-app \
+    (cd "$WORK/$name" && node "$ROOT/npm/cli.js" create sample-app \
         --template "$name" --package dev.example.sample --title "Sample Application")
 
     say "[$name] no trace of the template's own names"
@@ -174,11 +183,15 @@ LINKS
     echo "  .gitignore"
 
     say "[$name] the scripts came out executable"
+    # The mode travels: the template's own bit, preserved by `cp` into the staged package, by npm
+    # into the tarball, and by the scaffolder onto the generated project. A template whose bit was
+    # lost on the way generates a project that says "permission denied" and looks otherwise
+    # complete, so it is checked on the far end rather than at the source.
     for script in run.sh build-native.sh; do
         [ -x "$TARGET/$script" ] || {
-            echo "  $script is not executable — a jar carries no file modes, so this has to be" >&2
-            echo "  restored from the manifest; without it './$script' fails in a project that" >&2
-            echo "  otherwise looks complete." >&2
+            echo "  $script is not executable — the mode was dropped somewhere between the" >&2
+            echo "  template and the generated project; without it './$script' fails in a project" >&2
+            echo "  that otherwise looks complete." >&2
             exit 1
         }
         echo "  $script"

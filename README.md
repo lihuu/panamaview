@@ -68,7 +68,7 @@ It is a module of this repository's reactor, but that does not make it less of a
 resolves the framework out of the local Maven repository like anyone else, so install first.
 
 ```sh
-mvn -q install                 # the framework, the scaffolder and the demo — one reactor
+mvn -q install                 # the framework and the demo — one reactor
 cd demo-app
 ./run.sh                       # JVM mode; prints [selftest] 13 passed, 0 failed
 ./build-native.sh              # → target/panamaview-demo, a standalone executable
@@ -135,9 +135,9 @@ npx create-panamaview create my-chat-app --template vue
 cd my-chat-app && ./run.sh
 ```
 
-`create` is not optional. The package forwards its arguments to the scaffolder unchanged, and the
-scaffolder's first argument is its command (`panamaview create`, `panamaview templates`), so
-`npx create-panamaview my-app` is an unknown command, and says so.
+`create` is not optional. The scaffolder's first argument is its command (`panamaview create`,
+`panamaview templates`), and the package's `bin` is that same program, so `npx create-panamaview
+my-app` is an unknown command, and says so.
 
 Two ways to run the same program, and the difference is only who puts the bytes there. `npx` fetches
 into a cache and runs it — nothing installed, and the next call may pick up a newer version:
@@ -151,8 +151,9 @@ A global install puts `panamaview` on the PATH; after that there is no `npx` pre
 global prefix is before installing: if its `bin` is not on your PATH, the command will not be either.
 `--prefix` writes wherever you point it, which is the way out when it is not.
 
-It is a native executable, macOS arm64 only, and the package declares `os`/`cpu` so that npm refuses
-the install rather than handing over a command that cannot run.
+It is JavaScript, run by Node, and it installs anywhere npm does — that is what the port was for. It
+used to be a 13 MB native executable per platform, which is why the package declared `os: darwin` and
+`cpu: arm64` and npm refused every other machine rather than hand over a command that could not run.
 
 ```sh
 brew tap-new lihuu/panamaview                              # until it is in a tap of its own
@@ -166,12 +167,13 @@ packaging/homebrew/panamaview.rb` is rejected with *"Homebrew requires formulae 
 so those three lines are what that one is usually meant to be. Once it is in a tap of its own it is
 `brew install lihuu/tap/panamaview`.
 
-The copy in this repository pins `v0.2.0`, which is the latest release and is *older than the
-scaffolder change that bundles the framework* — so installing it today stops with an error naming
-that, rather than handing you a scaffolder that generates projects which cannot resolve their one
-dependency. It is re-pinned to the first release that bundles the framework, and `scripts/release.sh`
-prints the two values to set when it cuts one. That pin is the one version field here that a release
-cannot move; [the version table](#the-version-lives-in-thirteen-places-and-only-nine-of-them-move)
+The copy in this repository pins `v0.2.0`, which is the latest release and is *older than two things
+this formula needs*: the scaffolder being JavaScript, and the package carrying the framework with it.
+So installing it today stops with a message saying which of the two it found, rather than handing you
+a command that is not there or a scaffolder that generates projects which cannot resolve their one
+dependency. It is re-pinned to the first release cut after both, and `scripts/release.sh` prints the
+two values to set when it cuts one. That pin is the one version field here that a release
+cannot move; [the version table](#the-version-lives-in-fifteen-places-and-only-seven-of-them-move)
 says why. **The npm package has no such gap** — it carries a scaffolder built from this tree.
 
 Both channels install the same two things: the scaffolder, and `io.github.lihuu:panamaview` laid out
@@ -183,21 +185,22 @@ copies the framework into `<project>/.panamaview/lib` and points the generated `
 first. The build log names `panamaview-bundled` as where the framework came from, which makes it
 checkable rather than promised.
 
-npm is the channel that suits the binary: the scaffolder is macOS arm64 only, and `npx` on anything
-else refuses with a clear message rather than installing something that cannot run. The package is
-named `create-panamaview` — plain `panamaview` on GitHub is an unrelated project, which is reason
-enough to keep this one's name inside npm.
+npm is the channel that needs nothing installed: `npx` runs it on any platform Node runs on. The
+package is named `create-panamaview` — plain `panamaview` on GitHub is an unrelated project, which is
+reason enough to keep this one's name inside npm.
 
-**Requirements, up front, because a generated project meets them at once: macOS on Apple Silicon,
-and JDK 25 with Maven to build and run what it generates.** Generating a project needs neither —
-the scaffolder is native, and `npx` needs only Node.
+**Requirements, up front, because a generated project meets them at once: macOS on Apple Silicon
+or Windows x64, and JDK 25 with Maven to build and run what it generates.** Generating a project
+needs neither — the scaffolder is JavaScript, and `npx` needs only Node 18 or newer.
 
-In this checkout the scaffolder also builds as a native executable, which is what the package build
-and the release scripts use:
+In this checkout the scaffolder is run from its source, which means staging the package first:
+`npm/templates/` and `npm/lib/` are build output, copied in from `templates/` and from the built
+framework the way a publish copies them, because npm's `files` field cannot reach outside the package
+directory.
 
 ```console
-$ ./scaffold/build-native.sh            # → scaffold/target/panamaview
-$ ./scaffold/target/panamaview templates
+$ ./npm/scripts/build-package.sh        # → npm/templates/ and npm/lib/
+$ node npm/cli.js templates
 panamaview 0.2.0
 
   vanilla           no Node       plain HTML, CSS and JS — no build step
@@ -206,18 +209,19 @@ panamaview 0.2.0
   vue               needs Node    Vue 3 with a history-mode router, built by Vite
   angular           needs Node    Angular with a history-mode router
 
-$ ./scaffold/target/panamaview create my-chat-app --template vue
+$ node npm/cli.js create my-chat-app --template vue
 creating /work/my-chat-app
   template  vue               Vue 3 with a history-mode router, built by Vite
   package   com.example.mychatapp
   title     My Chat App
   18 files written
+  library   /work/panamaview/npm/lib
 ```
 
-That run was from a checkout, so there was no `lib` directory beside the binary and the project it
-wrote carries no framework of its own — it would need one resolvable as described in [Getting the
-framework](#getting-the-framework). A project generated through npm carries its own, and prints a
-`library` line saying where from.
+That run staged the package first, so the project it wrote carries its own copy of the framework and
+prints the `library` line saying where from — the same thing a project generated through npm gets.
+Run `node npm/cli.js` without staging and it stops at the first command: there are no templates in
+the package directory to generate from.
 
 The name, package and title all come from the directory, so one option is usually enough. It writes
 no build output, and never overwrites a directory that has something in it without `--force`.
@@ -318,18 +322,23 @@ stdout and can be checked mechanically rather than by reading a screenshot:
 
 ## Layout
 
-This is a Maven reactor: one version, one `mvn install`, five projects. The root pom is the parent
+This is a Maven reactor: one version, one `mvn install`, four projects. The root pom is the parent
 and aggregator, and each module below inherits the version from it — so the version is stated once
 instead of in every pom that needs it.
 
 ```
 pom.xml                the reactor: parent of the modules, and the version they are built at
 framework/             → io.github.lihuu:panamaview, the library
-scaffold/              → io.github.lihuu:panamaview-scaffold, the generator
 demo-app/              → io.github.lihuu:panamaview-demo, an ordinary consumer
 windows-probe/         → io.github.lihuu:panamaview-windows-probe, the Windows port's checks
 templates/             not modules — see below
+npm/                   not a Maven project at all — the scaffolder, and the package that carries it
 ```
+
+`npm/` is outside the reactor for a third reason: it is not Java. The scaffolder was a Maven module
+with a native build, and the job turned out to be "copy a directory tree and rename three strings",
+so it is `npm/cli.js` now — JavaScript, run by Node, which anyone who can install the package has
+already. There is no pom of it to bump, and `io.github.lihuu:panamaview-scaffold` no longer exists.
 
 `windows-probe/` is a module for the same reason `demo-app/` is: the framework jar carries no
 application, so anything with a `main()` lives in a consumer that depends on the framework the way
@@ -385,12 +394,13 @@ templates/vanilla-tailwind/  the same, styled with Tailwind CSS and no Node at a
 templates/react/       the same, with a React frontend built by Vite
 templates/vue/         the same, with a Vue frontend and a history-mode router
 templates/angular/     the same, with an Angular frontend and a history-mode router
-scaffold/              the generator: embeds the templates, renames them, writes a project
-  scripts/embed-templates.sh   stages templates/ into the jar, with a manifest
-npm/                   the create-panamaview package: a thin cli.js, plus what it ships
-  bin/panamaview               the scaffolder, as a native executable
+npm/                   the create-panamaview package: the scaffolder, and what it ships
+  cli.js                       the command line: commands, options, messages, exit codes
+  src/scaffold.js              the core: templates, the rename, the carried framework
+  templates/<template>/        the templates, copied in at pack time; package.json's `files`
+                               cannot reach outside the package directory
   lib/…                        the framework, laid out as a Maven repository for it to carry
-  scripts/build-package.sh     builds those two; package.json runs it from `prepack`
+  scripts/build-package.sh     stages those two; package.json runs it from `prepack`
 packaging/homebrew/panamaview.rb   the same two things again, as a Homebrew formula
 scripts/verify-templates.sh  builds each template the way a user receives it
 scripts/verify-scaffold.sh   generates from each template, then builds the result
@@ -542,7 +552,7 @@ Measured on this machine, not inferred. Both builds pass the same checks.
 | Asset references | the template's check resolves every `src`/`href` in the built page against the staged files |
 | Scaffolder | 78 files across five templates; generated under a hyphenated name and a package outside `com.example`, then checked for any surviving template name |
 | Scaffolded projects | each one builds on the JVM and to a native executable, using the scripts it was generated with |
-| Scaffolder native build | 13 MB Mach-O arm64, carrying every template file — including the `.gitignore` files, which two Maven plugins drop by default |
+| Scaffolder package | 88 files in the tarball, and `--selftest` opens each of the 78 template files in it — the five `.gitignore` files among them, which npm drops unless they are staged under another name |
 | Native executable | 19 MB Mach-O arm64; links only libSystem, libobjc, Foundation, CoreFoundation, libz |
 | Native build time | ~18 s, no fallback (`--no-fallback` fails rather than silently emitting a JVM launcher) |
 | Startup, process → page loaded | native 631–730 ms, JVM 592–723 ms — **statistically identical** |
@@ -574,20 +584,21 @@ both were unpacked and taken end to end, on real Mach-O arm64 and real ELF x86-6
 what was wrong: a download page says *this is a tool, take it*, and no application outside this
 repository has been built on panamaview yet. When one has been, the archives come back.
 
-### The version lives in sixteen places, and only seven of them move
+### The version lives in fifteen places, and only seven of them move
 
-Every file in the repository whose version a person writes, and what its version means. Sixteen
+Every file in the repository whose version a person writes, and what its version means. Fifteen
 files: seven carry the framework's own version under a different name — two state it and five are
 template pins — three are the version of the *application* a template describes, three more are the
-frontend packages beside them, four poms inherit the version rather than repeating it, and one —
+frontend packages beside them, three poms inherit the version rather than repeating it, and one —
 the Homebrew formula — pins a release that has already happened.
 
 It was thirteen, and the difference is the point of the reactor: `scaffold/pom.xml` and
 `demo-app/pom.xml` used to state the framework's version themselves, and had to be bumped alongside
-it by hand. They inherit it now, so there is nothing in them to forget. That is not a smaller number
-to keep in step — it is two fewer chances to keep them out of step, and the second of those two is
-the one that was missed on a release, shipping a tag whose demo depended on a version that had never
-been published.
+it by hand. `demo-app` inherits it now, so there is nothing in it to forget, and the scaffolder has
+left the reactor altogether — it is not a Maven project, so it has no pom to state anything in. That
+is not a smaller number to keep in step; it is two fewer chances to keep them out of step, and the
+second of those two is the one that was missed on a release, shipping a tag whose demo depended on a
+version that had never been published.
 
 `templates/*/frontend/package-lock.json` (×3) also records a version, and is not listed: it is
 generated from the `package.json` beside it rather than authored, and npm rewrites it on the next
@@ -598,7 +609,6 @@ disagreeing with the file it mirrors.
 | --- | --- | --- |
 | `pom.xml` | `<version>` | yes — the reactor's parent, and the version its modules are built at. The framework's own, since every module inherits it |
 | `framework/pom.xml` | *(inherited)* | — the framework; nothing to bump. What a consumer resolves is the root pom's version, which this inherits |
-| `scaffold/pom.xml` | *(inherited)* | — the scaffolder; nothing to bump |
 | `demo-app/pom.xml` | *(inherited)* | — the demo; nothing to bump, and no pin to forget |
 | `windows-probe/pom.xml` | *(inherited)* | — the Windows port's checks; same |
 | `templates/*/pom.xml` (×5) | `<panamaview.version>` | yes — what a generated project depends on |
@@ -634,9 +644,9 @@ running — a commit cannot contain its own sha. (`brew audit` requires the `rev
 `tag:`, so dropping it is not an option.) A formula kept in this repository can therefore only ever
 name a release that has already happened; it is re-pinned by hand when the file is copied into a
 tap, which is where Homebrew actually installs from. Because a stale pin would otherwise install a
-scaffolder that generates projects which cannot resolve, the formula refuses to build one: it checks
-the scaffolder it just built for the class that bundles the framework and stops with a message
-naming the fix. `release.sh` prints the formula's pin in a section of its own — it is not a sample
+scaffolder that generates projects which cannot resolve, the formula refuses to install one: it runs
+the command it has just built and stops with a message naming the fix, and it says the same thing, by
+name, about a pin from before the scaffolder was JavaScript. `release.sh` prints the formula's pin in a section of its own — it is not a sample
 in a document to leave alone — so a pin left behind is printed rather than remembered.
 
 `release.sh` also reports which documents still name the old version. Sample output in these docs

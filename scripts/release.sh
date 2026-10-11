@@ -18,7 +18,6 @@
 #
 #   pom.xml                       <version>                 the parent, and the build's version
 #   framework/pom.xml             <version>                 the framework — what a consumer resolves
-#   scaffold/pom.xml              (inherited)               the scaffolder
 #   demo-app/pom.xml              (inherited)               the demo
 #   templates/*/pom.xml           <panamaview.version>      what a generated project depends on
 #                                 (x5)
@@ -29,10 +28,13 @@
 # not the framework's generates projects that cannot resolve — and scripts/verify-templates.sh fails
 # on exactly that, which is how the invariant is enforced rather than remembered.
 #
-# The scaffolder and the demo used to state it as well, each in its own pom. They inherit it now, and
-# what was a rewrite for each of them is an assertion instead: a module that grows its own copy is
-# the mistake, not a value that needs bumping. The demo's copy was missed on the release that split
-# it out of the framework, and the tag shipped anyway.
+# The scaffolder and the demo used to state it as well, each in its own pom. The demo inherits it
+# now, and what was a rewrite for it is an assertion instead: a module that grows its own copy is the
+# mistake, not a value that needs bumping. The demo's copy was missed on the release that split it
+# out of the framework, and the tag shipped anyway.
+#
+# The scaffolder has left the reactor altogether: it is npm/cli.js, a Node CLI with no pom. Its
+# version is npm/package.json's, and that file is the only place it is written.
 #
 # npm/package.json is the same value for a different reason. That package ships the framework and
 # the projects it generates pin the version it ships, so a package claiming a version other than
@@ -151,10 +153,11 @@ def strip_comments(text):
     """A pom's own explanation is not markup. See the module check below."""
     return re.sub(r"<!--.*?-->", "", text, flags=re.S)
 
-# Every pom that states the released version as its own. Three of them now, and the framework's is
-# the one a consumer resolves — the root pom is the reactor's parent, whose version is the same
-# number for a different reason.
-for rel in ("pom.xml", "framework/pom.xml", "scaffold/pom.xml"):
+# Every pom that states the released version as its own. Two of them now, and the framework's is the
+# one a consumer resolves — the root pom is the reactor's parent, whose version is the same number
+# for a different reason. The scaffolder used to be a third; it is not a Maven project any more, and
+# its version is checked below, with npm/package.json's.
+for rel in ("pom.xml", "framework/pom.xml"):
     found = first_version(root / rel)
     if found != current:
         problems.append(f"{rel} is {found}, expected {current}")
@@ -211,10 +214,11 @@ PY
 
 # ------------------------------------------------------------------ prove it before claiming it
 #
-# The templates and the scaffolder are what a release is *for*, so both go all the way to a native
-# executable here rather than in the release job. That way a broken template cannot get as far as
-# having a version attached to it. Slow — about nine minutes — and the estimate is worth stating
-# because --skip-verify exists mainly for iterating on this script, not for real releases.
+# The templates and the scaffolder are what a release is *for*, so a project generated from every
+# one of them goes all the way to a native executable here rather than in the release job. That way a
+# broken template cannot get as far as having a version attached to it. Slow — about nine minutes —
+# and the estimate is worth stating because --skip-verify exists mainly for iterating on this
+# script, not for real releases.
 if [ "$SKIP_VERIFY" -eq 1 ]; then
     say "SKIPPING verification (--skip-verify)"
     echo "  this release claims to work without having checked"
@@ -253,22 +257,19 @@ if "<parent>" in root_pom.read_text(encoding="utf-8"):
              "script's rule for finding it needs revisiting")
 rewrite(root_pom, r"<version>[^<]+</version>", f"<version>{next_}</version>", "project version")
 
-# The framework's pom says the same thing and is the file a consumer resolves. It has no parent
-# either — deliberately, so that resolving the framework does not require resolving a second
-# artifact — so the same rule applies to it.
+# The framework's pom says the same thing and is the file a consumer resolves. It is a module of the
+# reactor, so its version is the one in its <parent>, and that is the first <version> in it — the same
+# rule as the root pom's, for a different reason. Asserted rather than assumed: without a <parent> the
+# first <version> would be the framework's own and this would still work, so the failure to catch is
+# the one where a second, independent <version> appears beside the parent's and the two drift.
 framework_pom = root / "framework/pom.xml"
-if "<parent>" in framework_pom.read_text(encoding="utf-8"):
-    sys.exit("framework/pom.xml has a <parent>; consumers would have to resolve it before they "
-             "could read the framework's pom, and the rule for finding its version changes")
+if "<parent>" not in framework_pom.read_text(encoding="utf-8"):
+    sys.exit("framework/pom.xml has no <parent>; it is a module of the reactor and inherits its "
+             "version from it, so this script no longer knows where its version comes from")
 rewrite(framework_pom, r"<version>[^<]+</version>", f"<version>{next_}</version>", "project version")
 
-# The scaffolder inherits the version from the parent and must not carry one of its own: a second
-# copy is the thing that gets missed. Checked, not written.
-scaffold_text = (root / "scaffold/pom.xml").read_text(encoding="utf-8")
-if "<parent>" not in scaffold_text:
-    sys.exit("scaffold/pom.xml has no <parent>; it is supposed to inherit the version, so this "
-             "script no longer knows where its version comes from")
-print(f"  {'scaffold/pom.xml':32} inherits the version")
+# The scaffolder is not a module and has no pom, so there is nothing to check here: its version is
+# npm/package.json's, and that is checked and rewritten further down, where the reason is stated.
 
 # The templates are not modules: they are copied out of this repository and built where this pom
 # does not exist, so each pins the framework version by hand and a drift generates projects
@@ -277,10 +278,10 @@ for pom in sorted(root.glob("templates/*/pom.xml")):
     rewrite(pom, r"<panamaview\.version>[^<]+</panamaview\.version>",
             f"<panamaview.version>{next_}</panamaview.version>", "framework pin")
 
-# Every other module inherits the version like the scaffolder. demo-app used to be an independent
-# project with its own <panamaview.version>, and that pin was missed on the release that split it
-# out — the failure landed on CI three jobs away from the cause. A module cannot get out of step
-# with the reactor it is built in, so an assertion replaces the rewrite.
+# Every other module inherits the version. demo-app used to be an independent project with its own
+# <panamaview.version>, and that pin was missed on the release that split it out — the failure landed
+# on CI three jobs away from the cause. A module cannot get out of step with the reactor it is built
+# in, so an assertion replaces the rewrite.
 #
 # Driven by the root pom's <modules>, so a module added tomorrow is covered here automatically.
 # The alternative — one block per module — is a list someone forgets, and forgetting is the exact
@@ -296,7 +297,27 @@ for module in re.findall(r"<module>([^<]+)</module>",
     if "<panamaview.version>" in text:
         sys.exit(f"{module}/pom.xml pins <panamaview.version> as well as being a module; the "
                  f"pin is the copy that gets missed, and inheriting is what replaced it")
-    print(f"  {module + '/pom.xml':32} inherits the version")
+    # The parent's <version> is a copy of the reactor's version, and it is the copy that has to be
+    # rewritten here for the module to build at all. It is inside <parent>, so the "first <version>
+    # in the file" rule the root and framework poms use would land on it — but only by accident of
+    # the parent coming first, and the whole reason this loop exists is that "by accident of file
+    # order" is how a version gets missed. Matched explicitly instead.
+    #
+    # Without this, a bump leaves every module but the framework pointing at the version it had
+    # before, and the next build fails in a way that names neither the release script nor the
+    # module: "Non-resolvable parent POM ... 'parent.relativePath' points at wrong local POM".
+    # It only shows up on a machine with an empty local repository or after the old parent is gone
+    # from it, which is why it survived the release that introduced the reactor.
+    parent = re.search(r"<parent>.*?</parent>", text, re.S)
+    if parent is None:
+        sys.exit(f"{module}/pom.xml's <parent> could not be read")
+    if f"<version>{current}</version>" not in parent.group(0):
+        sys.exit(f"{module}/pom.xml's <parent> does not name version {current}, so this bump "
+                 f"would leave it behind. Expected <version>{current}</version> inside <parent>.")
+    rewritten = parent.group(0).replace(f"<version>{current}</version>",
+                                        f"<version>{next_}</version>", 1)
+    pom.write_text(text.replace(parent.group(0), rewritten, 1), encoding="utf-8")
+    print(f"  {module + '/pom.xml':32} parent version -> {next_}")
 
 # npm/package.json carries the framework's version too, for the reason in the header.
 #
