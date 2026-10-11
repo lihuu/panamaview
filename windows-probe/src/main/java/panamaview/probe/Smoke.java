@@ -73,16 +73,16 @@ public final class Smoke {
 
             MemorySegment navigationDone = Native.eventHandler((self, sender, args) -> {
                 try {
-                    MemorySegment webview = sender.reinterpret(Long.MAX_VALUE);
+                    MemorySegment source = sender.reinterpret(Long.MAX_VALUE);
                     // NavigationCompleted fires for the initial about:blank too; executing
                     // there is what 0x8007139F (ERROR_INVALID_STATE) was punishing. The
                     // script runs when it is our page that finished loading.
-                    String source = Native.currentSource(webview);
-                    if (source == null || !source.startsWith("data:text/html")) {
+                    String page = Native.currentSource(source);
+                    if (page == null || !page.startsWith("data:text/html")) {
                         return 0;
                     }
                     stage("navigation", "our page finished loading");
-                    Native.executeScript(webview, "2+2", scriptDone);
+                    Native.executeScript(source, "2+2", scriptDone);
                     return 0;
                 } catch (Throwable t) {
                     return failAndQuit(t);
