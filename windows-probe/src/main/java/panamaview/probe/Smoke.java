@@ -78,10 +78,10 @@ public final class Smoke {
                     // there is what 0x8007139F (ERROR_INVALID_STATE) was punishing. The
                     // title is how we tell that from our own page.
                     String title = Native.documentTitle(source);
+                    stage("navigation", "completed, title is '" + title + "'");
                     if (!"panamaview smoke".equals(title)) {
                         return 0;
                     }
-                    stage("navigation", "our page finished loading");
                     Native.executeScript(source, "2+2", scriptDone);
                     return 0;
                 } catch (Throwable t) {

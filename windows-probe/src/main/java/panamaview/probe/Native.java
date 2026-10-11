@@ -203,10 +203,11 @@ final class Native {
     }
 
     static void navigateToString(MemorySegment webview, String html) {
-        try (Arena confined = Arena.ofConfined()) {
-            call("NavigateToString", slot(webview, WEBVIEW_NAVIGATE_TO_STRING, HR_THIS_PTR_PTR),
-                    webview, confined.allocateFrom(html, StandardCharsets.UTF_16LE));
-        }
+        // In the long-lived arena: whether WebView2 copies the content before the call returns
+        // is not stated, and a confined string freed on return is exactly the kind of dangling
+        // read that produces a navigation with no events and no error.
+        call("NavigateToString", slot(webview, WEBVIEW_NAVIGATE_TO_STRING, HR_THIS_PTR_PTR),
+                webview, LIFE.allocateFrom(html, StandardCharsets.UTF_16LE));
     }
 
     static void addNavigationCompleted(MemorySegment webview, MemorySegment handler) {
