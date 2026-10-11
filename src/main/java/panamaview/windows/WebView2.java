@@ -78,7 +78,9 @@ public final class WebView2 {
             }
             try {
                 // PCWSTR: null-terminated UTF-16, the one string encoding Windows speaks natively.
-                return version.getString(0, StandardCharsets.UTF_16LE);
+                // The pointer arrives as a zero-length segment; reinterpret gives the scan for
+                // the terminator room, the same idiom ObjC.cString uses on the other side.
+                return version.reinterpret(Long.MAX_VALUE).getString(0, StandardCharsets.UTF_16LE);
             } finally {
                 coTaskMemFree.invokeExact(version);
             }
