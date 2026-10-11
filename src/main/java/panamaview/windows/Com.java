@@ -169,6 +169,14 @@ final class Com {
                 MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, MemorySegment.class), body));
     }
 
+    /** A completed handler that only cares about the HRESULT — fire-and-forget calls. */
+    static MemorySegment acknowledging(java.util.function.IntConsumer onResult) {
+        return completed((self, errorCode, result) -> {
+            onResult.accept(errorCode);
+            return 0;
+        });
+    }
+
     private static MethodHandle mh(Class<?> type, String name, MethodType shape, Object receiver) {
         try {
             return LOOKUP.findVirtual(type, name, shape).bindTo(receiver);
