@@ -405,7 +405,7 @@ final class Native {
                         MethodType.methodType(void.class, MemorySegment.class, int.class, long.class, int.class),
                         new TimerHandler(body)),
                 FunctionDescriptor.ofVoid(ADDRESS, JAVA_INT, JAVA_LONG, JAVA_INT), LIFE);
-        call("SetTimer", SET_TIMER, hwnd, MemorySegment.ofAddress(1), millis, proc);
+        call("SetTimer", SET_TIMER, hwnd, 1L, millis, proc);
     }
 
     private static final class TimerHandler {
@@ -525,8 +525,10 @@ final class Native {
      */
     private static void call(String what, MethodHandle handle, Object... args) {
         try {
-            int hresult = (int) handle.invokeWithArguments(args);
-            check(hresult, what);
+            // HRESULT is 32-bit, but some Win32 calls that fit the same shape return wider
+            // values; a Number cast accepts both.
+            long value = ((Number) handle.invokeWithArguments(args)).longValue();
+            check((int) value, what);
         } catch (IllegalStateException e) {
             throw e;
         } catch (Throwable t) {
