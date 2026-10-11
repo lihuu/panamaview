@@ -21,13 +21,21 @@ library and no bundled browser engine — everything crosses into Objective-C th
 Java → FFM → Cocoa → WKWebView → HTML/JS → JS→Java → Java→JS
 ```
 
-macOS is the platform the chains above were proved on. A Windows implementation lives beside it in
-`panamaview.windows` — Win32, COM and WebView2, the same `UiHost` behind the same portable
-framework — and is exercised by `windows-probe/`. What has not happened yet is the same end-to-end
-run on Windows hardware that the macOS chain has had: the code is written and it builds everywhere,
-but "it runs" is a claim about a machine, and that machine is not the one this was written on. See
-[Keeping the platform isolated](#keeping-the-platform-isolated) for why the second implementation
-could be added without touching the first.
+The macOS chain above is the one this repository develops against. A second implementation lives
+beside it in `panamaview.windows` — Win32, COM and WebView2, the same `UiHost` behind the same
+portable framework — and the same chain has been run on Windows hardware:
+
+```
+Java → FFM → Win32/COM → WebView2 → HTML/JS → JS→Java → Java→JS
+```
+
+with the caveat that the last stretch of it was proved by hand rather than by CI. A project
+generated from `templates/vanilla` was run unmodified on Windows 11 with JDK 25 and reached
+`page loaded: url=https://app.panamaview/index.html` and a `java → js` message arriving in the page,
+with nothing on stderr. What has *not* happened is that run being repeatable on demand: WebView2
+refuses to start in a non-interactive session, so it needs a desktop and cannot be a CI job the way
+the macOS check is. See [Keeping the platform isolated](#keeping-the-platform-isolated) for why the
+second implementation could be added without touching the first.
 
 ![The demo app running](docs/screenshot.png)
 
@@ -37,10 +45,15 @@ it were removed.</sub>
 
 ## Requirements
 
-- macOS on Apple Silicon (built and verified on macOS 27.2, arm64)
+- macOS on Apple Silicon, or Windows x64
 - JDK 25 with the FFM API
-- GraalVM CE 25.0.2 (or any GraalVM with `native-image`) — only for the native build
+- GraalVM CE 25.0.2 (or any GraalVM with `native-image`) — only for the native build, and only on
+  macOS today: the build script is POSIX shell and is not ported
 - Maven
+
+Verified on macOS 27.2 / arm64 and on Windows 11 build 26340 / x64 (an Insider Preview build — the
+one machine this was tested on, not a claim about the released builds). Linux is next in line, and
+nothing in the portable half is standing in its way: a `UiHost` for it is what is missing.
 
 There are **no runtime dependencies**. FFM is the entire binding layer.
 
@@ -643,7 +656,10 @@ evidence, so it is listed for a human to look at rather than rewritten.
 - Objects retained for Objective-C are never released; there is no ownership tracking, so a
   long-running app with many transient objects would leak
 - No cross-platform abstraction beyond `UiHost`, no JavaFX backend, no plugin system
-- No `.app`, code signing, notarisation or `.dmg`
+- No `.app`, code signing, notarisation or `.dmg`; no Windows installer either, and
+  `WebView2Loader.dll` has to be fetched by hand until one exists
+- The Windows port has not been run from CI, and cannot be: WebView2 refuses to start in a
+  non-interactive session, so it needs a desktop
 
 ## Notes
 

@@ -57,8 +57,11 @@
         <configuration>
           <executable>${java.home}/bin/java</executable>
           <arguments>
-            <argument>-XstartOnFirstThread</argument>
             <argument>--enable-native-access=ALL-UNNAMED</argument>
+            <!-- Whatever the caller set, so `mvn exec:exec -Dpanamaview.check=true` works the way
+                 `JAVA_OPTS=-Dpanamaview.check=true ./run.sh` does. An unset property expands to
+                 nothing; unlike an empty <argument/>, Maven drops an unset one entirely. -->
+            <argument>${panamaview.jvmArgs}</argument>
             <argument>-cp</argument>
             <classpath/>
             <argument>${main.class}</argument>
@@ -67,4 +70,48 @@
       </plugin>
     </plugins>
   </build>
+  <!--
+    -XstartOnFirstThread is macOS's alone, and it has to be added by a profile because there is no
+    "harmless elsewhere" spelling of it. The JVM treats an unknown -X option as a fatal start-up
+    error — measured on Windows 11 with JDK 25: "Unrecognized option: -XstartOnFirstThread",
+    "Could not create the Java Virtual Machine" — so a pom carrying it on Windows or Linux does not
+    warn, it does not run.
+
+    Not a property either, which is what this replaced. A property set to empty reads as "no flag",
+    but exec-maven-plugin passes an empty <argument/> through as an *empty argument*: the command
+    line came out with a bare comma in it, and java then took the empty string for the main class —
+    "Could not find or load main class". A subtler failure than the one being fixed, and it was
+    measured rather than reasoned about.
+
+    A profile is the only tool Maven has for adding one argument to a list under a condition, so
+    that is what adds it. Everything else stays put.
+  -->
+  <profiles>
+    <profile>
+      <id>macos-first-thread</id>
+      <activation>
+        <os>
+          <family>mac</family>
+        </os>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <configuration>
+              <arguments>
+                <argument>-XstartOnFirstThread</argument>
+                <argument>--enable-native-access=ALL-UNNAMED</argument>
+                <argument>${panamaview.jvmArgs}</argument>
+                <argument>-cp</argument>
+                <classpath/>
+                <argument>${main.class}</argument>
+              </arguments>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>

@@ -33,6 +33,32 @@ there, from a private repository the machine is configured for, or from a framew
 `could not resolve io.github.lihuu:panamaview`, which names the artifact but not the fix. [Getting
 the framework](https://github.com/lihuu/panamaview#getting-the-framework).
 
+## Which platform it runs on
+
+macOS and Windows. The window implementation is chosen at run time from the platform you are on, so
+this project — the one you are reading — is not a macOS project or a Windows project: it is the same
+source either way.
+
+| | macOS | Windows |
+|---|---|---|
+| `./run.sh` | yes | a POSIX shell script; on Windows run the Maven equivalent below |
+| `mvn compile exec:exec` | yes | **yes** |
+| `./build-native.sh` | yes | not yet — it is a POSIX script and needs GraalVM, which is not on Windows here |
+
+The two places a platform actually shows through, and what happens to them:
+
+- **The JVM flag.** `-XstartOnFirstThread` is macOS's alone, and the JVM refuses to start with an
+  unknown `-X` option rather than ignoring it. The pom adds it from a `mac`-activated profile and
+  the shell scripts from `uname -s`, so neither platform ever sees it.
+- **The window backend.** `Main.host()` picks `WindowsHost` or `MacOsHost` from `os.name`. Both are
+  referenced but only one is loaded, which is what keeps the other platform's runtime out of the
+  process entirely.
+
+On Windows, `WebView2Loader.dll` has to sit beside the working directory (or in `loader/`) before
+the window will open — it is the loader for the WebView2 runtime the system already has, and it is
+not installed with it. `windows-probe/fetch-loader.ps1` in the framework repository downloads it
+with a checksum check. Without it the app stops with a message naming the file.
+
 ## Run it
 
 ```sh

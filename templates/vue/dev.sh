@@ -57,16 +57,27 @@ mvn -q dependency:build-classpath -Dmdep.outputFile=target/classpath.txt
 JAVA="${JAVA_HOME:+$JAVA_HOME/bin/java}"
 JAVA="${JAVA:-java}"
 
+# Empty on every platform but macOS, where it is the flag AppKit insists on.
+case "$(uname -s)" in
+    Darwin) START_ON_FIRST_THREAD=1 ;;
+    *)      START_ON_FIRST_THREAD= ;;
+esac
+
 # Deliberately NOT exec: replacing this shell would discard the trap that stops the dev server,
 # and the dev server would outlive the app every time.
 #
-# -XstartOnFirstThread is not optional: AppKit requires the event loop to own the process' first
-# thread, and the java launcher does not give main() that thread.
+# A flag per platform, built as an argument list rather than spelled out on the command line.
+# -XstartOnFirstThread is macOS's alone and is not optional there: AppKit requires the event loop to
+# own the process' first thread, and the java launcher does not give main() that thread. Everywhere
+# else it is worse than useless, because the JVM treats an unknown -X option as a fatal start-up
+# error.
+#
 # shellcheck disable=SC2086
-"$JAVA" \
-    -XstartOnFirstThread \
+set -- \
+    ${START_ON_FIRST_THREAD:+-XstartOnFirstThread} \
     --enable-native-access=ALL-UNNAMED \
     -Dpanamaview.dev="http://localhost:$PORT/" \
     ${JAVA_OPTS:-} \
     -cp "target/classes:$(cat target/classpath.txt)" \
     com.example.Main "$@"
+"$JAVA" "$@"
