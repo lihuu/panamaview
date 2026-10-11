@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
+import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static java.lang.foreign.ValueLayout.JAVA_SHORT;
@@ -399,7 +400,7 @@ final class Native {
      * arriving; the framework will not need this.
      */
     static void after(int millis, MemorySegment hwnd, Runnable body) {
-        MethodHandle proc = LINKER.upcallStub(
+        MemorySegment proc = LINKER.upcallStub(
                 mh(TimerHandler.class, "dispatch",
                         MethodType.methodType(void.class, MemorySegment.class, int.class, long.class, int.class),
                         new TimerHandler(body)),
