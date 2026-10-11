@@ -307,14 +307,18 @@ final class Win32 {
         }
 
         long dispatch(MemorySegment hwnd, int message, long wparam, long lparam) {
+            long result;
             try {
-                return delegate.onMessage(hwnd, message, wparam, lparam);
+                result = delegate.onMessage(hwnd, message, wparam, lparam);
             } catch (Throwable t) {
                 // An exception must not escape an upcall: it would surface inside Windows' own
                 // callback frame. Say something and stay alive.
                 t.printStackTrace();
-                return 0;
+                result = 0;
             }
+            System.out.println("[wndproc] msg=0x" + Integer.toHexString(message)
+                    + " -> " + result);
+            return result;
         }
     }
 
