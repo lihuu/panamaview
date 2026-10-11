@@ -142,11 +142,14 @@ public final class Smoke {
                     // reinterpreted; the crash earlier in this branch named that rule.
                     MemorySegment controller = controllerArg.reinterpret(Long.MAX_VALUE);
                     controllerBox[0] = controller;
+                    stage("refcount", "controller AddRef says " + Native.addRef(controller));
                     webview[0] = Native.coreWebView2(controller);
+                    stage("refcount", "webview AddRef says " + Native.addRef(webview[0]));
                     Native.putIsVisible(controller, true);
                     Native.putBounds(controller, Native.clientRect(arena, hwnd));
                     stage("webview", "obtained and sized to the client rect");
-                    Native.addNavigationCompleted(webview[0], navigationDone);
+                    // Event registration is out of this run on purpose: if navigation happens
+                    // with no handler of ours registered, the handler objects were the poison.
                     Native.navigateToString(webview[0], pageHtml());
                     // Evidence, not a workaround: three seconds in, ask the page directly
                     // what it is and run the script without waiting for any event. If this
@@ -155,10 +158,9 @@ public final class Smoke {
                     Native.after(3000, hwnd, () -> {
                         try {
                             String source = Native.currentSource(webview[0]);
-                            stage("timer", "3 s in, source is '" + source
-                                    + "', webview 0x" + Long.toHexString(webview[0].address())
-                                    + ", controller 0x" + Long.toHexString(controllerBox[0].address())
-                                    + ", controller vtable 0x" + Long.toHexString(
+                            String title = Native.documentTitle(webview[0]);
+                            stage("timer", "3 s in, source is '" + source + "', title '" + title
+                                    + "', controller vtable 0x" + Long.toHexString(
                                             controllerBox[0].getAtIndex(ADDRESS, 0).address()));
                         } catch (Throwable t) {
                             stage("timer", "state probe failed: " + t);
