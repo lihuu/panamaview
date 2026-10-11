@@ -128,7 +128,9 @@ final class Native {
     private static final int CONTROLLER_GET_CORE_WEBVIEW2 = 25;
 
     /** ICoreWebView2 slots, from the shipped WebView2.h. */
+    private static final int WEBVIEW_GET_SOURCE = 4;
     private static final int WEBVIEW_NAVIGATE = 6;
+    private static final int WEBVIEW_ADD_NAVIGATION_COMPLETED = 16;
     private static final int WEBVIEW_EXECUTE_SCRIPT = 30;
 
     private static final FunctionDescriptor HR_THIS_PTR = FunctionDescriptor.of(JAVA_INT, ADDRESS);
@@ -193,6 +195,21 @@ final class Native {
 
     static void navigate(MemorySegment webview, MemorySegment uri) {
         call("Navigate", slot(webview, WEBVIEW_NAVIGATE, HR_THIS_PTR_PTR), webview, uri);
+    }
+
+    static void addNavigationCompleted(MemorySegment webview, MemorySegment handler) {
+        MemorySegment token = LIFE.allocate(JAVA_LONG);   // EventRegistrationToken: one 64-bit value
+        call("add_NavigationCompleted", slot(webview, WEBVIEW_ADD_NAVIGATION_COMPLETED, HR_THIS_PTR_PTR),
+                webview, handler, token);
+    }
+
+    /** The page currently loaded, or null. Used to tell our navigation from the initial one. */
+    static String currentSource(MemorySegment webview) {
+        MemorySegment out = LIFE.allocate(ADDRESS);
+        call("get_Source", slot(webview, WEBVIEW_GET_SOURCE, HR_THIS_PTR_PTR), webview, out);
+        MemorySegment value = out.getAtIndex(ADDRESS, 0);
+        return value.equals(MemorySegment.NULL) ? null
+                : value.reinterpret(Long.MAX_VALUE).getString(0, StandardCharsets.UTF_16LE);
     }
 
     static void executeScript(MemorySegment webview, String script, MemorySegment handler) {
