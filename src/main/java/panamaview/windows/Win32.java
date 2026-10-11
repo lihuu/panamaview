@@ -131,6 +131,8 @@ final class Win32 {
             bind(LOOKUPS.USER32, "PostQuitMessage", FunctionDescriptor.ofVoid(JAVA_INT));
     private static final MethodHandle POST_MESSAGE =
             bind(LOOKUPS.USER32, "PostMessageW", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, JAVA_LONG, JAVA_LONG));
+    private static final MethodHandle GET_LAST_ERROR =
+            bind(LOOKUPS.KERNELBASE, "GetLastError", FunctionDescriptor.of(JAVA_INT));
     private static final MethodHandle GET_MESSAGE =
             bind(LOOKUPS.USER32, "GetMessageW", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT, JAVA_INT));
     private static final MethodHandle TRANSLATE_MESSAGE =
@@ -268,7 +270,10 @@ final class Win32 {
                     CW_USEDEFAULT, CW_USEDEFAULT, width, height,
                     MemorySegment.NULL, MemorySegment.NULL, instance, MemorySegment.NULL);
             if (hwnd.equals(MemorySegment.NULL)) {
-                throw new IllegalStateException("CreateWindowExW failed");
+                // CreateWindowExW reports why only through GetLastError; without it the
+                // failure is a shrug.
+                int error = (int) GET_LAST_ERROR.invoke();
+                throw new IllegalStateException("CreateWindowExW failed, GetLastError " + error);
             }
             SHOW_WINDOW.invoke(hwnd, SW_SHOW);
             return hwnd.reinterpret(Long.MAX_VALUE);
