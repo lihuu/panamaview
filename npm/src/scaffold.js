@@ -114,6 +114,19 @@ function filesOf(name) {
  * same reason, and it is why every entry point loads the catalog through here.
  */
 function loadCatalog() {
+  /*
+   * templates/ is staged, not source: it is copied into the package at pack time because npm's
+   * `files` cannot reach outside the package directory, and the tracked templates live at the
+   * repository root. So running this file out of a checkout finds nothing here until
+   * `npm/scripts/build-package.sh` has run — which is a normal state to be in, and worth saying
+   * plainly rather than letting a bare ENOENT out of readdirSync.
+   */
+  if (!fs.existsSync(TEMPLATES_DIR)) {
+    throw new Error(`${TEMPLATES_DIR} does not exist. It is staged, not source: run`
+      + ' npm/scripts/build-package.sh to copy the templates in. (The published package always has'
+      + ' it; only a checkout needs the step.)');
+  }
+
   const onDisk = fs.readdirSync(TEMPLATES_DIR, { withFileTypes: true })
     .filter((e) => e.isDirectory())
     .map((e) => e.name)
