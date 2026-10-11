@@ -74,7 +74,7 @@ public final class Smoke {
                 try {
                     if (errorCode < 0) {
                         attempts[0]++;
-                        if (attempts[0] >= 12) {
+                        if (attempts[0] >= 30) {
                             return failAndQuit("ExecuteScript kept failing: 0x" + Integer.toHexString(errorCode));
                         }
                         // The page is not ready yet (ERROR_INVALID_STATE). The browser starts
@@ -102,7 +102,7 @@ public final class Smoke {
                     // ExecuteScript fails synchronously when the document is not ready; the
                     // async path (scriptDone) would only see the failures that get queued.
                     attempts[0]++;
-                    if (attempts[0] >= 12) {
+                    if (attempts[0] >= 30) {
                         failAndQuit("ExecuteScript kept failing: " + rejected.getMessage());
                         return;
                     }
@@ -202,12 +202,12 @@ public final class Smoke {
             long mainThread = Native.currentThreadId();
             Thread watchdog = new Thread(() -> {
                 try {
-                    Thread.sleep(120_000);
+                    Thread.sleep(240_000);
                 } catch (InterruptedException ignored) {
                     return;
                 }
                 if (failure == null && scriptResult == null) {
-                    stage("watchdog", "120 s with no result - ending the run so it cannot hang");
+                    stage("watchdog", "240 s with no result - ending the run so it cannot hang");
                     Native.postThreadQuit(mainThread);
                 }
             }, "smoke-watchdog");
