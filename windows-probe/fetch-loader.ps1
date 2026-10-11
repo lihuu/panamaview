@@ -14,14 +14,15 @@ $sdkVersion = "1.0.4258.31"
 $dllSha256  = "3426dcc55fdfb8b5e7ac623cf33b4ccf283fbf68a0c5a65bddfdb4d749a8abee"
 $url        = "https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2/$sdkVersion"
 
-$package = Join-Path $env:TEMP "Microsoft.Web.WebView2.$sdkVersion.nupkg"
+$package = Join-Path $env:TEMP "Microsoft.Web.WebView2.$sdkVersion.zip"
 $extract = Join-Path $env:TEMP "Microsoft.Web.WebView2.$sdkVersion"
 
 Write-Host "downloading $url"
 Invoke-WebRequest -Uri $url -OutFile $package
 
 if (Test-Path $extract) { Remove-Item -Recurse -Force $extract }
-# A .nupkg is a zip archive; Expand-Archive opens it without NuGet being installed.
+# The package is a zip archive in .nupkg clothing, and Expand-Archive in Windows PowerShell
+# 5.1 checks the extension before it checks the content — hence the .zip name above.
 Expand-Archive -Path $package -DestinationPath $extract
 
 $dll  = Join-Path $extract "build\native\x64\WebView2Loader.dll"
