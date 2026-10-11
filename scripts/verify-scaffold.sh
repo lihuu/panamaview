@@ -107,7 +107,22 @@ case "$OUTPUT" in
 esac
 
 # ---------------------------------------------------------------- one project per template
+#
+# Parallel, capped, same as verify-templates.sh and for the same reason: each pass ends in a
+# native-image compile, which is nearly all of the time this script takes. Every step below
+# already runs inside a subshell of its own (`(cd ... && ...)`), so the loop can be split without
+# changing what any step sees; what it needs is a thread cap so the compiles do not fight, which
+# is where the speed actually comes from — see the note there.
+#
+# The cap: cores ÷ templates, floor of 2.
+NATIVE_IMAGE_THREADS="${NATIVE_IMAGE_THREADS:-$(( $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4) / $(printf '%s\n' $TEMPLATES | wc -l | tr -d ' ') ))}"
+[ "$NATIVE_IMAGE_THREADS" -lt 2 ] && NATIVE_IMAGE_THREADS=2
+export NATIVE_IMAGE_THREADS
+echo "building with $NATIVE_IMAGE_THREADS native-image thread(s) each"
+
+: > "$WORK/pids"
 for name in $TEMPLATES; do
+  (
     say "[$name] generating"
 
     # A name and package that stress the substitution rather than matching the template's own:
@@ -210,6 +225,22 @@ LINKS
 
     say "[$name] the native executable, same check"
     (cd "$TARGET" && "./target/sample-app" -Dpanamaview.check=true)
+  ) > "$WORK/$name.log" 2>&1 &
+    printf '%s %s\n' "$name" "$!" >> "$WORK/pids"
 done
+
+FAILED=""
+while read -r name pid; do
+    if ! wait "$pid"; then
+        FAILED="$FAILED $name"
+    fi
+    cat "$WORK/$name.log"
+done < "$WORK/pids"
+
+[ -z "$FAILED" ] || {
+    echo >&2
+    echo "verify-scaffold.sh: these templates failed:$FAILED" >&2
+    exit 1
+}
 
 printf '\n=== the scaffolder verified\n'

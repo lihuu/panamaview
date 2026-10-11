@@ -37,11 +37,19 @@ mvn -q compile
 # what this build still has to declare is *our* web assets, which are not inheritable.
 mvn -q dependency:build-classpath -Dmdep.outputFile=target/classpath.txt
 
+# NATIVE_IMAGE_THREADS caps how many threads native-image uses to compile.
+#
+# Unset, native-image sizes itself for the whole machine, which is right for one build and wrong
+# for several at once: five of these on a fourteen-core box spent their time waiting on each
+# other (load average 175) and finished no faster than running them two at a time. scripts/
+# verify-templates.sh sets it so that the templates build in parallel instead of in turn.
+# Nothing in a normal build needs to set it.
 exec "$NATIVE_IMAGE" \
     --no-fallback \
     -H:IncludeResources='web/.*' \
     -H:+ReportExceptionStackTraces \
     -J-Xmx4g \
+    ${NATIVE_IMAGE_THREADS:+-J-XX:ActiveProcessorCount=$NATIVE_IMAGE_THREADS} \
     --enable-native-access=ALL-UNNAMED \
     -cp "target/classes:$(cat target/classpath.txt)" \
     -o target/myapp \
