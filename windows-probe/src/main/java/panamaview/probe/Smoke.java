@@ -1,0 +1,194 @@
+package panamaview.probe;
+
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+
+import static java.lang.foreign.ValueLayout.ADDRESS;
+
+/**
+ * Milestone-2a smoke: a real window, a real WebView2, and {@code ExecuteScript("2+2")} answered
+ * back through a hand-built COM callback — the whole milestone-2 sequence with none of the
+ * framework around it yet. What PASS proves: window creation, the message pump, environment
+ * and controller creation, and a call from Windows' thread back into Java, in one run.
+ *
+ * <p>This must run in an interactive desktop session (RDP or the console): over SSH the
+ * process lives in session 0, where WebView2 does not run. Every stage is logged to stdout
+ * and to {@code smoke-result.txt} beside this module, so the run can be judged afterwards by
+ * someone who was not watching the screen.
+ */
+public final class Smoke {
+
+    private static final Path REPORT = Path.of("smoke-result.txt");
+    private static final List<String> LOG = new ArrayList<>();
+    private static volatile String failure;
+    private static volatile String scriptResult;
+
+    public static void main(String[] args) throws Exception {
+        try (Arena arena = Arena.ofConfined()) {
+            run(arena);
+        }
+        writeReport();
+        System.exit(failure == null ? 0 : 1);
+    }
+
+    private static void run(Arena arena) {
+        try {
+            stage("os", System.getProperty("os.name") + " " + System.getProperty("os.arch")
+                    + ", Java " + System.getProperty("java.version") + " (" + System.getProperty("java.vendor") + ")");
+
+            Path loaderDll = loaderDll();
+            stage("loader", loaderDll.toAbsolutePath() + " (" + Files.size(loaderDll) + " bytes)");
+            // The framework's own version probe first: if the runtime is not even installed,
+            // say that in those words instead of a raw HRESULT later in the sequence.
+            String version = panamaview.windows.WebView2.browserVersion(loaderDll);
+            stage("runtime", "WebView2 " + version);
+
+            Native.coInitializeApartmentThreaded();
+
+            MemorySegment hwnd = Native.createWindow(arena, "panamaview smoke", 900, 600);
+            stage("window", "created, shown (hwnd 0x" + Long.toHexString(hwnd.address()) + ")");
+
+            MemorySegment[] webview = new MemorySegment[1];
+
+            MemorySegment scriptDone = Native.completedHandler((self, errorCode, result) -> {
+                try {
+                    if (errorCode < 0) {
+                        return failAndQuit("ExecuteScript completed with 0x" + Integer.toHexString(errorCode));
+                    }
+                    MemorySegment json = result.getAtIndex(ADDRESS, 0);
+                    scriptResult = json.equals(MemorySegment.NULL) ? "(null)"
+                            : json.reinterpret(Long.MAX_VALUE).getString(0, StandardCharsets.UTF_16LE);
+                    stage("script", "2+2 returned " + scriptResult);
+                    Native.postQuit();
+                    return 0;
+                } catch (Throwable t) {
+                    return failAndQuit(t);
+                }
+            });
+
+            MemorySegment controllerDone = Native.completedHandler((self, errorCode, controller) -> {
+                try {
+                    if (errorCode < 0) {
+                        return failAndQuit("CreateCoreWebView2Controller completed with 0x" + Integer.toHexString(errorCode));
+                    }
+                    stage("controller", "created");
+                    webview[0] = Native.coreWebView2(controller);
+                    Native.putIsVisible(controller, true);
+                    Native.putBounds(controller, Native.clientRect(arena, hwnd));
+                    stage("webview", "obtained and sized to the client rect");
+                    Native.navigate(webview[0], pageUrl(arena));
+                    Native.executeScript(webview[0], "2+2", scriptDone);
+                    return 0;
+                } catch (Throwable t) {
+                    return failAndQuit(t);
+                }
+            });
+
+            MemorySegment environmentDone = Native.completedHandler((self, errorCode, environment) -> {
+                try {
+                    if (errorCode < 0) {
+                        return failAndQuit("environment completed with 0x" + Integer.toHexString(errorCode));
+                    }
+                    stage("environment", "created");
+                    Native.createController(environment, hwnd, controllerDone);
+                    return 0;
+                } catch (Throwable t) {
+                    return failAndQuit(t);
+                }
+            });
+
+            Path userData = Path.of("target", "wv2-userdata").toAbsolutePath().normalize();
+            Files.createDirectories(userData);
+            stage("userdata", userData.toString());
+
+            Native.createEnvironment(Native.loader(loaderDll),
+                    arena.allocateFrom(userData.toString(), StandardCharsets.UTF_16LE), environmentDone);
+
+            long mainThread = Native.currentThreadId();
+            Thread watchdog = new Thread(() -> {
+                try {
+                    Thread.sleep(120_000);
+                } catch (InterruptedException ignored) {
+                    return;
+                }
+                if (failure == null && scriptResult == null) {
+                    stage("watchdog", "120 s with no result - ending the run so it cannot hang");
+                    Native.postThreadQuit(mainThread);
+                }
+            }, "smoke-watchdog");
+            watchdog.setDaemon(true);
+            watchdog.start();
+
+            stage("pump", "running - the window should be on screen now");
+            Native.pump(arena);
+            stage("pump", "exited");
+
+            if (failure == null && scriptResult != null) {
+                stage("verdict", "PASS");
+                System.out.println("[smoke] PASS - window, WebView2 and ExecuteScript all worked"
+                        + ("4".equals(scriptResult) ? "" : " (but 2+2 returned " + scriptResult + ")"));
+                if (!"4".equals(scriptResult)) {
+                    failure = "2+2 returned " + scriptResult;
+                }
+            } else if (failure == null) {
+                failure = "the run ended before any script result arrived";
+            }
+        } catch (Throwable t) {
+            failAndQuit(t);
+        }
+    }
+
+    /**
+     * The page the window navigates to: a data URL, so the smoke carries no assets and the
+     * visual is still worth looking at on the RDP desktop. Spaces, quotes and hashes are
+     * percent-encoded; nothing else in the markup needs it.
+     */
+    private static MemorySegment pageUrl(Arena arena) {
+        String html = "<body style='font-family:sans-serif;background:#14181f;color:#e8eaed;"
+                + "display:grid;place-items:center;height:95vh;margin:0'>"
+                + "<div style='text-align:center'><h1>panamaview - Windows smoke</h1>"
+                + "<p>If this window reached your screen, the WebView2 chain works.</p></div></body>";
+        String url = "data:text/html," + html.replace(" ", "%20").replace("#", "%23").replace("'", "%27");
+        return arena.allocateFrom(url, StandardCharsets.UTF_16LE);
+    }
+
+    private static int failAndQuit(String what) {
+        failure = what;
+        stage("FAILED", what);
+        Native.postQuit();
+        return -1;
+    }
+
+    private static int failAndQuit(Throwable t) {
+        return failAndQuit(t.getClass().getSimpleName() + ": " + t.getMessage());
+    }
+
+    private static Path loaderDll() {
+        String property = System.getProperty("panamaview.webview2.loader");
+        if (property != null) {
+            return Path.of(property);
+        }
+        Path staged = Path.of("loader", "WebView2Loader.dll");
+        if (Files.isRegularFile(staged)) {
+            return staged;
+        }
+        return Path.of("WebView2Loader.dll");
+    }
+
+    private static void stage(String name, String detail) {
+        String line = "stage " + name + " ".repeat(Math.max(1, 12 - name.length())) + detail;
+        LOG.add(line);
+        System.out.println(line);
+    }
+
+    private static void writeReport() throws Exception {
+        Files.write(REPORT, (String.join(System.lineSeparator(), LOG) + System.lineSeparator())
+                .getBytes(StandardCharsets.UTF_8));
+        System.out.println("report written to " + REPORT.toAbsolutePath());
+    }
+}
