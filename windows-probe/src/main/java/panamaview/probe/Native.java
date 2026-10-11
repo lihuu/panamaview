@@ -417,7 +417,7 @@ final class Native {
 
         void dispatch(MemorySegment hwnd, int message, long idEvent, int elapsed) {
             try {
-                call("KillTimer", KILL_TIMER, hwnd, MemorySegment.ofAddress(idEvent));
+                call("KillTimer", KILL_TIMER, hwnd, idEvent);
                 body.run();
             } catch (Throwable t) {
                 t.printStackTrace();
