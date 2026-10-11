@@ -31,9 +31,11 @@ public final class WindowsProbe {
             System.out.println("loader  " + loader.toAbsolutePath());
             String version = WebView2.browserVersion(loader);
             System.out.println("runtime WebView2 " + version);
-            System.out.println("[probe] PASS — FFM reached the loader, and the installed runtime answered");
+            // ASCII only, on purpose: the Windows console's code page has its own opinion
+            // about anything wider, and a PASS line that renders as "PASS ??" proves nothing.
+            System.out.println("[probe] PASS - FFM reached the loader, and the installed runtime answered");
         } catch (RuntimeException e) {
-            System.err.println("[probe] FAIL — " + e.getMessage());
+            System.err.println("[probe] FAIL - " + e.getMessage());
             System.exit(1);
         }
     }
