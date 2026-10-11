@@ -85,9 +85,10 @@ public final class Smoke {
                         Native.after(5000, hwnd, attempt[0]);
                         return errorCode;
                     }
-                    MemorySegment json = result.reinterpret(Long.MAX_VALUE).getAtIndex(ADDRESS, 0);
-                    scriptResult = json.equals(MemorySegment.NULL) ? "(null)"
-                            : json.reinterpret(Long.MAX_VALUE).getString(0, StandardCharsets.UTF_16LE);
+                    // LPCWSTR, not LPWSTR*: the completion hands over the string itself - one
+                    // dereference too many here was a crash inside a working bridge.
+                    scriptResult = result.equals(MemorySegment.NULL) ? "(null)"
+                            : result.reinterpret(Long.MAX_VALUE).getString(0, StandardCharsets.UTF_16LE);
                     stage("script", "2+2 returned " + scriptResult);
                     Native.postQuit();
                     return 0;
