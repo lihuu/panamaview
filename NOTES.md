@@ -212,7 +212,12 @@ java -agentlib:native-image-agent=config-output-dir=native-config \
 
 The generated `reachability-metadata.json` also captures the resources to embed, the
 reflection for the upcall targets, and the upcalls themselves. It is checked in at
-`src/main/resources/META-INF/native-image/panamaview/panamaview/`.
+`framework/src/main/resources/META-INF/native-image/io.github.lihuu/panamaview/`.
+
+(The path was written here as `…/native-image/panamaview/panamaview/` for a long time. That
+directory never existed — the resource path follows the Maven group id, which was already
+`io.github.lihuu` when this was written — so anyone following the §17 check below got a
+`FileNotFoundError` and no hint that the check itself was the wrong thing to run.)
 
 ### 5.2 The agent records only what ran — and that is a trap
 
@@ -945,9 +950,9 @@ cd ..
 # Worth running before any native build: nothing else catches a class that moved.
 python3 - <<'EOF'
 import json, pathlib, re
-m = json.loads(pathlib.Path("src/main/resources/META-INF/native-image/panamaview/"
-                            "panamaview/reachability-metadata.json").read_text())
-src = pathlib.Path("src/main/java")
+m = json.loads(pathlib.Path("framework/src/main/resources/META-INF/native-image/"
+                            "io.github.lihuu/panamaview/reachability-metadata.json").read_text())
+src = pathlib.Path("framework/src/main/java")
 for e in m["foreign"]["directUpcalls"]:
     text = (src / (e["class"].replace(".", "/") + ".java")).read_text()
     assert re.search(r"(?m)^\s*(public\s+)?static\s+[\w\[\]<>.?,\s]+\s+"

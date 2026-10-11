@@ -29,10 +29,10 @@ say() { printf '\n=== %s\n' "$1"; }
 say "installing the framework into the local repository"
 (cd "$ROOT" && mvn -q -B install -DskipTests)
 
-FRAMEWORK_VERSION="$(python3 -c '
-import re, sys
-print(re.search(r"<artifactId>panamaview</artifactId>\s*<version>([^<]+)</version>",
-                open(sys.argv[1]).read()).group(1))' "$ROOT/pom.xml")"
+# The framework's version, from the framework's own pom. The root pom is the reactor's parent since
+# the build became a module build, so it is no longer the file that says what the framework is.
+# The script exports FRAMEWORK_VERSION itself; the name is kept because everything below reads it.
+. "$ROOT/scripts/framework-coordinates.sh"
 echo "framework version: $FRAMEWORK_VERSION"
 
 # ---------------------------------------------------------------- each template

@@ -19,21 +19,23 @@ fail() { printf 'build-package.sh: %s\n' "$1" >&2; exit 1; }
 # ---------------------------------------------------------------- one version, in two files
 say "the version the package claims, and the version it carries"
 #
-# Read with sed rather than captured from the here-document below. /bin/sh on macOS is bash 3.2,
-# which loses its place in a script when a here-document appears inside a command substitution: it
-# ran part of this file it had already passed and reported an unset variable from the bottom of it.
-# npm runs this file through sh, so that is a platform rather than a curiosity.
+# The version comes from the framework's own pom. It used to come from the root pom, which was the
+# same file until the build became a reactor: now the root pom is the parent
+# (io.github.lihuu:panamaview-parent) and the framework is a module beside it. Reading "the first
+# <version> in pom.xml" would give the parent's version, which happens to be the same number today
+# and would stop being the same number the moment anyone built the two independently.
 #
-# The first <version> in a pom with no <parent> is the project's own — the rule release.sh reads the
-# version by.
-VERSION="$(sed -n 's:.*<version>\([^<]*\)</version>.*:\1:p' "$ROOT/pom.xml" | head -1)"
-[ -n "$VERSION" ] || fail "no <version> in $ROOT/pom.xml"
+# Read without a here-document inside a command substitution (see the note below), so the shared
+# script is sourced and then the value is copied out of it.
+. "$ROOT/scripts/framework-coordinates.sh"
+VERSION="$FRAMEWORK_VERSION"
+[ -n "$VERSION" ] || fail "no version in $FRAMEWORK_POM"
 
 # The jar's name and the directory it is filed under are both the framework's version, so a
 # package.json claiming a different one would ship a framework that the projects it generates do
 # not depend on — and they would fail to resolve it, on the user's machine, in a file the user did
 # not write. scripts/release.sh bumps the two together; this is what notices when they are not.
-python3 - "$VERSION" "$NPM_DIR/package.json" "$ROOT/pom.xml" <<'PY'
+python3 - "$VERSION" "$NPM_DIR/package.json" "$FRAMEWORK_POM" <<'PY'
 import json, re, sys
 
 version, package, pom = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -44,8 +46,9 @@ if version != claimed:
              f"generates pin that version, so the claim has to be the version that is really in\n"
              f"there.\n"
              f"Fix: set \"version\": \"{version}\" in npm/package.json")
-# The sed above and this regex have to agree. A pom that grew a <parent> would have its parent's
-# version first, and everything downstream of here is named after whatever came out.
+# Read the framework's coordinates out of its pom independently of the shared script above, so the
+# two have to agree rather than one silently trusting the other. Both are looking at a pom with no
+# <parent>, so the first <version> in it is the project's own.
 found = re.search(r"<version>([^<]+)</version>", open(pom).read()).group(1)
 if found != version:
     sys.exit(f"\n{version} came out of {pom} one way and {found} another.")
@@ -61,16 +64,19 @@ BUILT="$ROOT/scaffold/target/panamaview"
 [ -f "$BUILT" ] || fail "build-native.sh wrote no $BUILT"
 
 say "building the framework"
-(cd "$ROOT" && mvn -q -B package -DskipTests)
-FRAMEWORK="$ROOT/target/panamaview-$VERSION.jar"
-[ -s "$FRAMEWORK" ] || fail "mvn package wrote no $FRAMEWORK"
+# The whole reactor, so the parent pom is installed as well as the framework — the framework's pom
+# inherits from it, and a consumer resolving the framework reads the parent first.
+(cd "$ROOT" && mvn -q -B install -DskipTests)
+FRAMEWORK="$ROOT/framework/target/panamaview-$VERSION.jar"
+[ -s "$FRAMEWORK" ] || fail "mvn install wrote no $FRAMEWORK"
 
 say "staging bin/ and lib/"
 # Cleared rather than written over: a version bump would otherwise leave the previous release
 # sitting in lib/ for ever, inside every tarball built afterwards.
 rm -rf "${NPM_DIR:?}/bin" "${NPM_DIR:?}/lib"
-ARTIFACTS="$NPM_DIR/lib/io/github/lihuu/panamaview/$VERSION"
-mkdir -p "$NPM_DIR/bin" "$ARTIFACTS"
+ARTIFACTS="$NPM_DIR/lib/$FRAMEWORK_REPO_PATH"
+PARENT_ARTIFACTS="$NPM_DIR/lib/io/github/lihuu/panamaview-parent/$VERSION"
+mkdir -p "$NPM_DIR/bin" "$ARTIFACTS" "$PARENT_ARTIFACTS"
 
 cp "$BUILT" "$NPM_DIR/bin/panamaview"
 # Set rather than assumed: a copy that drops the mode turns every later `panamaview` into
@@ -78,13 +84,22 @@ cp "$BUILT" "$NPM_DIR/bin/panamaview"
 chmod 755 "$NPM_DIR/bin/panamaview"
 
 cp "$FRAMEWORK" "$ARTIFACTS/panamaview-$VERSION.jar"
-# The repository's own pom, unchanged. It is what Maven reads to learn the artifact's dependencies,
+# The framework's own pom, unchanged. It is what Maven reads to learn the artifact's dependencies,
 # and the answer for this artifact is none, which is what the file already says.
-cp "$ROOT/pom.xml" "$ARTIFACTS/panamaview-$VERSION.pom"
+cp "$FRAMEWORK_POM" "$ARTIFACTS/panamaview-$VERSION.pom"
+# And the parent it inherits from, because resolving the framework means reading this first. It is
+# declared in the framework's <parent> and cannot be dropped without a consumer's build failing to
+# read the pom at all — which is exactly the class of bundled-layout bug this package exists to
+# avoid. scripts/verify-scaffold-library.sh builds a generated project against an empty local
+# repository, so a missing parent fails there rather than on someone else's machine.
+cp "$ROOT/pom.xml" "$PARENT_ARTIFACTS/panamaview-parent-$VERSION.pom"
 # Checksums, because a Maven repository without them makes the first build of every generated
 # project print a warning about a download it could not verify.
-for artifact in "panamaview-$VERSION.jar" "panamaview-$VERSION.pom"; do
-    (cd "$ARTIFACTS" && shasum -a 1 "$artifact" | awk '{ print $1 }' > "$artifact.sha1")
+for staged in "$ARTIFACTS" "$PARENT_ARTIFACTS"; do
+    for artifact in "$staged"/*.jar "$staged"/*.pom; do
+        (cd "$staged" && shasum -a 1 "$(basename "$artifact")" \
+            | awk '{ print $1 }' > "$(basename "$artifact").sha1")
+    done
 done
 
 # ---------------------------------------------------------------- what is about to be packed
@@ -96,7 +111,8 @@ done
 # could catch.
 say "what was staged"
 for file in "$NPM_DIR/bin/panamaview" "$ARTIFACTS/panamaview-$VERSION.jar" \
-        "$ARTIFACTS/panamaview-$VERSION.pom"; do
+        "$ARTIFACTS/panamaview-$VERSION.pom" \
+        "$PARENT_ARTIFACTS/panamaview-parent-$VERSION.pom"; do
     [ -s "$file" ] || fail "missing or empty: $file"
     printf '  %10s  %s\n' "$(wc -c < "$file" | tr -d ' ')" "${file#"$NPM_DIR/"}"
 done

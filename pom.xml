@@ -5,38 +5,58 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>io.github.lihuu</groupId>
-  <artifactId>panamaview</artifactId>
+  <artifactId>panamaview-parent</artifactId>
   <version>0.2.0</version>
-  <packaging>jar</packaging>
+  <packaging>pom</packaging>
 
-  <name>panamaview</name>
-  <description>Drive the operating system's web view from Java over the FFM API. No JNI, no JNA,
-    no bundled browser engine.</description>
+  <name>panamaview build</name>
+  <description>The reactor that builds panamaview, its scaffolder and its demo together.</description>
+
+  <!--
+    One tree, one version, one build. `mvn install` here builds every module below in dependency
+    order, and nothing has to be installed by hand first.
+
+    What this replaces: `scaffold/` and `demo-app/` were independent projects sitting beside a pom
+    they had no relationship to, each stating the framework's version a second time. That is how a
+    release once shipped a tag whose demo pinned a version that had never been published —
+    `release.sh` did not know the file existed and the failure landed on CI three jobs away from the
+    cause. A module cannot get out of step with the reactor it is built in.
+
+    Why this is named `panamaview-parent` and not `panamaview`: Maven refuses an aggregator whose
+    coordinates collide with a module's, and says so plainly — "Project
+    'io.github.lihuu:panamaview:0.2.0' is duplicated in the reactor". The framework's coordinates
+    cannot move: they are in every generated project's pom, in the Maven repository the npm package
+    bundles, and in the scaffolder's library lookup.
+
+    `templates/` is deliberately *not* a module. A template is copied out of this repository and
+    built somewhere else, where this pom does not exist. Giving one a `<parent>` would make every
+    generated project unbuildable, so they pin the framework version explicitly instead, and
+    `scripts/verify-templates.sh` fails when a pin drifts.
+  -->
+  <modules>
+    <module>framework</module>
+    <module>scaffold</module>
+    <module>demo-app</module>
+  </modules>
 
   <properties>
+    <!-- The version every module is built at, and the version they depend on each other at. Stated
+         once: a module that repeats it is a module that can disagree with this one. -->
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>25</maven.compiler.release>
   </properties>
 
-  <!--
-    Zero runtime dependencies on purpose: the whole point is to talk to
-    Cocoa/WebKit through java.lang.foreign and nothing else.
-  -->
-  <dependencies/>
-
   <build>
-    <plugins>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.13.0</version>
-      </plugin>
-
-      <!--
-        No exec plugin, and no entry point: this is a library. It has no main() to run and
-        nothing to launch, so declaring one would mean shipping the demo again. The demo
-        lives in demo-app/ and is an ordinary consumer, exactly like the templates.
-      -->
-    </plugins>
+    <pluginManagement>
+      <plugins>
+        <!-- Plugin versions live here so a module cannot quietly carry a different one from its
+             siblings. Modules name the plugin; this says which plugin. -->
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <version>3.13.0</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
   </build>
 </project>
