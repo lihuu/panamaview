@@ -412,6 +412,9 @@ final class Native {
             bind(USER32, "SetTimer", FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_LONG, JAVA_INT, ADDRESS));
     private static final MethodHandle KILL_TIMER =
             bind(USER32, "KillTimer", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG));
+    private static final MethodHandle SET_WINDOW_POS =
+            bind(USER32, "SetWindowPos", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS,
+                    JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT));
     private static final MethodHandle DEF_WINDOW_PROC =
             bind(USER32, "DefWindowProcW", FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_INT, JAVA_LONG, JAVA_LONG));
     private static final MethodHandle POST_QUIT_MESSAGE =
@@ -540,6 +543,9 @@ final class Native {
                 throw new IllegalStateException("CreateWindowExW failed");
             }
             SHOW_WINDOW.invoke(hwnd, SW_SHOW);
+            // HWND_TOPMOST + SWP_NOMOVE|SWP_NOSIZE: a smoke window that can hide behind
+            // another is a smoke window nobody sees, and "did it appear" is evidence.
+            SET_WINDOW_POS.invoke(hwnd, MemorySegment.ofAddress(-1L), 0, 0, 0, 0, 0x3);
             return hwnd;
         } catch (Throwable t) {
             throw t instanceof RuntimeException r ? r : new IllegalStateException(t);
