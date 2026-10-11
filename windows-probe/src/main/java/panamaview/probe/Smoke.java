@@ -29,11 +29,20 @@ public final class Smoke {
     private static volatile String scriptResult;
 
     public static void main(String[] args) throws Exception {
+        // Everything WebView2 touches lives on a thread of its own, not Java's main: the JVM's
+        // launcher hands main() a thread whose COM state nobody here chose, and the browser's
+        // event delivery is married to the apartment of the thread that created it.
+        Thread pumpThread = new Thread(null, Smoke::runOnDedicatedThread, "panamaview-pump", 0);
+        pumpThread.start();
+        pumpThread.join();
+        writeReport();
+        System.exit(failure == null ? 0 : 1);
+    }
+
+    private static void runOnDedicatedThread() {
         try (Arena arena = Arena.ofConfined()) {
             run(arena);
         }
-        writeReport();
-        System.exit(failure == null ? 0 : 1);
     }
 
     private static void run(Arena arena) {
@@ -48,12 +57,15 @@ public final class Smoke {
             String version = panamaview.windows.WebView2.browserVersion(loaderDll);
             stage("runtime", "WebView2 " + version);
 
-            Native.coInitializeApartmentThreaded();
+            int coInit = Native.coInitializeApartmentThreaded();
+            stage("com", "CoInitializeEx returned 0x" + Integer.toHexString(coInit)
+                    + (coInit == 0x80010106 ? " (RPC_E_CHANGED_MODE - the apartment was not ours to choose)" : ""));
 
             MemorySegment hwnd = Native.createWindow(arena, "panamaview smoke", 900, 600);
             stage("window", "created, shown (hwnd 0x" + Long.toHexString(hwnd.address()) + ")");
 
             MemorySegment[] webview = new MemorySegment[1];
+            MemorySegment[] controllerBox = new MemorySegment[1];
 
             int[] attempts = {0};
             Runnable[] attempt = new Runnable[1];
@@ -128,6 +140,7 @@ public final class Smoke {
                     // Every pointer arriving from native is a zero-length segment until
                     // reinterpreted; the crash earlier in this branch named that rule.
                     MemorySegment controller = controllerArg.reinterpret(Long.MAX_VALUE);
+                    controllerBox[0] = controller;
                     webview[0] = Native.coreWebView2(controller);
                     Native.putIsVisible(controller, true);
                     Native.putBounds(controller, Native.clientRect(arena, hwnd));
@@ -141,7 +154,8 @@ public final class Smoke {
                     Native.after(3000, hwnd, () -> {
                         try {
                             String source = Native.currentSource(webview[0]);
-                            stage("timer", "3 s in, source is '" + source + "'");
+                            stage("timer", "3 s in, source is '" + source + "', visible: "
+                                    + Native.isVisible(controllerBox[0]));
                             attempt[0].run();
                         } catch (Throwable t) {
                             failAndQuit(t);
