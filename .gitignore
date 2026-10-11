@@ -28,3 +28,4 @@ target/
 
 # The smoke writes its stage log beside the module; not source.
 /windows-probe/smoke-result.txt
+/windows-probe/smoke-page.png
