@@ -74,14 +74,14 @@ public final class Smoke {
                 try {
                     if (errorCode < 0) {
                         attempts[0]++;
-                        if (attempts[0] >= 8) {
+                        if (attempts[0] >= 12) {
                             return failAndQuit("ExecuteScript kept failing: 0x" + Integer.toHexString(errorCode));
                         }
                         // The page is not ready yet (ERROR_INVALID_STATE). The browser starts
                         // on its own schedule; the run waits for it instead of racing it.
                         stage("script", "attempt " + attempts[0] + " rejected with 0x"
                                 + Integer.toHexString(errorCode) + " - page not ready, retrying");
-                        Native.after(4000, hwnd, attempt[0]);
+                        Native.after(5000, hwnd, attempt[0]);
                         return errorCode;
                     }
                     MemorySegment json = result.reinterpret(Long.MAX_VALUE).getAtIndex(ADDRESS, 0);
@@ -102,12 +102,12 @@ public final class Smoke {
                     // ExecuteScript fails synchronously when the document is not ready; the
                     // async path (scriptDone) would only see the failures that get queued.
                     attempts[0]++;
-                    if (attempts[0] >= 8) {
+                    if (attempts[0] >= 12) {
                         failAndQuit("ExecuteScript kept failing: " + rejected.getMessage());
                         return;
                     }
                     stage("script", "attempt " + attempts[0] + " rejected - page not ready, retrying");
-                    Native.after(4000, hwnd, attempt[0]);
+                    Native.after(5000, hwnd, attempt[0]);
                 } catch (Throwable t) {
                     failAndQuit(t);
                 }
@@ -154,8 +154,11 @@ public final class Smoke {
                     Native.after(3000, hwnd, () -> {
                         try {
                             String source = Native.currentSource(webview[0]);
-                            stage("timer", "3 s in, source is '" + source + "', visible: "
-                                    + Native.isVisible(controllerBox[0]));
+                            stage("timer", "3 s in, source is '" + source
+                                    + "', webview 0x" + Long.toHexString(webview[0].address())
+                                    + ", controller 0x" + Long.toHexString(controllerBox[0].address())
+                                    + ", controller vtable 0x" + Long.toHexString(
+                                            controllerBox[0].getAtIndex(ADDRESS, 0).address()));
                         } catch (Throwable t) {
                             stage("timer", "state probe failed: " + t);
                         }
