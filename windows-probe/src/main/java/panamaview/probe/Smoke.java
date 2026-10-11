@@ -156,10 +156,18 @@ public final class Smoke {
                             String source = Native.currentSource(webview[0]);
                             stage("timer", "3 s in, source is '" + source + "', visible: "
                                     + Native.isVisible(controllerBox[0]));
-                            attempt[0].run();
                         } catch (Throwable t) {
-                            failAndQuit(t);
+                            stage("timer", "state probe failed: " + t);
                         }
+                        // The eyes: whatever the state says, the picture is the truth.
+                        try {
+                            Native.capturePreview(webview[0], Path.of("smoke-page.png").toAbsolutePath(),
+                                    () -> stage("capture", "smoke-page.png written"),
+                                    error -> stage("capture", "failed: " + error));
+                        } catch (Throwable t) {
+                            stage("capture", "failed to start: " + t);
+                        }
+                        attempt[0].run();
                     });
                     return 0;
                 } catch (Throwable t) {
