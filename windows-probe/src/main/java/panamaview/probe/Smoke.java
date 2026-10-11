@@ -62,7 +62,8 @@ public final class Smoke {
                     + (coInit == 0x80010106 ? " (RPC_E_CHANGED_MODE - the apartment was not ours to choose)" : ""));
 
             MemorySegment hwnd = Native.createWindow(arena, "panamaview smoke", 900, 600);
-            stage("window", "created, shown (hwnd 0x" + Long.toHexString(hwnd.address()) + ")");
+            stage("window", "created (hwnd 0x" + Long.toHexString(hwnd.address()) + "): "
+                    + Native.windowState(arena, hwnd));
 
             MemorySegment[] webview = new MemorySegment[1];
             MemorySegment[] controllerBox = new MemorySegment[1];
