@@ -301,6 +301,11 @@ final class Win32 {
             this.delegate = delegate;
         }
 
+        @Override
+        public long onMessage(MemorySegment hwnd, int message, long wparam, long lparam) {
+            return dispatch(hwnd, message, wparam, lparam);
+        }
+
         long dispatch(MemorySegment hwnd, int message, long wparam, long lparam) {
             try {
                 return delegate.onMessage(hwnd, message, wparam, lparam);
