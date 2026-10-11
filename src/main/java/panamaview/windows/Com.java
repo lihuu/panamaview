@@ -151,13 +151,20 @@ final class Com {
 
     /**
      * A handler object the browser can hold: four slots (QueryInterface, AddRef, Release,
-     * Invoke), an honest reference count, and an arena of its own so that reaching zero frees
-     * everything at once.
+     * Invoke) and an honest reference count.
      *
      * <p>QueryInterface answers IUnknown and nothing else. These objects are passed and stored
      * through their typed pointers, and the one interface every COM object must answer is
      * IUnknown; inventing yes-answers for interfaces the object does not implement is a lie
      * that crashes later, somewhere else.
+     *
+     * <h2>Why Release never frees</h2>
+     * The browser QIs and Releases these objects as temporaries <em>inside the very call that
+     * receives them</em> - the first demo run died on exactly that: reaching zero closed the
+     * arena while the Release upcall itself was still on the object's stub, and FFM refused
+     * ("Session is acquired by 1 clients"). A handler is bounded by the number of registrations
+     * an application makes - a handful per lifetime - so the honest count stands and the
+     * memory lives as long as the process, the same call the macOS side makes for everything.
      */
     static MemorySegment completed(Completed body) {
         return build(COMPLETED_INVOKE, mh(Completed.class, "invoke",
@@ -185,11 +192,8 @@ final class Com {
         }
     }
 
-    /** Objects whose count has reached zero are freed here; everything else outlives the process. */
-    private static final ConcurrentHashMap<MemorySegment, Arena> LIVE = new ConcurrentHashMap<>();
-
     private static MemorySegment build(FunctionDescriptor invokeDescriptor, MethodHandle invoke) {
-        Arena arena = Arena.ofShared();   // the browser may Release from any of its threads
+        Arena arena = Arena.global();   // handler objects live as long as the process; see the class comment on Release
         MemorySegment object = arena.allocate(OBJECT);
         MemorySegment vtbl = arena.allocate(ADDRESS, 4);
         vtbl.setAtIndex(ADDRESS, QUERY_INTERFACE, LINKER.upcallStub(QI_MH, QI_DESCRIPTOR, arena));
@@ -198,7 +202,6 @@ final class Com {
         vtbl.setAtIndex(ADDRESS, 3, LINKER.upcallStub(invoke, invokeDescriptor, arena));
         object.setAtIndex(ADDRESS, 0, vtbl);
         REF_COUNT.set(object, 0L, 0);
-        LIVE.put(object, arena);
         return object;
     }
 
@@ -220,15 +223,9 @@ final class Com {
     }
 
     private static int release(MemorySegment selfArg) {
-        MemorySegment self = selfArg.reinterpret(Long.MAX_VALUE);
-        int count = bump(self, -1);
-        if (count == 0) {
-            Arena arena = LIVE.remove(self);
-            if (arena != null) {
-                arena.close();
-            }
-        }
-        return count;
+        // The count is honest; the memory is not freed - see the javadoc on completed() for
+        // why freeing from inside a Release upcall cannot work.
+        return bump(selfArg.reinterpret(Long.MAX_VALUE), -1);
     }
 
     private static int bump(MemorySegment self, int delta) {
