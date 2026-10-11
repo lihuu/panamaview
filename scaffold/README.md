@@ -146,6 +146,13 @@ the scaffolder.
 
 ## Building it in this checkout
 
+Building this needs a POSIX shell, so it is macOS or Linux. On Windows the reactor stops at this
+module: `scripts/embed-templates.sh` is `sh` and reads the git index through it, and a Windows `sh`
+(which is Git Bash) is not the same environment — measured on Windows 11, the staging step failed on
+`dirname` being a WinGet shim and on `$(cd .. && pwd)` coming back as `//templates`. That does not
+reach anyone using the scaffolder, because the scaffolder is *distributed* as a built artifact
+rather than built per user; it is a limit on contributing to it from Windows.
+
 This module is part of the repository's Maven reactor, so it is built from the repository root:
 
 ```sh
