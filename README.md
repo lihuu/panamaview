@@ -99,7 +99,23 @@ built a real application on it.
 
 ## Starting a project
 
-A scaffolder generates a working project from any of the templates:
+A scaffolder generates a working project from any of the templates. It is a Maven artifact like the
+framework it generates projects for, so there is no archive to download and nothing to unzip:
+
+```sh
+mvn dependency:get -Dartifact=io.github.lihuu:panamaview-scaffold:0.1.0
+cp ~/.m2/repository/io/github/lihuu/panamaview-scaffold/0.1.0/panamaview-scaffold-0.1.0.jar ~/bin/
+java -jar ~/bin/panamaview-scaffold-0.1.0.jar create my-chat-app --template vue
+```
+
+A jar rather than a native executable, deliberately. The scaffolder would make a perfectly good
+13 MB Mach-O binary — it uses no `java.lang.foreign`, no WebKit and no reachability metadata — but a
+binary would need one build per platform shipped through the release page, and this repository has
+stopped attaching artifacts to releases. A jar is one file that runs anywhere the JDK runs.
+
+In this checkout it also builds as a native executable. That form exists for the loop around it —
+it is what `verify-scaffold.sh` runs, and what makes working on a template a build rather than a
+jar swap — not as something to hand out:
 
 ```console
 $ ./scaffold/build-native.sh            # → scaffold/target/panamaview

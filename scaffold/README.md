@@ -69,16 +69,37 @@ everything else here is: after uploading, it resolves both artifacts back from a
 repository and compares hashes. An upload that returns 201 is not evidence that another machine can
 fetch what was built.
 
-## Building the scaffolder
+## How it is delivered
+
+As a Maven artifact, the same way the framework is:
+
+```sh
+mvn dependency:get -Dartifact=io.github.lihuu:panamaview-scaffold:<version>
+java -jar ~/.m2/repository/io/github/lihuu/panamaview-scaffold/<version>/panamaview-scaffold-<version>.jar \
+     create my-app --template vue
+```
+
+Published to the same private repository as the framework, by the same `scripts/deploy-private.sh`,
+which resolves both back from an empty local repository afterwards. Neither is on Maven Central:
+that waits on evidence that someone has built a real application on this, which is a claim this
+repository cannot make about itself yet.
+
+**A jar, not a native executable.** The native build works — 13 MB, no foreign registration, no
+reachability metadata, no JVM flags — but shipping it would mean one build per platform attached to
+a release page, and this repository no longer attaches artifacts to releases. A jar is one file that
+runs wherever the JDK does. That is why `mvn dependency:get` is the documented way to get it rather
+than a download link.
+
+## Building it in this checkout
 
 ```sh
 ./build-native.sh        # → target/panamaview, a native executable
 mvn -q package           # → target/panamaview-scaffold-<version>.jar, runnable with java -jar
 ```
 
-Nothing about this needs GraalVM-specific knowledge, which is the point: the scaffolder uses no
-`java.lang.foreign`, no objective-C runtime and no reachability metadata. It reads resources and
-writes files.
+The native form is for the loop around the scaffolder: `scripts/verify-scaffold.sh` runs it, and it
+makes working on a template a build rather than a jar swap. It is not the delivery format — see
+above.
 
 ## How the templates get in
 
