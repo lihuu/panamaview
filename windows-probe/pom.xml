@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>io.github.lihuu</groupId>
+  <artifactId>panamaview-windows-probe</artifactId>
+  <version>0.1.0</version>
+  <packaging>jar</packaging>
+
+  <name>panamaview windows probe</name>
+  <description>The Windows port's milestone-1 check: the FFM chain to the WebView2 runtime,
+    without a window. An ordinary consumer of the framework.</description>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>25</maven.compiler.release>
+    <main.class>panamaview.probe.WindowsProbe</main.class>
+    <panamaview.version>0.2.0</panamaview.version>
+  </properties>
+
+  <!--
+    The one dependency, exactly like demo-app: if this stops building, the framework stopped
+    being usable from outside its own source tree. Nothing here is ever published.
+  -->
+  <dependencies>
+    <dependency>
+      <groupId>io.github.lihuu</groupId>
+      <artifactId>panamaview</artifactId>
+      <version>${panamaview.version}</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+      </plugin>
+
+      <!--
+        Native access, because the calls into the loader are native. Unlike the demo-app pom,
+        no -XstartOnFirstThread: that flag is macOS's, because AppKit insists on the process'
+        first thread. WebView2 only insists on a message pump, which the Windows host will own
+        on a thread of its own choosing, so a Windows consumer never needs the flag. This is
+        the port's first user-visible win, and it is a removal.
+      -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.5.0</version>
+        <configuration>
+          <executable>${java.home}/bin/java</executable>
+          <arguments>
+            <argument>--enable-native-access=ALL-UNNAMED</argument>
+            <argument>-cp</argument>
+            <classpath/>
+            <argument>${main.class}</argument>
+          </arguments>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

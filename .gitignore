@@ -21,3 +21,7 @@ target/
 .vscode/
 # Editor-tool state (not project content)
 .alma-snapshots/
+
+# The WebView2 loader DLL: fetched by windows-probe/fetch-loader.ps1 and checksum-verified.
+# A third-party binary, like the Tailwind standalone binary — staged, not tracked.
+/windows-probe/loader/
