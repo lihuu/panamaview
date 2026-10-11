@@ -9,7 +9,7 @@
   <!-- Must track the framework version in the root pom: the templates are staged from this same
        working tree and pin that version, so a mismatch would ship a scaffolder that generates
        projects depending on a release that does not exist. verify-scaffold.sh asserts it. -->
-  <version>0.1.0</version>
+  <version>0.2.0</version>
   <packaging>jar</packaging>
 
   <name>panamaview-scaffold</name>

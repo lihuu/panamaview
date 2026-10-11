@@ -15,7 +15,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>25</maven.compiler.release>
     <main.class>com.example.Main</main.class>
-    <panamaview.version>0.1.0</panamaview.version>
+    <panamaview.version>0.2.0</panamaview.version>
   </properties>
 
   <dependencies>
