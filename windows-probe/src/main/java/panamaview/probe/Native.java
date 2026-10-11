@@ -138,6 +138,7 @@ final class Native {
     private static final int ENV_CREATE_CONTROLLER = 3;
 
     /** ICoreWebView2Controller slots, from the shipped WebView2.h. */
+    private static final int CONTROLLER_GET_IS_VISIBLE = 3;
     private static final int CONTROLLER_PUT_IS_VISIBLE = 4;
     private static final int CONTROLLER_PUT_BOUNDS = 6;
     private static final int CONTROLLER_GET_CORE_WEBVIEW2 = 25;
@@ -203,6 +204,13 @@ final class Native {
     static void putIsVisible(MemorySegment controller, boolean visible) {
         call("put_IsVisible", slot(controller, CONTROLLER_PUT_IS_VISIBLE, HR_THIS_PTR_INT),
                 controller, visible ? 1 : 0);
+    }
+
+    static boolean isVisible(MemorySegment controller) {
+        MemorySegment out = LIFE.allocate(JAVA_INT);
+        call("get_IsVisible", slot(controller, CONTROLLER_GET_IS_VISIBLE, HR_THIS_PTR_PTR),
+                controller, out);
+        return out.get(JAVA_INT, 0) != 0;
     }
 
     static void putBounds(MemorySegment controller, MemorySegment rect) {
@@ -355,9 +363,12 @@ final class Native {
             bind(USER32, "DispatchMessageW", FunctionDescriptor.of(JAVA_LONG, ADDRESS));
 
     /** COM apartment threading: WebView2 wants the creating thread to be an STA that pumps. */
-    static void coInitializeApartmentThreaded() {
-        call("CoInitializeEx", CO_INITIALIZE,
-                MemorySegment.NULL, 0x2 /* COINIT_APARTMENTTHREADED */);
+    static int coInitializeApartmentThreaded() {
+        try {
+            return (int) CO_INITIALIZE.invoke(MemorySegment.NULL, 0x2 /* COINIT_APARTMENTTHREADED */);
+        } catch (Throwable t) {
+            throw new IllegalStateException(t);
+        }
     }
 
     static long currentThreadId() {
