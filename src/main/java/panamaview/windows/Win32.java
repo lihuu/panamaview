@@ -228,7 +228,10 @@ final class Win32 {
      */
     static MemorySegment createWindow(Arena arena, String title, int width, int height, Procedure procedure) {
         MemorySegment wndProc = LINKER.upcallStub(
-                mh(ProcedureAdapter.class, "dispatch",
+                // Looked up on the interface, by the interface's own method name: the adapter
+                // is just the receiver, and a rename of the implementation must not break the
+                // stub that reaches it.
+                mh(Procedure.class, "onMessage",
                         MethodType.methodType(long.class, MemorySegment.class, int.class, long.class, long.class),
                         new ProcedureAdapter(procedure)),
                 FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_INT, JAVA_LONG, JAVA_LONG), LIFE);
