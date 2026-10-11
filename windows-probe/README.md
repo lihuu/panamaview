@@ -28,6 +28,25 @@ runtime WebView2 154.0.4258.62
 
 Exit codes: 0 pass, 1 the runtime chain failed, 2 the loader DLL is not staged.
 
+## The smoke (milestone 2a)
+
+`Smoke.java` is the first real window: it creates a Win32 window, a WebView2 environment
+and controller over it, navigates the page, and runs `2+2` through `ExecuteScript` with a
+hand-built COM callback — the whole sequence milestone 2 will grow `WindowsHost` out of,
+with no framework around it yet.
+
+It opens a window on the desktop it runs in, so it must be launched from an **interactive
+session** (RDP or the console), not SSH — in session 0 WebView2 does not run. It ends by
+itself (a watchdog quits it after two minutes if the chain stalls), and every stage lands
+in `smoke-result.txt` beside this file, so the run can be judged by someone who was not
+watching the screen:
+
+```bat
+run-smoke.cmd
+```
+
+Expected last stage: `stage script  2+2 returned 4` and a PASS verdict line.
+
 ## Requirements
 
 - Windows on x64, with the WebView2 Evergreen runtime installed. It is preinstalled on
