@@ -303,10 +303,15 @@ for module in re.findall(r"<module>([^<]+)</module>",
     pom = root / module / "pom.xml"
     if not pom.exists() or module == "framework":
         continue                       # the framework states its own version; bumped above
-    text = strip_comments(pom.read_text(encoding="utf-8"))
-    if "<parent>" not in text:
+    # The assertions read the comments-stripped text; the rewrite below needs the file itself.
+    # Doing both through one variable is how the first version of this fix wrote every module back
+    # without its comments: the checks were right and the write was wrong, and a test of the
+    # assertions alone would not have noticed.
+    text = pom.read_text(encoding="utf-8")
+    checks = strip_comments(text)
+    if "<parent>" not in checks:
         sys.exit(f"{module}/pom.xml has no <parent>; it is supposed to inherit the version")
-    if "<panamaview.version>" in text:
+    if "<panamaview.version>" in checks:
         sys.exit(f"{module}/pom.xml pins <panamaview.version> as well as being a module; the "
                  f"pin is the copy that gets missed, and inheriting is what replaced it")
     # The parent's <version> is a copy of the reactor's version, and it is the copy that has to be
