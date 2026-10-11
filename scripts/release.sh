@@ -13,21 +13,35 @@
 # ---------------------------------------------------------------------------------------------
 # Why this is a script and not three git commands
 #
-# The version lives in eight places and they are not all the same kind of thing:
+# The version lives in nine places and they are not all the same kind of thing:
 #
 #   pom.xml                       <version>                 the framework
 #   scaffold/pom.xml              <version>                 the scaffolder
+#   demo-app/pom.xml              <panamaview.version>      what the demo depends on
 #   templates/*/pom.xml           <panamaview.version>      what a generated project depends on
 #                                 (x5)
+#   npm/package.json              version                   the package that carries the framework
 #
-# The first two and the five template pins are one value that must move together: the templates are
+# The first two and the six pins below them are one value that must move together: the templates are
 # staged from this working tree, so a template pinning a version that is not the framework's
 # generates projects that cannot resolve — and scripts/verify-templates.sh fails on exactly that,
 # which is how the invariant is enforced rather than remembered.
 #
+# npm/package.json is the same value for a different reason. That package ships the framework and
+# the projects it generates pin the version it ships, so a package claiming a version other than
+# the one it carries generates projects that cannot resolve — on a machine with no checkout to
+# compare against. npm/scripts/build-package.sh asserts the two agree whenever it stages lib/, and
+# this script is what keeps them agreeing at release time.
+#
 # What deliberately does NOT move: each template's own <version>, and the frontend package.json
 # versions. Those are the version of the *application* a template describes, not of the framework,
 # and tying them together would mean a generated project's version jumping whenever panamaview did.
+#
+# The Homebrew formula is the other one, and it is not a matter of choice. It names a tag *and the
+# commit that tag points at*, and `brew audit` requires the revision beside the tag -- but the commit
+# this release creates does not exist while this script is running, and a commit cannot contain its
+# own sha. So it is printed near the end rather than rewritten, in a section of its own: unlike a
+# sample in a document, which is history to leave alone, this one is the pin a user installs from.
 #
 # Because verification runs before the bump, a mismatch introduced here fails this script rather
 # than the release. That ordering matters: a release that fails after the tag exists is one you
@@ -118,7 +132,7 @@ git rev-parse -q --verify "refs/tags/v$NEXT" >/dev/null && fail "tag v$NEXT alre
 # would fail after the tag exists. Cheap to check first.
 say "checking every version is currently in agreement"
 python3 - "$ROOT" "$CURRENT" <<'PY'
-import pathlib, re, sys
+import json, pathlib, re, sys
 
 root, current = pathlib.Path(sys.argv[1]), sys.argv[2]
 problems = []
@@ -140,6 +154,19 @@ for pom in sorted(root.glob("templates/*/pom.xml")):
         problems.append(f"{rel} does not pin <panamaview.version>")
     elif match.group(1) != current:
         problems.append(f"{rel} pins {match.group(1)}, expected {current}")
+
+# The npm package is not a pom and does not pin anything, but it is the same value: it carries the
+# framework under this version and the projects it generates depend on it by that name.
+#
+# Parsed rather than pattern-matched, so that a package.json npm could not parse is reported as
+# that, instead of as a version mismatch it is not.
+try:
+    package = json.loads((root / "npm/package.json").read_text(encoding="utf-8"))
+except (OSError, ValueError) as exc:
+    problems.append(f"npm/package.json cannot be read as JSON: {exc}")
+else:
+    if package.get("version") != current:
+        problems.append(f"npm/package.json is {package.get('version')}, expected {current}")
 
 if problems:
     print("\n".join("  " + p for p in problems), file=sys.stderr)
@@ -167,7 +194,7 @@ fi
 # ------------------------------------------------------------------ bump
 say "bumping the version"
 python3 - "$ROOT" "$CURRENT" "$NEXT" <<'PY'
-import pathlib, re, sys
+import json, pathlib, re, sys
 
 root, current, next_ = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3]
 
@@ -196,6 +223,38 @@ for rel in ("pom.xml", "scaffold/pom.xml"):
 for pom in [root / "demo-app/pom.xml"] + sorted(root.glob("templates/*/pom.xml")):
     rewrite(pom, r"<panamaview\.version>[^<]+</panamaview\.version>",
             f"<panamaview.version>{next_}</panamaview.version>", "framework pin")
+
+# npm/package.json carries the framework's version too, for the reason in the header.
+#
+# A bare `"version"` pattern is safe here because of how it is checked, not because of rewrite()'s
+# count: that passes count=1 to re.subn, and subn returns the number of substitutions it *made* --
+# capped by count, so exactly one whenever there is a match at all. It cannot see a second match,
+# whatever its message says. So the file is parsed before the rewrite and the value the pattern is
+# about to replace is confirmed to be the top-level one, then parsed again afterwards to confirm
+# the write landed. A `version` nested earlier in the file stops the release here, before anything
+# has been written, rather than being quietly rewritten.
+package_path = root / "npm/package.json"
+try:
+    package = json.loads(package_path.read_text(encoding="utf-8"))
+except (OSError, ValueError) as exc:
+    sys.exit(f"npm/package.json cannot be read as JSON: {exc}")
+if package.get("version") != current:
+    sys.exit(f"npm/package.json is {package.get('version')}, expected {current}")
+first = re.search(r'"version": "([^"]+)"', package_path.read_text(encoding="utf-8"))
+if first is None or first.group(1) != current:
+    sys.exit("the first \"version\" in npm/package.json is not the top-level one, so rewriting it "
+             "textually would change the wrong value")
+
+rewrite(package_path, r'"version": "[^"]+"', f'"version": "{next_}"', "package version")
+
+# Read back as the JSON it claims to be: a package.json npm cannot parse is one `npx` refuses, and
+# better to find that out here than at publish.
+try:
+    package = json.loads(package_path.read_text(encoding="utf-8"))
+except (OSError, ValueError) as exc:
+    sys.exit(f"npm/package.json does not read back as JSON after the bump: {exc}")
+if package.get("version") != next_:
+    sys.exit(f"npm/package.json reads {package.get('version')} after the bump, expected {next_}")
 PY
 
 # ------------------------------------------------------------------ what the bump did not reach
@@ -209,6 +268,28 @@ if found=$(git ls-files '*.md' | xargs grep -ln "panamaview[^ ]*$CURRENT\|^panam
     echo "  (sample output and past-release records; update the samples, leave the records)"
 else
     echo "  none"
+fi
+
+# The Homebrew formula is deliberately not in that list, and not because it does not carry the
+# version. It names a tag *and the commit that tag points at*, and the commit this release is about
+# to create does not exist yet -- a commit cannot contain its own sha, and `brew audit` requires the
+# revision beside a tag, so there is nothing to write here. Reported instead of rewritten: unlike a
+# sample in a README, which is history to leave alone, this one is the pin a user installs from.
+say "the Homebrew formula's pin"
+FORMULA="packaging/homebrew/panamaview.rb"
+if pinned=$(grep -n 'tag: *"v' "$FORMULA" 2>/dev/null) && [ -n "$pinned" ]; then
+    printf '%s\n' "$pinned" | sed 's/^/  /'
+    case "$pinned" in
+        *"\"v$CURRENT\""*)
+            echo "  pinned to v$CURRENT, which is about to stop being the latest release. Re-pin it"
+            echo "  to v$NEXT -- and to the commit v$NEXT points at -- when this file is copied into"
+            echo "  a tap. The commit does not exist until this script has tagged it:"
+            echo "    git rev-parse v$NEXT^{commit}"
+            ;;
+        *) echo "  check that it names v$NEXT and that release's commit" ;;
+    esac
+else
+    echo "  no tag found in $FORMULA"
 fi
 
 # ------------------------------------------------------------------ what CI will be told

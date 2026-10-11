@@ -103,6 +103,11 @@ public final class Main {
 
         Catalog catalog = Catalog.load();
 
+        // Before anything is written. A PANAMAVIEW_LIBRARY that is set to something that is not a
+        // library is a hard error, and it should not leave half a generated project behind — and a
+        // library that is found is worth knowing about before the project exists, not after.
+        Library library = Library.find(catalog.version());
+
         Path target = Path.of(directory).toAbsolutePath().normalize();
         if (Files.exists(target) && !Files.isDirectory(target)) {
             throw new IOException(target + " exists and is not a directory");
@@ -124,17 +129,26 @@ public final class Main {
 
         Generator.checkTarget(target, force);
         int written = Generator.write(template, target, names);
+        if (library != null) {
+            Generator.bundle(library, target);
+        }
 
-        report(target, template, names, written);
+        report(target, template, names, written, library);
         return OK;
     }
 
-    private static void report(Path target, Template template, Names names, int written) {
+    private static void report(
+            Path target, Template template, Names names, int written, Library library) {
         System.out.println("creating " + target);
         System.out.printf("  template  %-17s %s%n", template.name(), template.summary());
         System.out.printf("  package   %s%n", names.pkg());
         System.out.printf("  title     %s%n", names.title());
         System.out.printf("  %d files written%n", written);
+        if (library != null) {
+            // One line, always, when there is a library: the alternative is a project that does not
+            // build for a reason nothing in its output mentions.
+            System.out.printf("  library   %s%n", library.root());
+        }
         System.out.println();
         System.out.println("next");
         System.out.println("  cd " + target);
@@ -146,6 +160,12 @@ public final class Main {
         }
         System.out.printf("  %-17s %s%n", "./run.sh", "production build, served from the app's own scheme");
         System.out.printf("  %-17s %s%n", "./build-native.sh", "→ target/" + names.app());
+        if (library != null) {
+            System.out.println();
+            System.out.println("  The project carries its own copy of panamaview, in " + Generator.CARRIED
+                    + "/lib, so it");
+            System.out.println("  builds with nothing configured: ./run.sh is all it needs.");
+        }
         if (template.has("README.md")) {
             System.out.println();
             System.out.println("  README.md has the rest.");

@@ -69,6 +69,52 @@ everything else here is: after uploading, it resolves both artifacts back from a
 repository and compares hashes. An upload that returns 201 is not evidence that another machine can
 fetch what was built.
 
+## When the package carries the framework
+
+A generated project depends on `io.github.lihuu:panamaview`, which is not on Maven Central, so a
+scaffolder delivered through npm or Homebrew carries the framework with it: the package ships the jar
+and its pom laid out as a small Maven repository, and the project it generates is pointed at that
+copy with a `file://` repository. There is nothing to configure on the far machine, and no private
+repository to be told about.
+
+It is found without being told where to look. There are four rules, in this order, and no searching:
+
+| | |
+| --- | --- |
+| `PANAMAVIEW_LIBRARY` | if it is set and not empty. Set, but not a library, is an error rather than a fall-back — someone who names a directory meant that directory. |
+| `<dir of the executable>/lib` | a Homebrew package: binary in `bin/`, library in `lib/`. |
+| `<dir of the executable>/../lib` | an npm package: binary in `bin/`, library in `../lib/`. |
+| nothing | a jar run out of a checkout. No copy, no repository, no comment — the framework comes from a repository or from `mvn install`, exactly as it always has. |
+
+"Looks like a library" means the framework's jar *and* pom, at the version this scaffolder generates
+projects for, inside `io/github/lihuu/panamaview/<version>/`. A directory with the right name and the
+wrong version is not used: a generated project pins one version, and a copy at another would surface
+later as an unresolved dependency, where the cause is not visible.
+
+The directory of the executable comes from `ProcessHandle`, and it is the path as invoked rather than
+the resolved one. That is deliberate: Homebrew's `bin` entry is a symlink into the Cellar, and the
+`lib` beside that symlink is exactly where the library is meant to be found. A launcher that execs a
+symlink to the binary therefore has to exec the binary inside the package instead.
+
+What a generated project gets:
+
+```
+my-chat-app/
+  .panamaview/lib/io/github/lihuu/panamaview/<version>/   the framework, as a Maven repository
+  pom.xml                    a <repositories> block, before <dependencies>
+  .gitignore                 .panamaview/ appended to whatever the template had
+```
+
+The block declares `panamaview-bundled` at `file://${project.basedir}/.panamaview/lib` — relative to
+the project, not fixed when it was generated, so a project that is moved or copied still builds. The
+id is what Maven records beside the artifact it resolved, in `_remote.repositories`, which is what
+makes "the copy in the project was used, not one from this machine" checkable rather than a claim.
+
+`scripts/verify-scaffold-library.sh` does exactly that: it lays out a packaged scaffolder, generates
+from every template, and then builds one of them with a settings file that declares no repositories
+and an empty local Maven repository. In that build the copy inside the project is the only thing that
+can supply the framework, and the origin Maven recorded for the jar says whether it did.
+
 ## How it is delivered
 
 As a Maven artifact, the same way the framework is:

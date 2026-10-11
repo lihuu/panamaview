@@ -1,0 +1,44 @@
+{
+  "name": "create-panamaview",
+  "version": "0.2.0",
+  "description": "Create a panamaview project: a macOS window driven from Java over the FFM API, with no JNI and no bundled browser engine.",
+  "homepage": "https://github.com/lihuu/panamaview",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lihuu/panamaview.git",
+    "directory": "npm"
+  },
+  "license": "MIT",
+  "keywords": [
+    "panamaview",
+    "scaffold",
+    "create",
+    "wkwebview",
+    "webview",
+    "ffm",
+    "java",
+    "macos"
+  ],
+  "type": "commonjs",
+  "bin": {
+    "panamaview": "./cli.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "files": [
+    "cli.js",
+    "bin/",
+    "lib/",
+    "README.md"
+  ],
+  "scripts": {
+    "prepack": "./scripts/build-package.sh"
+  }
+}

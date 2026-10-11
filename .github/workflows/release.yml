@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   verify:
-    name: the tag and the poms agree
+    name: the tag and every version field agree
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -37,10 +37,10 @@ jobs:
       # The tag is what the outside world will believe, and the poms are what the build will
       # produce. When they disagree, the release publishes artifacts whose own version contradicts
       # its name — and a published tag cannot be quietly taken back.
-      - name: The tag matches every version that has to move with it
+      - name: The tag matches every version that has to move with it (poms and package.json)
         run: |
           python3 - "$GITHUB_REF_NAME" <<'PY'
-          import pathlib, re, sys
+          import json, pathlib, re, sys
 
           tag = sys.argv[1]
           if not re.fullmatch(r"v\d+\.\d+\.\d+", tag):
@@ -66,6 +66,14 @@ jobs:
                   problems.append(f"{pom} does not pin <panamaview.version>")
               elif m.group(1) != expected:
                   problems.append(f"{pom} pins {m.group(1)}, tag says {expected}")
+
+          # npm/package.json is not a pom and pins nothing, but it is the same value: the package
+          # carries the framework under this version and the projects it generates resolve it by
+          # that name. A tag that leaves it behind publishes a package whose projects cannot build,
+          # and `npm publish` will not tell anyone -- so it is checked here, with the rest.
+          package = json.loads(pathlib.Path("npm/package.json").read_text())
+          if package.get("version") != expected:
+              problems.append(f"npm/package.json is {package.get('version')}, tag says {expected}")
 
           if problems:
               print("\n".join("  " + p for p in problems), file=sys.stderr)

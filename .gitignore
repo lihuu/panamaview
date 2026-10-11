@@ -7,6 +7,14 @@ target/
 # (the README screenshot under docs/ is tracked on purpose)
 /*.png
 
+# The npm package's build output: the scaffolder executable and the framework laid out as a
+# Maven repository. Both are staged by npm/scripts/build-package.sh and both are carried in the
+# published tarball; neither is source, and both would be megabytes of it. The sources next to
+# them -- npm/cli.js, npm/package.json, npm/scripts/ -- are tracked.
+/npm/bin/
+/npm/lib/
+/npm/*.tgz
+
 # Editors
 .idea/
 *.iml
