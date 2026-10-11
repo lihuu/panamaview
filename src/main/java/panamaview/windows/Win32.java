@@ -181,9 +181,9 @@ final class Win32 {
         }
     }
 
-    static void defWindowProc(MemorySegment hwnd, int message, long wparam, long lparam) {
+    static long defWindowProc(MemorySegment hwnd, int message, long wparam, long lparam) {
         try {
-            DEF_WINDOW_PROC.invoke(hwnd, message, wparam, lparam);
+            return (long) DEF_WINDOW_PROC.invoke(hwnd, message, wparam, lparam);
         } catch (Throwable t) {
             throw new IllegalStateException("DefWindowProcW could not be called", t);
         }
@@ -307,18 +307,14 @@ final class Win32 {
         }
 
         long dispatch(MemorySegment hwnd, int message, long wparam, long lparam) {
-            long result;
             try {
-                result = delegate.onMessage(hwnd, message, wparam, lparam);
+                return delegate.onMessage(hwnd, message, wparam, lparam);
             } catch (Throwable t) {
                 // An exception must not escape an upcall: it would surface inside Windows' own
                 // callback frame. Say something and stay alive.
                 t.printStackTrace();
-                result = 0;
+                return 0;
             }
-            System.out.println("[wndproc] msg=0x" + Integer.toHexString(message)
-                    + " -> " + result);
-            return result;
         }
     }
 
