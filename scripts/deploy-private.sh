@@ -236,13 +236,20 @@ group = one(own, "groupId") or one(inherited, "groupId")
 artifact = one(own, "artifactId")
 version = one(own, "version") or one(inherited, "version")
 
+# A pom that only aggregates is published as a .pom and has no jar at all. Asking for one makes
+# `dependency:get` fail for a reason that has nothing to do with whether the deploy worked --
+# and that failure names the artifact, so it reads as "the parent did not get published", which
+# is the opposite of what is true. The packaging says which file to ask for.
+packaging = one(own, "packaging") or one(inherited, "packaging") or "jar"
+type_ = "pom" if packaging == "pom" else "jar"
+
 missing = [n for n, v in (("groupId", group), ("artifactId", artifact), ("version", version))
            if v is None]
 if missing:
     sys.exit(f"{module}: no " + ", ".join(missing))
 
-print(f"{group}:{artifact}:{version}")
-print(f"{sys.argv[3]}/{'/'.join(group.split('.'))}/{artifact}/{version}/{artifact}-{version}.jar")
+print(f"{group}:{artifact}:{version}:{type_}")
+print(f"{sys.argv[3]}/{'/'.join(group.split('.'))}/{artifact}/{version}/{artifact}-{version}.{type_}")
 COORDS
 )
     coordinates=$(printf '%s\n' "$INFO" | sed -n 1p)
@@ -252,17 +259,24 @@ COORDS
     # No padding: the coordinate is longer than any width worth guessing, and a %-46s against a
     # 49-character string makes the two lines collide.
     printf '  %s  ' "$coordinates"
-    if mvn -B -q dependency:get \
+    # `dependency:copy`, not `dependency:get`. get() treats a `:pom` artifact as already-satisfied
+    # and downloads nothing -- it exits 0 with an empty result, which the check below then reports as
+    # a missing parent pom. copy() fetches the file it was named, which is what this needs, and it
+    # works the same way for both jar and pom.
+    rm -rf "$FRESH/out"; mkdir -p "$FRESH/out"
+    if mvn -B -q org.apache.maven.plugins:maven-dependency-plugin:3.11.0:copy \
         -Dartifact="$coordinates" \
+        -DoutputDirectory="$FRESH/out" \
         -DremoteRepositories="$REPO_ID::default::$REPO_URL" \
         -Dmaven.repo.local="$FRESH" > "$FRESH/get.log" 2>&1; then
         # Same file, or the deploy did something other than upload what was built.
-        if [ ! -f "$remote_jar" ]; then
+        fetched="$FRESH/out/$(basename "$remote_jar")"
+        if [ ! -f "$fetched" ]; then
             echo "FAILED: Maven reported success but nothing is at $remote_jar" >&2
             status=1
         elif [ ! -f "$local_jar" ]; then
             echo "ok (no local build to compare against)"
-        elif [ "$(shasum -a 256 "$local_jar" | cut -d' ' -f1)" = "$(shasum -a 256 "$remote_jar" | cut -d' ' -f1)" ]; then
+        elif [ "$(shasum -a 256 "$local_jar" | cut -d' ' -f1)" = "$(shasum -a 256 "$fetched" | cut -d' ' -f1)" ]; then
             echo "ok, and identical to the local build"
         else
             echo "MISMATCH: the repository returned a different file" >&2
