@@ -283,9 +283,11 @@ final class Native {
             bind(KERNEL32, "GetModuleHandleW", FunctionDescriptor.of(ADDRESS, ADDRESS));
     private static final MethodHandle GET_CURRENT_THREAD_ID =
             bind(KERNEL32, "GetCurrentThreadId", FunctionDescriptor.of(JAVA_INT));
-    // PostThreadMessage is a USER32 function, not KERNEL32 - the names mislead, the headers do not.
+    // PostThreadMessage is a USER32 function, not KERNEL32 - the names mislead, the headers do
+    // not. Four arguments: DWORD idThread, UINT msg, WPARAM, LPARAM - dropping the UINT from
+    // the descriptor strands the pump with no way out, which is how a run hangs.
     private static final MethodHandle POST_THREAD_MESSAGE =
-            bind(USER32, "PostThreadMessageW", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_LONG, JAVA_LONG));
+            bind(USER32, "PostThreadMessageW", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, JAVA_LONG, JAVA_LONG));
     private static final MethodHandle CO_INITIALIZE =
             bind(OLE32, "CoInitializeEx", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT));
     private static final MethodHandle REGISTER_CLASS =
