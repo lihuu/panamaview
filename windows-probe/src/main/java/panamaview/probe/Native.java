@@ -168,7 +168,10 @@ final class Native {
         MemorySegment out = LIFE.allocate(ADDRESS);
         call("get_CoreWebView2", slot(controller, CONTROLLER_GET_CORE_WEBVIEW2, HR_THIS_PTR_PTR),
                 controller, out);
-        return out.getAtIndex(ADDRESS, 0);
+        // A pointer that crosses from native into Java arrives as a zero-length segment;
+        // reinterpret gives it back the length its bytes imply. Every native-received pointer
+        // in this file gets the same treatment before its first dereference.
+        return out.getAtIndex(ADDRESS, 0).reinterpret(Long.MAX_VALUE);
     }
 
     static void putIsVisible(MemorySegment controller, boolean visible) {
