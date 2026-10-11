@@ -51,7 +51,15 @@ jobs:
       - name: The jar is a library and nothing else
         run: |
           set -eu
-          jar tf target/panamaview-0.1.0.jar > target/jar-contents.txt
+          # The name is derived from the pom, never written here: a hardcoded version survives
+          # every check that does not care about it, then disappears when the version is bumped,
+          # and a guard that cannot find its subject fails on its own arithmetic rather than on
+          # the thing it exists to catch. This was written with 0.1.0 in it and broke at 0.2.0.
+          version="$(python3 -c "import re;print(re.search(r'<version>([^<]+)</version>', open('pom.xml').read()).group(1))")"
+          jar="target/panamaview-$version.jar"
+          [ -f "$jar" ] || { echo "::error::no $jar — the framework did not build"; exit 1; }
+
+          jar tf "$jar" > target/jar-contents.txt
           cat target/jar-contents.txt
 
           fail=0
