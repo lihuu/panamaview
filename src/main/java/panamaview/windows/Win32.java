@@ -258,9 +258,11 @@ final class Win32 {
             WCX_MENU_NAME.set(wcx, 0L, MemorySegment.NULL);              // lpszMenuName
             WCX_CLASS_NAME.set(wcx, 0L, classNameSeg);                   // lpszClassName
             WCX_ICON_SMALL.set(wcx, 0L, MemorySegment.NULL);             // hIconSm
+            int registerError = (int) GET_LAST_ERROR.invoke();
             short atom = (short) REGISTER_CLASS.invoke(wcx);
             if (atom == 0) {
-                throw new IllegalStateException("RegisterClassExW failed");
+                throw new IllegalStateException("RegisterClassExW failed, GetLastError "
+                        + (int) GET_LAST_ERROR.invoke() + " (pre-call error " + registerError + ")");
             }
 
             MemorySegment hwnd = (MemorySegment) CREATE_WINDOW.invoke(
@@ -272,10 +274,12 @@ final class Win32 {
             if (hwnd.equals(MemorySegment.NULL)) {
                 // CreateWindowExW reports why only through GetLastError; without it the
                 // failure is a shrug.
-                int error = (int) GET_LAST_ERROR.invoke();
-                throw new IllegalStateException("CreateWindowExW failed, GetLastError " + error);
+                throw new IllegalStateException("CreateWindowExW failed, GetLastError "
+                        + (int) GET_LAST_ERROR.invoke());
             }
             SHOW_WINDOW.invoke(hwnd, SW_SHOW);
+            System.out.println("[panamaview] window 0x" + Long.toHexString(hwnd.address())
+                    + " of class '" + className + "' (register error was " + registerError + ")");
             return hwnd.reinterpret(Long.MAX_VALUE);
         } catch (IllegalStateException e) {
             throw e;
