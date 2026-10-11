@@ -161,11 +161,12 @@ public final class WindowsHost implements UiHost {
             }
             default -> {
                 // DefWindowProc is not optional: it is where close buttons, focus, painting
-                // and everything else this host never heard of get handled.
-                Win32.defWindowProc(hwndArg, message, wparam, lparam);
+                // and everything else this host never heard of get handled. Its result is the
+                // answer Windows expects - WM_NCCREATE answered 0 aborts window creation
+                // itself, which is exactly what the first demo run did.
+                return Win32.defWindowProc(hwndArg, message, wparam, lparam);
             }
         }
-        return 0;
     }
 
     private void resizeWebView() {
