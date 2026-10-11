@@ -9,30 +9,32 @@ cd my-chat-app
 ./run.sh
 ```
 
-`create` is not optional. This package forwards its arguments to the scaffolder unchanged, and the
-scaffolder's first argument is its command — `panamaview create`, `panamaview templates`. So
-`npx create-panamaview my-app` is an unknown command, and says so.
+`create` is not optional. The scaffolder's first argument is its command — `panamaview create`,
+`panamaview templates` — and this package's `bin` is that program. So `npx create-panamaview my-app`
+is an unknown command, and says so.
 
 ## Requirements
 
-**macOS on Apple Silicon.** Nothing else, and not by accident: the scaffolder is a native
-executable, so the package declares `os: darwin` and `cpu: arm64` and npm refuses it elsewhere. An
-install that succeeded and then could not run would be a worse answer than one that says so.
+**Node 18 or newer**, which is what npm is, on any platform. Generating a project needs nothing
+else: no JVM, no Maven, no Apple Silicon. The scaffolder was a native executable, 13 MB per platform
+for a job whose whole content is "copy a directory and rename three strings", and the package
+declared `os: darwin` and `cpu: arm64` so that npm refused every other machine rather than hand over
+a command that could not run. It is JavaScript now, and the declarations are gone.
 
 **JDK 25 and Maven**, to build and run a project this generates. That is inherent to a Java
 framework rather than to the scaffolder — generating a project needs neither, and neither does
 `npx`. Building a standalone executable from a generated project additionally wants GraalVM with
 `native-image`.
 
-Node is needed to run this package, which is what npm is. No generated app needs Node at run time;
-three of the five templates use it to build their frontend, and `panamaview templates` marks which.
+No generated app needs Node at run time; three of the five templates use it to build their frontend,
+and `panamaview templates` marks which.
 
 ## What it ships
 
 Both halves of the problem, inside the package, so that nothing is fetched from a repository at any
 point:
 
-- **the scaffolder**, as a native executable — generating a project needs no JVM
+- **the scaffolder**, as JavaScript, run by Node — generating a project needs no JVM
 - **the framework**, `io.github.lihuu:panamaview`, laid out as a Maven repository
 
 That second one is the point. The framework is not on Maven Central, so a generated project would
@@ -92,7 +94,7 @@ Then, in the generated project:
 
 ## Installing it permanently
 
-`npx` fetches into a cache each time and runs it; a global install puts the same executable on the
+`npx` fetches into a cache each time and runs it; a global install puts the same command on the
 PATH, and after that it is `panamaview` rather than `npx create-panamaview`.
 
 ```sh
@@ -108,8 +110,10 @@ npm install -g --prefix ~/.local create-panamaview
 ```
 
 There is also a Homebrew formula in the repository, at `packaging/homebrew/panamaview.rb`, which
-installs the same two things — the binary into `bin/`, and the framework into `lib/` beside it,
-which is the other place the scaffolder looks. Until it is in a tap:
+installs the same two things of its own — the CLI, and the framework laid out as a Maven repository
+beside it. Its pin names a release from before the scaffolder was JavaScript, so it says so and
+declines to install until it is re-pointed; that is done by hand when the file is copied into a tap.
+Until it is in a tap:
 
 ```sh
 brew tap-new lihuu/panamaview

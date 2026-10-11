@@ -23,10 +23,10 @@
 # the failure path needs a way to point somewhere else without editing this file.
 #
 # Where the framework's pom is, found by walking up from here rather than by a fixed relative path.
-# Callers do not share a working directory — Maven runs scaffold/scripts/embed-templates.sh with the
-# scaffolder as cwd, so `framework/pom.xml` would resolve under scaffold/. Walking up terminates on
-# the first directory holding both framework/pom.xml and the reactor's pom.xml; requiring both keeps
-# it from latching onto some other framework/pom.xml further up the tree.
+# Callers do not share a working directory — npm runs the package's `prepack` hook with npm/ as cwd,
+# so `framework/pom.xml` would resolve under npm/. Walking up terminates on the first directory
+# holding both framework/pom.xml and the reactor's pom.xml; requiring both keeps it from latching onto
+# some other framework/pom.xml further up the tree.
 FRAMEWORK_POM="${FRAMEWORK_POM:-}"
 if [ -z "$FRAMEWORK_POM" ]; then
     COORDINATES_DIR="$(pwd)"

@@ -30,7 +30,7 @@ jobs:
           curl -fsSL "$url" | tar -xJ
           bin="$PWD/shellcheck-v$version/shellcheck"
           "$bin" --version
-          "$bin" scripts/*.sh scaffold/*.sh scaffold/scripts/*.sh \
+          "$bin" scripts/*.sh npm/scripts/*.sh \
                  templates/*/*.sh templates/*/scripts/*.sh
 
       # deploy-private.sh itself cannot run here — it needs credentials this repository must not
@@ -45,9 +45,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # GraalVM rather than a plain JDK 25: the two packaging checks below build the scaffolder
-      # as a native binary, which is what the npm package and the Homebrew formula both ship.
-      # Matches the environment the framework is developed and verified against.
+      # GraalVM rather than a plain JDK 25, and this is now only about which JDK: no step in this
+      # job builds a native image. It used to say the packaging checks below build the scaffolder
+      # as a native binary; the scaffolder is npm/cli.js, JavaScript, and the two checks below stop
+      # at `mvn` and `./run.sh`. What is left is the reason release.yml gives for the same action —
+      # it is the proven way to get this JDK — and the version, which is the one the framework is
+      # developed and verified against. The native image is built in the templates job, which is
+      # where the templates' own build-native.sh runs.
       - name: Set up GraalVM
         uses: graalvm/setup-graalvm@v1
         with:

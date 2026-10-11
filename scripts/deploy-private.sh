@@ -21,7 +21,7 @@
 # private repository happens to be configured on the machine.
 # ---------------------------------------------------------------------------------------------
 #
-# Usage: deploy-private.sh [--verify-only] [project-dir ...]     (default: . scaffold)
+# Usage: deploy-private.sh [--verify-only] [project-dir ...]     (default: . framework)
 #
 #   --verify-only    skip the upload; just check the repository still serves these versions
 #   SETTINGS=/path/to/settings.xml     use a settings file other than ~/.m2/settings.xml
@@ -47,17 +47,18 @@ if [ "${1:-}" = "--verify-only" ]; then
     shift
 fi
 
-# The default is the three modules that get published, in dependency order: the framework, then the
-# scaffolder. The root pom goes first because it is the parent the other two inherit from — Maven
-# resolves a parent before it will read the pom that names it, so publishing the modules without it
-# publishes poms nobody can read. demo-app is not here at all: it exists to be built, not depended
-# on, and was never published.
+# The default is the two things that get published, in dependency order: the framework, and the
+# root pom before it. The root pom goes first because it is the parent the framework inherits from —
+# Maven resolves a parent before it will read the pom that names it, so publishing the framework
+# without it publishes a pom nobody can read. demo-app is not here at all: it exists to be built, not
+# depended on, and was never published.
+#
+# The scaffolder used to be a third, as io.github.lihuu:panamaview-scaffold. It is npm/cli.js now —
+# a Node CLI with no jar and no pom — so there is no artifact of it to deploy anywhere.
 if [ "$#" -gt 0 ]; then
     PROJECTS="$*"
 else
-    PROJECTS="."
-    [ -f "$ROOT/framework/pom.xml" ] && PROJECTS=". framework scaffold"
-    [ -f "$ROOT/scaffold/pom.xml" ] || PROJECTS=". framework"
+    PROJECTS=". framework"
 fi
 
 say() { printf '\n=== %s\n' "$1"; }
@@ -131,16 +132,17 @@ if exists:
              f"  server would answer 409 Conflict. Maven reports that as a failed deploy, which\n"
              f"  reads like a credentials problem and is not one.\n"
              f"  Two ways forward:\n"
-             f"    - bump the version in pom.xml and scaffold/pom.xml, then deploy that\n"
+             f"    - bump the version in pom.xml and npm/package.json, then deploy that\n"
              f"    - use a -SNAPSHOT version while iterating; snapshots are made to be replaced")
 print(f"  free to publish")
 CHECK_EXISTS
 
 # ------------------------------------------------------------------ versions must agree
 #
-# The templates pin the framework version, and verify-scaffold.sh asserts the scaffolder is built at
-# it too. Deploying them at different versions would publish a scaffolder that generates projects
-# depending on something that was never published.
+# The framework and the parent it inherits from have to be at one version: the framework's pom names
+# the parent, so publishing the two at different versions publishes a framework whose pom reads a
+# parent that was never released. scripts/release.sh keeps them together, along with the npm
+# package's copy of the same number.
 say "checking every project is at the same version"
 for dir in $PROJECTS; do
     pom="$ROOT/$dir/pom.xml"
@@ -153,8 +155,8 @@ for dir in $PROJECTS; do
         -DforceStdout 2>/dev/null | tail -1)"
     if [ "$other" != "$VERSION" ]; then
         echo "  $dir is at $other, but the framework is at $VERSION" >&2
-        echo "  They move together: the templates pin the framework version and the scaffolder" >&2
-        echo "  embeds those templates. Bump them in one commit." >&2
+        echo "  They move together: the framework's pom names the parent, and Maven reads the" >&2
+        echo "  parent before it will read the pom that names it. Bump them in one commit." >&2
         exit 1
     fi
     printf '  %-10s %s\n' "$dir" "$other"

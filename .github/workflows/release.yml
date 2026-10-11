@@ -53,11 +53,11 @@ jobs:
               m = re.search(r"<version>([^<]+)</version>", pathlib.Path(path).read_text())
               return m.group(1) if m else None
 
-          # The three poms of the reactor, each stating the released version as its own. Two of
-          # them are not poms the framework's own <version> can be read from any more: the root is
-          # the parent and the framework is a module, so framework/pom.xml is what carries the
-          # coordinates a consumer resolves.
-          for rel in ("pom.xml", "framework/pom.xml", "scaffold/pom.xml"):
+          # The two poms that state the released version as their own. framework/pom.xml is what a
+          # consumer resolves and the root pom is the parent it names; the scaffolder used to be a
+          # third pom here and is not one any more, so its version is npm/package.json's and is
+          # checked with that below.
+          for rel in ("pom.xml", "framework/pom.xml"):
               found = first_version(rel)
               if found != expected:
                   problems.append(f"{rel} is {found}, tag says {expected}")
@@ -107,13 +107,13 @@ jobs:
           print(f"  everything at {expected}")
           PY
 
-      # The check that catches a scaffolder packed without its templates. It lists templates either
-      # way; only reading every file in the manifest notices that the dotfiles were dropped.
+      # The check that catches a package staged without its templates. It used to be a jar and
+      # `java -jar --selftest`; the scaffolder is npm/cli.js now, so the package is staged the way
+      # `npm publish` stages it -- which is what puts the templates in npm/templates/, since npm's
+      # `files` field cannot reach outside the package directory -- and then asked to read every
+      # file it ships. Listing the templates works either way; only opening each one notices that
+      # the dotfiles were dropped.
       - name: The scaffolder can read everything it ships
         run: |
-          (cd scaffold && mvn -q -B package -DskipTests)
-          # Resolved to one path rather than a bare glob: a second match would become a second
-          # argument to java instead of an error.
-          jar="$(ls scaffold/target/panamaview-scaffold-*.jar)"
-          case "$jar" in *" "*) echo "more than one scaffolder jar in target/" >&2; exit 1 ;; esac
-          java -jar "$jar" --selftest
+          ./npm/scripts/build-package.sh
+          node npm/cli.js --selftest

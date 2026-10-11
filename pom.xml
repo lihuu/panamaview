@@ -10,7 +10,7 @@
   <packaging>pom</packaging>
 
   <name>panamaview build</name>
-  <description>The reactor that builds panamaview, its scaffolder and its demo together.</description>
+  <description>The reactor that builds panamaview, its demo and its Windows probe together.</description>
 
   <!--
     One tree, one version, one build. `mvn install` here builds every module below in dependency
@@ -21,6 +21,13 @@
     release once shipped a tag whose demo pinned a version that had never been published —
     `release.sh` did not know the file existed and the failure landed on CI three jobs away from the
     cause. A module cannot get out of step with the reactor it is built in.
+
+    `scaffold/` has since left this reactor, for a different reason than the demo's: it stopped being
+    a Java artifact at all. The scaffolder is `npm/cli.js` now, a Node CLI whose whole content is
+    "copy a directory and rename three strings", so there is no pom for it to be a module of, no jar
+    for Maven to install, and no native binary for a platform to be chosen for. Its version lives in
+    `npm/package.json`, checked against the framework's by `scripts/release.sh`. The Maven coordinate
+    `io.github.lihuu:panamaview-scaffold` no longer exists, here or in any repository.
 
     Why this is named `panamaview-parent` and not `panamaview`: Maven refuses an aggregator whose
     coordinates collide with a module's, and says so plainly — "Project
@@ -35,7 +42,6 @@
   -->
   <modules>
     <module>framework</module>
-    <module>scaffold</module>
     <module>demo-app</module>
     <module>windows-probe</module>
   </modules>
