@@ -1,0 +1,6 @@
+# Files staged out of the classpath before the web view loads.
+# You cannot enumerate a classpath directory portably (and not at all inside a
+# GraalVM native image), so the list is explicit. Add entries when you add assets.
+index.html
+app.js
+style.css
