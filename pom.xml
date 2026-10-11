@@ -37,6 +37,7 @@
     <module>framework</module>
     <module>scaffold</module>
     <module>demo-app</module>
+    <module>windows-probe</module>
   </modules>
 
   <properties>
