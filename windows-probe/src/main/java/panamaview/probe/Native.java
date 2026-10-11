@@ -155,7 +155,11 @@ final class Native {
 
     /** Reads one vtable slot of a COM object and wraps it as a downcall. */
     private static MethodHandle slot(MemorySegment object, int index, FunctionDescriptor fd) {
-        return LINKER.downcallHandle(object.getAtIndex(ADDRESS, 0).getAtIndex(ADDRESS, index), fd);
+        // The vtable pointer read out of the object is itself a zero-length segment - the same
+        // rule as every other pointer crossing the boundary - so it is reinterpreted before
+        // its own slot read. Third time this rule bit this file; it goes in the NOTES.
+        MemorySegment vtable = object.getAtIndex(ADDRESS, 0).reinterpret(Long.MAX_VALUE);
+        return LINKER.downcallHandle(vtable.getAtIndex(ADDRESS, index), fd);
     }
 
     static void createController(MemorySegment environment, MemorySegment hwnd, MemorySegment handler) {
