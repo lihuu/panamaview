@@ -28,7 +28,7 @@ public final class WindowsDemo {
     private static final AtomicInteger COUNT = new AtomicInteger();
     private static WebApp app;
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         WindowsHost host = new WindowsHost();
         app = new WebApp(host)
                 .title("panamaview demo")
