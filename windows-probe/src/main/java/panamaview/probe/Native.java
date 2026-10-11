@@ -148,8 +148,8 @@ final class Native {
         MethodHandle create = LINKER.downcallHandle(loader.find("CreateCoreWebView2EnvironmentWithOptions").orElseThrow(
                         () -> new UnsatisfiedLinkError("CreateCoreWebView2EnvironmentWithOptions not in the loader")),
                 FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS, ADDRESS));
-        call(create, MemorySegment.NULL, userDataFolder, MemorySegment.NULL, handler,
-                "CreateCoreWebView2EnvironmentWithOptions");
+        call("CreateCoreWebView2EnvironmentWithOptions", create,
+                MemorySegment.NULL, userDataFolder, MemorySegment.NULL, handler);
     }
 
     /** Reads one vtable slot of a COM object and wraps it as a downcall. */
@@ -158,40 +158,40 @@ final class Native {
     }
 
     static void createController(MemorySegment environment, MemorySegment hwnd, MemorySegment handler) {
-        call(slot(environment, ENV_CREATE_CONTROLLER,
+        call("CreateCoreWebView2Controller", slot(environment, ENV_CREATE_CONTROLLER,
                 FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS)),
-                environment, hwnd, handler, "CreateCoreWebView2Controller");
+                environment, hwnd, handler);
     }
 
     static MemorySegment coreWebView2(MemorySegment controller) {
         MemorySegment out = LIFE.allocate(ADDRESS);
-        call(slot(controller, CONTROLLER_GET_CORE_WEBVIEW2, HR_THIS_PTR_PTR),
-                controller, out, "get_CoreWebView2");
+        call("get_CoreWebView2", slot(controller, CONTROLLER_GET_CORE_WEBVIEW2, HR_THIS_PTR_PTR),
+                controller, out);
         return out.getAtIndex(ADDRESS, 0);
     }
 
     static void putIsVisible(MemorySegment controller, boolean visible) {
-        call(slot(controller, CONTROLLER_PUT_IS_VISIBLE, HR_THIS_PTR_INT),
-                controller, visible ? 1 : 0, "put_IsVisible");
+        call("put_IsVisible", slot(controller, CONTROLLER_PUT_IS_VISIBLE, HR_THIS_PTR_INT),
+                controller, visible ? 1 : 0);
     }
 
     static void putBounds(MemorySegment controller, MemorySegment rect) {
         // RECT is 16 bytes: past the 8-byte register cutoff, so the x64 ABI passes a pointer to
         // a temporary. The linker knows; the descriptor just says struct by value.
-        call(slot(controller, CONTROLLER_PUT_BOUNDS,
+        call("put_Bounds", slot(controller, CONTROLLER_PUT_BOUNDS,
                 FunctionDescriptor.of(JAVA_INT, ADDRESS, RECT)),
-                controller, rect, "put_Bounds");
+                controller, rect);
     }
 
     static void navigate(MemorySegment webview, MemorySegment uri) {
-        call(slot(webview, WEBVIEW_NAVIGATE, HR_THIS_PTR_PTR), webview, uri, "Navigate");
+        call("Navigate", slot(webview, WEBVIEW_NAVIGATE, HR_THIS_PTR_PTR), webview, uri);
     }
 
     static void executeScript(MemorySegment webview, String script, MemorySegment handler) {
         try (Arena confined = Arena.ofConfined()) {
-            call(slot(webview, WEBVIEW_EXECUTE_SCRIPT,
+            call("ExecuteScript", slot(webview, WEBVIEW_EXECUTE_SCRIPT,
                     FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS)),
-                    webview, confined.allocateFrom(script, StandardCharsets.UTF_16LE), handler, "ExecuteScript");
+                    webview, confined.allocateFrom(script, StandardCharsets.UTF_16LE), handler);
         }
     }
 
@@ -267,7 +267,8 @@ final class Native {
 
     /** COM apartment threading: WebView2 wants the creating thread to be an STA that pumps. */
     static void coInitializeApartmentThreaded() {
-        call(CO_INITIALIZE, MemorySegment.NULL, 0x2 /* COINIT_APARTMENTTHREADED */, "CoInitializeEx");
+        call("CoInitializeEx", CO_INITIALIZE,
+                MemorySegment.NULL, 0x2 /* COINIT_APARTMENTTHREADED */);
     }
 
     static long currentThreadId() {
@@ -297,7 +298,7 @@ final class Native {
 
     static MemorySegment clientRect(Arena arena, MemorySegment hwnd) {
         MemorySegment rect = arena.allocate(RECT);
-        call(GET_CLIENT_RECT, hwnd, rect, "GetClientRect");
+        call("GetClientRect", GET_CLIENT_RECT, hwnd, rect);
         return rect;
     }
 
@@ -394,11 +395,12 @@ final class Native {
 
     // ---------------------------------------------------------------- calls
 
-    private static void call(MethodHandle handle, Object... args) {
-        call(handle, args, "native call");
-    }
-
-    private static void call(MethodHandle handle, Object[] args, String what) {
+    /**
+     * Invokes the handle and checks its HRESULT. The name comes first on purpose: as a trailing
+     * argument it would be indistinguishable from the call's own arguments, which is a mistake
+     * this signature makes impossible.
+     */
+    private static void call(String what, MethodHandle handle, Object... args) {
         try {
             int hresult = (int) handle.invokeWithArguments(args);
             check(hresult, what);
