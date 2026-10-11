@@ -55,10 +55,22 @@ public final class Smoke {
 
             MemorySegment[] webview = new MemorySegment[1];
 
+            int[] attempts = {0};
+            Runnable[] attempt = new Runnable[1];
+
             MemorySegment scriptDone = Native.completedHandler((self, errorCode, result) -> {
                 try {
                     if (errorCode < 0) {
-                        return failAndQuit("ExecuteScript completed with 0x" + Integer.toHexString(errorCode));
+                        attempts[0]++;
+                        if (attempts[0] >= 8) {
+                            return failAndQuit("ExecuteScript kept failing: 0x" + Integer.toHexString(errorCode));
+                        }
+                        // The page is not ready yet (ERROR_INVALID_STATE). The browser starts
+                        // on its own schedule; the run waits for it instead of racing it.
+                        stage("script", "attempt " + attempts[0] + " rejected with 0x"
+                                + Integer.toHexString(errorCode) + " - page not ready, retrying");
+                        Native.after(4000, hwnd, attempt[0]);
+                        return errorCode;
                     }
                     MemorySegment json = result.reinterpret(Long.MAX_VALUE).getAtIndex(ADDRESS, 0);
                     scriptResult = json.equals(MemorySegment.NULL) ? "(null)"
@@ -70,6 +82,14 @@ public final class Smoke {
                     return failAndQuit(t);
                 }
             });
+
+            attempt[0] = () -> {
+                try {
+                    Native.executeScript(webview[0], "2+2", scriptDone);
+                } catch (Throwable t) {
+                    failAndQuit(t);
+                }
+            };
 
             MemorySegment navigationDone = Native.eventHandler((self, sender, args) -> {
                 try {
@@ -112,7 +132,7 @@ public final class Smoke {
                         try {
                             String source = Native.currentSource(webview[0]);
                             stage("timer", "3 s in, source is '" + source + "'");
-                            Native.executeScript(webview[0], "2+2", scriptDone);
+                            attempt[0].run();
                         } catch (Throwable t) {
                             failAndQuit(t);
                         }

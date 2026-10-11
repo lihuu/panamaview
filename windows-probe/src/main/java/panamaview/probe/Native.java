@@ -101,19 +101,16 @@ final class Native {
             0, 0, 0, 0, 0, 0, 0, 0, (byte) 0xC0, 0, 0, 0, 0, 0, 0, 0x46};
 
     /**
-     * IUnknown's one obligation: IUnknown itself must always be answerable. Everything else is
-     * refused - the smoke's handlers are used through their typed pointers, and a QI that says
-     * yes to interfaces the object does not implement is a lie that crashes later, somewhere
-     * else. Whether the browser QIs its handlers is exactly the kind of question a smoke
-     * answers by being strict here first.
+     * The experiment this smoke exists to settle: does the browser QueryInterface its handlers
+     * for their own interface IID, refusing them silently when the answer is no? The previous
+     * strict QI (IUnknown only) registered every handler without an error and saw none of them
+     * fire. Every ICoreWebView2 handler interface has the same four-slot layout as this object,
+     * so answering yes to their IIDs is not even a lie - the object does implement them. A QI
+     * for anything else would be answered yes too, which is only safe while the browser asks
+     * for nothing beyond IUnknown and the handler it was given; the framework replaces this
+     * with an exact answer.
      */
     private static int queryInterface(MemorySegment self, MemorySegment riid, MemorySegment out) {
-        MemorySegment iid = riid.reinterpret(16);
-        for (int i = 0; i < 16; i++) {
-            if (iid.get(JAVA_BYTE, i) != IID_IUNKNOWN[i]) {
-                return 0x80004002;   // E_NOINTERFACE
-            }
-        }
         out.reinterpret(8).setAtIndex(ADDRESS, 0, self);
         return 0;   // S_OK, with a reference the caller now owns
     }
