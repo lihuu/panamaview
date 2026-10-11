@@ -237,6 +237,18 @@ import json, pathlib, re, sys
 
 root, current, next_ = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3]
 
+def strip_comments(text):
+    """A pom's own explanation is not markup.
+
+    This is not tidiness. Every one of these poms documents itself, and the comments name the very
+    elements being looked for -- `templates/` explains why a template must *not* have a `<parent>`,
+    and `demo-app`'s comment names the `<panamaview.version>` it no longer carries. Read raw, both
+    answer "yes" to a question whose answer is "no", and a release refuses to run because of a
+    sentence explaining why it should not.
+    """
+    return re.sub(r"<!--.*?-->", "", text, flags=re.S)
+
+
 def rewrite(path, pattern, replacement, label, count_wanted=1):
     text = path.read_text(encoding="utf-8")
     new, count = re.subn(pattern, replacement, text, count=count_wanted)
@@ -252,7 +264,7 @@ def rewrite(path, pattern, replacement, label, count_wanted=1):
 # and a bare pattern without a count would rewrite every plugin version too — which it did, once,
 # turning maven-resources-plugin 3.3.1 into 0.1.1.
 root_pom = root / "pom.xml"
-if "<parent>" in root_pom.read_text(encoding="utf-8"):
+if "<parent>" in strip_comments(root_pom.read_text(encoding="utf-8")):
     sys.exit("pom.xml has a <parent>; the first <version> is no longer the project's own, so this "
              "script's rule for finding it needs revisiting")
 rewrite(root_pom, r"<version>[^<]+</version>", f"<version>{next_}</version>", "project version")
@@ -263,7 +275,7 @@ rewrite(root_pom, r"<version>[^<]+</version>", f"<version>{next_}</version>", "p
 # first <version> would be the framework's own and this would still work, so the failure to catch is
 # the one where a second, independent <version> appears beside the parent's and the two drift.
 framework_pom = root / "framework/pom.xml"
-if "<parent>" not in framework_pom.read_text(encoding="utf-8"):
+if "<parent>" not in strip_comments(framework_pom.read_text(encoding="utf-8")):
     sys.exit("framework/pom.xml has no <parent>; it is a module of the reactor and inherits its "
              "version from it, so this script no longer knows where its version comes from")
 rewrite(framework_pom, r"<version>[^<]+</version>", f"<version>{next_}</version>", "project version")
@@ -291,7 +303,7 @@ for module in re.findall(r"<module>([^<]+)</module>",
     pom = root / module / "pom.xml"
     if not pom.exists() or module == "framework":
         continue                       # the framework states its own version; bumped above
-    text = pom.read_text(encoding="utf-8")
+    text = strip_comments(pom.read_text(encoding="utf-8"))
     if "<parent>" not in text:
         sys.exit(f"{module}/pom.xml has no <parent>; it is supposed to inherit the version")
     if "<panamaview.version>" in text:
