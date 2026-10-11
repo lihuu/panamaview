@@ -96,8 +96,25 @@ final class Native {
         return object;
     }
 
+    private static final byte[] IID_IUNKNOWN = {
+            0, 0, 0, 0, 0, 0, 0, 0, (byte) 0xC0, 0, 0, 0, 0, 0, 0, 0x46};
+
+    /**
+     * IUnknown's one obligation: IUnknown itself must always be answerable. Everything else is
+     * refused - the smoke's handlers are used through their typed pointers, and a QI that says
+     * yes to interfaces the object does not implement is a lie that crashes later, somewhere
+     * else. Whether the browser QIs its handlers is exactly the kind of question a smoke
+     * answers by being strict here first.
+     */
     private static int queryInterface(MemorySegment self, MemorySegment riid, MemorySegment out) {
-        return 0x80004002;   // E_NOINTERFACE
+        MemorySegment iid = riid.reinterpret(16);
+        for (int i = 0; i < 16; i++) {
+            if (iid.get(JAVA_BYTE, i) != IID_IUNKNOWN[i]) {
+                return 0x80004002;   // E_NOINTERFACE
+            }
+        }
+        out.reinterpret(8).setAtIndex(ADDRESS, 0, self);
+        return 0;   // S_OK, with a reference the caller now owns
     }
 
     private static int one(MemorySegment self) {
@@ -324,6 +341,10 @@ final class Native {
             bind(USER32, "LoadCursorW", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS));
     private static final MethodHandle GET_CLIENT_RECT =
             bind(USER32, "GetClientRect", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
+    private static final MethodHandle SET_TIMER =
+            bind(USER32, "SetTimer", FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_LONG, JAVA_INT, ADDRESS));
+    private static final MethodHandle KILL_TIMER =
+            bind(USER32, "KillTimer", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG));
     private static final MethodHandle DEF_WINDOW_PROC =
             bind(USER32, "DefWindowProcW", FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_INT, JAVA_LONG, JAVA_LONG));
     private static final MethodHandle POST_QUIT_MESSAGE =
@@ -370,6 +391,37 @@ final class Native {
         MemorySegment rect = arena.allocate(RECT);
         call("GetClientRect", GET_CLIENT_RECT, hwnd, rect);
         return rect;
+    }
+
+    /**
+     * A Win32 timer: {@code timerProc(hwnd, msg, id, elapsed)} fires from the pump after
+     * {@code millis}. The smoke uses it to test the page without depending on any event
+     * arriving; the framework will not need this.
+     */
+    static void after(int millis, MemorySegment hwnd, Runnable body) {
+        MethodHandle proc = LINKER.upcallStub(
+                mh(TimerHandler.class, "dispatch",
+                        MethodType.methodType(void.class, MemorySegment.class, int.class, long.class, int.class),
+                        new TimerHandler(body)),
+                FunctionDescriptor.ofVoid(ADDRESS, JAVA_INT, JAVA_LONG, JAVA_INT), LIFE);
+        call("SetTimer", SET_TIMER, hwnd, MemorySegment.ofAddress(1), millis, proc);
+    }
+
+    private static final class TimerHandler {
+        private final Runnable body;
+
+        TimerHandler(Runnable body) {
+            this.body = body;
+        }
+
+        void dispatch(MemorySegment hwnd, int message, long idEvent, int elapsed) {
+            try {
+                call("KillTimer", KILL_TIMER, hwnd, MemorySegment.ofAddress(idEvent));
+                body.run();
+            } catch (Throwable t) {
+                t.printStackTrace();
+            }
+        }
     }
 
     /**

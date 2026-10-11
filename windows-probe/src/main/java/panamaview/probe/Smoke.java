@@ -104,6 +104,19 @@ public final class Smoke {
                     stage("webview", "obtained and sized to the client rect");
                     Native.addNavigationCompleted(webview[0], navigationDone);
                     Native.navigateToString(webview[0], pageHtml());
+                    // Evidence, not a workaround: three seconds in, ask the page directly
+                    // what it is and run the script without waiting for any event. If this
+                    // works while NavigationCompleted never fires, the event path is what is
+                    // broken; if the page is not there either, the navigation itself is.
+                    Native.after(3000, hwnd, () -> {
+                        try {
+                            String source = Native.currentSource(webview[0]);
+                            stage("timer", "3 s in, source is '" + source + "'");
+                            Native.executeScript(webview[0], "2+2", scriptDone);
+                        } catch (Throwable t) {
+                            failAndQuit(t);
+                        }
+                    });
                     return 0;
                 } catch (Throwable t) {
                     return failAndQuit(t);
