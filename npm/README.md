@@ -92,8 +92,19 @@ Then, in the generated project:
 
 ## Installing it permanently
 
+`npx` fetches into a cache each time and runs it; a global install puts the same executable on the
+PATH, and after that it is `panamaview` rather than `npx create-panamaview`.
+
 ```sh
 npm install -g create-panamaview     # then: panamaview create my-app --template vue
+```
+
+Check where npm's global prefix is first. If its `bin` directory is not on your PATH, neither is the
+command — and that looks like a broken install rather than a misplaced one. Point `--prefix` at a
+directory you know is on the PATH instead of changing npm's configuration:
+
+```sh
+npm install -g --prefix ~/.local create-panamaview
 ```
 
 There is also a Homebrew formula in the repository, at `packaging/homebrew/panamaview.rb`, which

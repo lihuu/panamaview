@@ -104,14 +104,33 @@ built a real application on it.
 
 ## Starting a project
 
-A scaffolder generates a working project from any of the templates. It is delivered through npm and
-Homebrew as a native executable that carries the framework with it, so there is no repository to
+A scaffolder generates a working project from any of the templates. It is on npm as
+`create-panamaview`, and the package carries the framework with it, so there is no repository to
 configure and nothing to unzip:
 
 ```sh
 npx create-panamaview create my-chat-app --template vue
 cd my-chat-app && ./run.sh
 ```
+
+`create` is not optional. The package forwards its arguments to the scaffolder unchanged, and the
+scaffolder's first argument is its command (`panamaview create`, `panamaview templates`), so
+`npx create-panamaview my-app` is an unknown command, and says so.
+
+Two ways to run the same program, and the difference is only who puts the bytes there. `npx` fetches
+into a cache and runs it — nothing installed, and the next call may pick up a newer version:
+
+```sh
+npm install -g create-panamaview    # or: npm i -g --prefix ~/.local create-panamaview
+panamaview create my-chat-app --template vue
+```
+
+A global install puts `panamaview` on the PATH; after that there is no `npx` prefix. Note where npm's
+global prefix is before installing: if its `bin` is not on your PATH, the command will not be either.
+`--prefix` writes wherever you point it, which is the way out when it is not.
+
+It is a native executable, macOS arm64 only, and the package declares `os`/`cpu` so that npm refuses
+the install rather than handing over a command that cannot run.
 
 ```sh
 brew tap-new lihuu/panamaview                              # until it is in a tap of its own
@@ -175,8 +194,8 @@ creating /work/my-chat-app
 
 That run was from a checkout, so there was no `lib` directory beside the binary and the project it
 wrote carries no framework of its own — it would need one resolvable as described in [Getting the
-framework](#getting-the-framework). A project generated through npm or Homebrew carries its own, and
-prints a `library` line saying where from.
+framework](#getting-the-framework). A project generated through npm carries its own, and prints a
+`library` line saying where from.
 
 The name, package and title all come from the directory, so one option is usually enough. It writes
 no build output, and never overwrites a directory that has something in it without `--force`.

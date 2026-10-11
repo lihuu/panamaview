@@ -117,24 +117,32 @@ can supply the framework, and the origin Maven recorded for the jar says whether
 
 ## How it is delivered
 
-As a Maven artifact, the same way the framework is:
+Through npm, as the package `create-panamaview`, and the package carries the framework the projects
+it generates depend on — so generating a project needs no repository configured and no network:
 
 ```sh
-mvn dependency:get -Dartifact=io.github.lihuu:panamaview-scaffold:<version>
-java -jar ~/.m2/repository/io/github/lihuu/panamaview-scaffold/<version>/panamaview-scaffold-<version>.jar \
-     create my-app --template vue
+npx create-panamaview create my-app --template vue
 ```
 
-Published to the same private repository as the framework, by the same `scripts/deploy-private.sh`,
-which resolves both back from an empty local repository afterwards. Neither is on Maven Central:
-that waits on evidence that someone has built a real application on this, which is a claim this
-repository cannot make about itself yet.
+Two forms, one program. `npx` downloads into a cache and runs it, so nothing is installed and the
+next `npx` may fetch a newer version. `npm install -g create-panamaview` puts the same executable
+permanently on the PATH as `panamaview`, so afterwards it is `panamaview create my-app --template
+vue`. The bytes run are identical either way; only who puts them there differs.
 
-**A jar, not a native executable.** The native build works — 13 MB, no foreign registration, no
-reachability metadata, no JVM flags — but shipping it would mean one build per platform attached to
-a release page, and this repository no longer attaches artifacts to releases. A jar is one file that
-runs wherever the JDK does. That is why `mvn dependency:get` is the documented way to get it rather
-than a download link.
+The npm package is built from this directory: `npm/scripts/build-package.sh` builds the native
+executable and stages the framework beside it, and CI's `verify-npm-package.sh` installs the packed
+tarball into a throwaway prefix and builds a generated project against an empty repository to prove
+the carried copy is the one that gets used.
+
+**A native executable, not a jar.** The scaffolder needs no `java.lang.foreign`, no WebKit and no
+reachability metadata, so its native image is a plain one — and a launcher that needs a JVM to start
+is a worse answer for the one job this thing has. It is macOS arm64 only, and the package declares
+that with `os`/`cpu`, so npm refuses the install rather than producing a command that cannot run.
+
+The Maven artifact `io.github.lihuu:panamaview-scaffold` also exists in the private repository, put
+there by `scripts/deploy-private.sh`. It is how the framework itself is distributed for people
+building against it on a machine that has the repository configured. It is not the way a user gets
+the scaffolder.
 
 ## Building it in this checkout
 
