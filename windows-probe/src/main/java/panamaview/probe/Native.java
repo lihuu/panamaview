@@ -127,11 +127,16 @@ final class Native {
     private static final int CONTROLLER_PUT_BOUNDS = 6;
     private static final int CONTROLLER_GET_CORE_WEBVIEW2 = 25;
 
-    /** ICoreWebView2 slots, from the shipped WebView2.h. */
+    /** ICoreWebView2 slots, from the shipped WebView2.h. The numbers are read out of the
+     * DECLSPEC_XFGVIRT annotations, whose Nth line is slot N+2 after IUnknown's three - an
+     * off-by-one here registers the remove_ listener where the add_ belongs and waits forever
+     * for an event that was never asked for. */
     private static final int WEBVIEW_GET_SOURCE = 4;
-    private static final int WEBVIEW_NAVIGATE = 6;
-    private static final int WEBVIEW_ADD_NAVIGATION_COMPLETED = 16;
-    private static final int WEBVIEW_EXECUTE_SCRIPT = 30;
+    private static final int WEBVIEW_NAVIGATE = 5;
+    private static final int WEBVIEW_NAVIGATE_TO_STRING = 6;
+    private static final int WEBVIEW_ADD_NAVIGATION_COMPLETED = 15;
+    private static final int WEBVIEW_EXECUTE_SCRIPT = 29;
+    private static final int WEBVIEW_GET_DOCUMENT_TITLE = 48;
 
     private static final FunctionDescriptor HR_THIS_PTR = FunctionDescriptor.of(JAVA_INT, ADDRESS);
     private static final FunctionDescriptor HR_THIS_PTR_PTR = FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS);
@@ -197,6 +202,13 @@ final class Native {
         call("Navigate", slot(webview, WEBVIEW_NAVIGATE, HR_THIS_PTR_PTR), webview, uri);
     }
 
+    static void navigateToString(MemorySegment webview, String html) {
+        try (Arena confined = Arena.ofConfined()) {
+            call("NavigateToString", slot(webview, WEBVIEW_NAVIGATE_TO_STRING, HR_THIS_PTR_PTR),
+                    webview, confined.allocateFrom(html, StandardCharsets.UTF_16LE));
+        }
+    }
+
     static void addNavigationCompleted(MemorySegment webview, MemorySegment handler) {
         MemorySegment token = LIFE.allocate(JAVA_LONG);   // EventRegistrationToken: one 64-bit value
         call("add_NavigationCompleted", slot(webview, WEBVIEW_ADD_NAVIGATION_COMPLETED,
@@ -208,6 +220,15 @@ final class Native {
     static String currentSource(MemorySegment webview) {
         MemorySegment out = LIFE.allocate(ADDRESS);
         call("get_Source", slot(webview, WEBVIEW_GET_SOURCE, HR_THIS_PTR_PTR), webview, out);
+        MemorySegment value = out.getAtIndex(ADDRESS, 0);
+        return value.equals(MemorySegment.NULL) ? null
+                : value.reinterpret(Long.MAX_VALUE).getString(0, StandardCharsets.UTF_16LE);
+    }
+
+    /** The loaded page's title: how the smoke tells its own navigation from the initial one. */
+    static String documentTitle(MemorySegment webview) {
+        MemorySegment out = LIFE.allocate(ADDRESS);
+        call("get_DocumentTitle", slot(webview, WEBVIEW_GET_DOCUMENT_TITLE, HR_THIS_PTR_PTR), webview, out);
         MemorySegment value = out.getAtIndex(ADDRESS, 0);
         return value.equals(MemorySegment.NULL) ? null
                 : value.reinterpret(Long.MAX_VALUE).getString(0, StandardCharsets.UTF_16LE);
