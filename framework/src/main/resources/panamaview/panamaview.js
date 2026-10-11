@@ -51,7 +51,19 @@
   const pending = new Map();
   let seq = 0;
 
-  const post = (message) => window.webkit.messageHandlers[HANDLER].postMessage(JSON.stringify(message));
+  // The transport is whichever side of the platform seam this page found itself on: WebKit's
+  // script message handlers on macOS, the WebView2 host objects on Windows. Replies and pushes
+  // need no branch — Java evaluates __pvResolve and onJavaMessage the same way on both.
+  const post = (message) => {
+    const body = JSON.stringify(message);
+    if (window.chrome?.webview?.postMessage) {
+      window.chrome.webview.postMessage(body);
+    } else if (window.webkit?.messageHandlers?.[HANDLER]) {
+      window.webkit.messageHandlers[HANDLER].postMessage(body);
+    } else {
+      console.warn("[panamaview] no bridge transport found — is this page running inside a panamaview window?");
+    }
+  };
 
   /** Rejects everything in flight. For a page that is going away. */
   function cancelAll(reason) {
