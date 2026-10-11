@@ -487,7 +487,7 @@ final class Native {
         MemorySegment nameLen = arena.allocate(JAVA_INT);
         GET_USER_OBJECT_NAME.invoke(desktop, 2 /* UOI_NAME */, name, 512, nameLen);
         String desktopName = name.getString(0, StandardCharsets.UTF_16LE);
-        return "visible=" + (IS_WINDOW_VISIBLE.invoke(hwnd) != 0)
+        return "visible=" + ((int) IS_WINDOW_VISIBLE.invoke(hwnd) != 0)
                 + ", rect=" + rect.get(JAVA_INT, 0) + "," + rect.get(JAVA_INT, 4)
                 + ".." + rect.get(JAVA_INT, 8) + "," + rect.get(JAVA_INT, 12)
                 + ", desktop=" + desktopName;
