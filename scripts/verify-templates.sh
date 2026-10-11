@@ -1,11 +1,14 @@
 #!/bin/sh
 # Verify the templates the way a user receives them.
 #
-# Installs the framework, copies each template somewhere unrelated to this checkout, and takes it
-# all the way to a native executable — using the scripts the README tells people to run, not a
-# hand-rolled command. That detail matters: an earlier version of this script assembled its own
-# java invocation, and so it never noticed that ./run.sh put only target/classes on the
-# classpath and died with NoClassDefFoundError the moment it was used for real.
+# Installs the framework, copies each template somewhere unrelated to this checkout, and runs it via
+# ./run.sh — the script the README tells people to run, not a hand-rolled command. That detail
+# matters: an earlier version of this script assembled its own java invocation, and so it never
+# noticed that ./run.sh put only target/classes on the classpath and died with NoClassDefFoundError
+# the moment it was used for real.
+#
+# The native build happens in verify-scaffold.sh, once per template instead of twice. See the note
+# above the loop.
 #
 # Runs headless, so it works in CI — which is the point. A template nobody builds is a template
 # that quietly rots.
@@ -42,23 +45,19 @@ echo "framework version: $FRAMEWORK_VERSION"
 
 # ---------------------------------------------------------------- each template
 #
-# Each template gets its own subshell and its own log, and they run at the same time. Two things
-# make that safe here, and both are load-bearing:
+# Why there is no native build here. There used to be one per template, five in total, and
+# verify-scaffold.sh built the same five again — from the projects it generated, which are copies of
+# these directories. A template that cannot compile natively cannot be generated into one that can,
+# so the second run is the one that proves it, and the first was five minutes of a fourteen-core
+# machine spent re-deriving a result that was about to be derived again.
 #
-#   - Nothing below uses `cd` on this shell any more; each block does its work inside a subshell,
-#     so a template cannot change the directory another one is working in.
-#   - NATIVE_IMAGE_THREADS caps every native-image compile to a fixed number of threads. Left to
-#     size itself for the machine, five compiles fight over the same cores: measured here, all
-#     five at once with no cap took 149s at load average 175, while the same five capped at two
-#     threads each took 104s. The cap is what buys the speed, not the parallelism by itself.
+# What this script still covers, and what verify-scaffold.sh does not: the template as checked out
+# here — the pinned framework version, and run.sh working from an unmodified copy. verify-scaffold.sh
+# only ever sees the generated project.
 #
-# The cap is computed, not tuned: templates × 2 threads, and never below 2, so a laptop and a
-# 32-core workstation both get a sensible number without anyone editing this file.
-NATIVE_IMAGE_THREADS="${NATIVE_IMAGE_THREADS:-$(( $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4) / $(printf '%s\n' $TEMPLATES | wc -l | tr -d ' ') ))}"
-[ "$NATIVE_IMAGE_THREADS" -lt 2 ] && NATIVE_IMAGE_THREADS=2
-export NATIVE_IMAGE_THREADS
-echo "building with $NATIVE_IMAGE_THREADS native-image thread(s) each"
-
+# Each template gets its own subshell and its own log, and they run at the same time. That is safe
+# because nothing below uses `cd` on this shell any more: each block does its work inside a
+# subshell, so a template cannot change the directory another one is working in.
 : > "$WORK/pids"
 for name in $TEMPLATES; do
     TEMPLATE="$ROOT/templates/$name"
@@ -98,22 +97,6 @@ PY
     # classpath assembly and its two required JVM flags. Without a window server the app cannot
     # open a window, and this is what is left — staging the assets and reporting what it found.
     JAVA_OPTS=-Dpanamaview.check=true ./run.sh
-
-    say "[$name] ./build-native.sh"
-    export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home -v 25 2>/dev/null || /usr/libexec/java_home)}"
-    ./build-native.sh > "$WORK/$name-native.log" 2>&1 || {
-        echo "native build failed; last 40 lines:" >&2
-        tail -40 "$WORK/$name-native.log" >&2
-        exit 1
-    }
-    tail -2 "$WORK/$name-native.log"
-
-    say "[$name] the native executable, same check"
-    #
-    # This is the one that matters. Resources are not inherited from a dependency, so an app that
-    # forgets -H:IncludeResources compiles, links, starts — and then dies with "missing resource"
-    # the moment it opens a window. Only running it catches that.
-    ./target/myapp -Dpanamaview.check=true
     ) > "$WORK/$name.log" 2>&1 &
     # Interleaved output from five builds is unreadable, so each one is held in its own file and
     # printed when it finishes. Failing loudly is still the point: a non-zero exit here fails the
