@@ -165,7 +165,12 @@ public final class Smoke {
     }
 
     private static int failAndQuit(Throwable t) {
-        return failAndQuit(t.getClass().getSimpleName() + ": " + t.getMessage());
+        StringBuilder chain = new StringBuilder();
+        for (Throwable c = t; c != null; c = c.getCause()) {
+            chain.append(chain.isEmpty() ? "" : " caused by ")
+                    .append(c.getClass().getSimpleName()).append(": ").append(c.getMessage());
+        }
+        return failAndQuit(chain.toString());
     }
 
     private static Path loaderDll() {
