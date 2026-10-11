@@ -96,8 +96,11 @@ wired() {
     # Before the dependency it resolves, which is where a reader looks for it.
     repositories="$(grep -n -F '<repositories>' "$project/pom.xml" | head -1 | cut -d: -f1)"
     dependencies="$(grep -n -F '<dependencies>' "$project/pom.xml" | head -1 | cut -d: -f1)"
-    [ -n "$repositories" ] && [ -n "$dependencies" ] \
-        || fail "[$label] the pom has no <repositories> or no <dependencies>"
+    # Written as an if, not `A && B || C`: that idiom runs C when A succeeds and B fails, which
+    # is not the same thing as if-then-else and is exactly the kind of near-miss a lint is for.
+    if [ -z "$repositories" ] || [ -z "$dependencies" ]; then
+        fail "[$label] the pom has no <repositories> or no <dependencies>"
+    fi
     [ "$repositories" -lt "$dependencies" ] \
         || fail "[$label] <repositories> is not before <dependencies>"
 

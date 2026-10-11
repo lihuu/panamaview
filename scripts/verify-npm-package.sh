@@ -158,7 +158,7 @@ say "and the framework came from the copy the package carries"
 REMOTE="$M2/io/github/lihuu/panamaview/$VERSION/_remote.repositories"
 [ -s "$REMOTE" ] \
     || fail "Maven resolved the framework without recording where from: $REMOTE does not exist"
-cat "$REMOTE" | sed 's/^/  /'
+sed 's/^/  /' "$REMOTE"
 grep -q "panamaview-bundled" "$REMOTE" \
     || fail "the framework was not resolved from the carried copy (see $REMOTE)"
 find "$M2/io/github/lihuu/panamaview/$VERSION" -type f | sed "s|^$M2/|  |"

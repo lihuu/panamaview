@@ -17,11 +17,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Pinned, not apt's. Ubuntu's shellcheck is 0.9.0 and the newest release is 0.11.0, and they
+      # do not agree: 0.11 dropped SC2002 and SC2015, so two real findings passed locally and
+      # failed here. A lint that depends on which version the runner happens to carry is a lint
+      # whose verdict means nothing. The pin is what makes "clean locally" and "clean in CI" the
+      # same claim.
       - name: Lint
         run: |
-          command -v shellcheck >/dev/null || sudo apt-get install -y shellcheck
-          shellcheck scripts/*.sh scaffold/*.sh scaffold/scripts/*.sh \
-                     templates/*/*.sh templates/*/scripts/*.sh
+          set -eu
+          version=0.11.0
+          url="https://github.com/koalaman/shellcheck/releases/download/v$version/shellcheck-v$version.linux.x86_64.tar.xz"
+          curl -fsSL "$url" | tar -xJ
+          bin="$PWD/shellcheck-v$version/shellcheck"
+          "$bin" --version
+          "$bin" scripts/*.sh scaffold/*.sh scaffold/scripts/*.sh \
+                 templates/*/*.sh templates/*/scripts/*.sh
 
       # deploy-private.sh itself cannot run here — it needs credentials this repository must not
       # hold. Everything it decides before uploading anything can be checked without them, and that
@@ -35,11 +45,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up JDK 25
-        uses: actions/setup-java@v4
+      # GraalVM rather than a plain JDK 25: the two packaging checks below build the scaffolder
+      # as a native binary, which is what the npm package and the Homebrew formula both ship.
+      # Matches the environment the framework is developed and verified against.
+      - name: Set up GraalVM
+        uses: graalvm/setup-graalvm@v1
         with:
-          distribution: 'temurin'
           java-version: '25'
+          distribution: 'graalvm-community'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and install the framework
         run: mvn -q install -DskipTests
@@ -78,6 +92,19 @@ jobs:
       # only end-to-end check that can run on a runner with no window server.
       - name: A consumer can build and stage a page
         run: (cd demo-app && JAVA_OPTS=-Dpanamaview.check=true ./run.sh)
+
+      # The scaffolder handed to someone through npm or Homebrew carries the framework with it,
+      # because `io.github.lihuu:panamaview` is not on Maven Central and a generated project that
+      # cannot resolve its one dependency is the failure this whole packaging exists to prevent.
+      # This checks the wiring and then builds a generated project against an empty repository, so
+      # "it resolved from the bundled copy" is observed rather than assumed.
+      - name: A packaged scaffolder can build a project with nothing configured
+        run: ./scripts/verify-scaffold-library.sh
+
+      # The npm package end to end: pack, install into a throwaway prefix, generate, and build
+      # against an empty repository and settings that declare no repositories.
+      - name: The npm package installs and produces a working project
+        run: ./scripts/verify-npm-package.sh
 
   templates:
     name: ${{ matrix.template }} — template and scaffolded project, JVM + native
