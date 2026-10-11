@@ -207,6 +207,13 @@ final class Native {
         return out.getAtIndex(ADDRESS, 0).reinterpret(Long.MAX_VALUE);
     }
 
+    /** Calls IUnknown::AddRef and returns the count the object reports - a live ownership probe. */
+    static int addRef(MemorySegment object) {
+        MemorySegment out = LIFE.allocate(JAVA_INT);
+        call("AddRef", slot(object, 1 /* IUnknown::AddRef */, HR_THIS_PTR_PTR), object, out);
+        return out.get(JAVA_INT, 0);
+    }
+
     static void putIsVisible(MemorySegment controller, boolean visible) {
         call("put_IsVisible", slot(controller, CONTROLLER_PUT_IS_VISIBLE, HR_THIS_PTR_INT),
                 controller, visible ? 1 : 0);
