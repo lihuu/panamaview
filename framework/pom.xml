@@ -29,6 +29,58 @@
 
   <build>
     <plugins>
+      <!--
+        The framework's sources live here and nowhere else, and this is what says so out loud.
+
+        Why it is worth a build step. When the framework moved out of the repository root into this
+        module, any branch written before that move still adds its sources under `src/main/java/` at
+        the root — `src/main/java/panamaview/windows/`, for instance. Merging such a branch produces
+        **no conflict at all**: base had no file at either path, the branch adds one path, this
+        module adds another, and git merges two unrelated additions silently. Maven then compiles
+        this module only, so those sources are never compiled and never noticed. The build exits 0.
+        Measured: four Windows source files sitting in the root, no `WindowsHost.class` anywhere, and
+        nothing red.
+
+        That is the failure this guard turns into a loud one. It is deliberately not a move: this
+        module must not decide where another branch's work belongs, and copying the same sources to
+        a second path makes the merge *quieter* to get wrong, not less so — both additions survive
+        and the tree carries two copies nobody can see is wrong. Whoever wrote those sources owns
+        moving them, and this tells them the moment their branch is built.
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <version>3.4.1</version>
+        <executions>
+          <execution>
+            <id>no-source-tree-at-the-root</id>
+            <phase>validate</phase>
+            <goals>
+              <goal>enforce</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <requireFilesDontExist>
+                  <message>
+A source tree has appeared at the repository root (${project.basedir}/../src), but the framework's
+sources live in framework/src/. Maven compiles the module, not the root, so anything under
+src/main/java/ is silently never compiled — the build passes and the classes are simply absent.
+
+This usually means a branch written before the framework moved is being merged: git reports no
+conflict, because both sides only added files, and only one of those paths is on the compile path.
+
+Move those sources into framework/src/... to match this module, then rebuild.
+                  </message>
+                  <files>
+                    <file>${project.basedir}/../src</file>
+                  </files>
+                </requireFilesDontExist>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
