@@ -22,8 +22,11 @@ trap 'rm -rf "$WORK"' EXIT INT TERM
 say() { printf '\n=== %s\n' "$1"; }
 
 # ---------------------------------------------------------------- build the scaffolder
-say "building the scaffolder"
-(cd "$ROOT/scaffold" && mvn -q -B clean package)
+say "building the framework and the scaffolder"
+# The whole reactor rather than scaffold/ alone: the scaffolder's pom inherits from the root, so
+# Maven has to be able to resolve the parent, and the framework has to be installed before the
+# templates it stages are generated against it.
+(cd "$ROOT" && mvn -q -B -pl scaffold -am clean package)
 
 set -- "$ROOT"/scaffold/target/panamaview-scaffold-*.jar
 if [ "$#" -ne 1 ]; then
@@ -40,20 +43,23 @@ echo "  $JAR"
 # different version would generate projects depending on a release that does not exist — and the
 # failure would land on whoever ran it, as an unresolved artifact.
 say "checking the pinned framework version"
-python3 - "$ROOT/pom.xml" "$ROOT/scaffold/pom.xml" <<'PY'
-import re, sys
+# The framework's version comes from the framework's own pom; the root pom is the reactor's parent
+# and is a different fact.
+. "$ROOT/scripts/framework-coordinates.sh"
+# The scaffolder's version has to be asked of Maven. It inherits the version from the parent rather
+# than stating one, so there is no `<version>` in its pom for a reader to find, and a disagreement
+# shows up only when the module is resolved. That is the property being checked — the two used to be
+# independent numbers that a release could bump one at a time, and now one of them is derived.
+SCAFFOLDER_VERSION="$(cd "$ROOT" && mvn -q -B help:evaluate \
+    -Dexpression=project.version -DforceStdout -pl scaffold 2>/dev/null | tail -1)"
+python3 - "$FRAMEWORK_VERSION" "$SCAFFOLDER_VERSION" <<'PY'
+import sys
 
-def first_version(path):
-    text = open(path).read()
-    # No <parent> in either pom, so the first <version> is the project's own.
-    return re.search(r"<version>([^<]+)</version>", text).group(1)
-
-framework, scaffold = first_version(sys.argv[1]), first_version(sys.argv[2])
+framework, scaffold = sys.argv[1], sys.argv[2]
 if framework != scaffold:
     sys.exit(f"\nMISMATCH: the framework is {framework}, the scaffolder is {scaffold}.\n"
              f"The templates are staged from this working tree and pin {framework}, so a\n"
-             f"scaffolder built at {scaffold} would generate projects that cannot resolve.\n"
-             f"Fix: set <version>{framework}</version> in scaffold/pom.xml")
+             f"scaffolder built at {scaffold} would generate projects that cannot resolve.")
 print(f"  both at {framework}")
 PY
 

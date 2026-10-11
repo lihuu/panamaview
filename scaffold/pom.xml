@@ -4,20 +4,24 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>io.github.lihuu</groupId>
+  <!--
+    The version is the parent's. It used to have to track the framework's by hand, and a release
+    that bumped one and not the other would ship a scaffolder generating projects that depend on a
+    release which does not exist. Inheriting it removes the possibility rather than checking for it.
+  -->
+  <parent>
+    <groupId>io.github.lihuu</groupId>
+    <artifactId>panamaview-parent</artifactId>
+    <version>0.2.0</version>
+  </parent>
+
   <artifactId>panamaview-scaffold</artifactId>
-  <!-- Must track the framework version in the root pom: the templates are staged from this same
-       working tree and pin that version, so a mismatch would ship a scaffolder that generates
-       projects depending on a release that does not exist. verify-scaffold.sh asserts it. -->
-  <version>0.2.0</version>
   <packaging>jar</packaging>
 
   <name>panamaview-scaffold</name>
   <description>Creates panamaview projects from the templates in this repository.</description>
 
   <properties>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven.compiler.release>25</maven.compiler.release>
     <main.class>panamaview.scaffold.Main</main.class>
   </properties>
 

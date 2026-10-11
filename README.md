@@ -46,7 +46,11 @@ There is nothing to launch in this directory, and that is the point: a library h
 dependency, its own sources, its own assets — and is also the acceptance test, because every
 mechanism in the bridge has a probe there.
 
+It is a module of this repository's reactor, but that does not make it less of a consumer: it still
+resolves the framework out of the local Maven repository like anyone else, so install first.
+
 ```sh
+mvn -q install                 # the framework, the scaffolder and the demo — one reactor
 cd demo-app
 ./run.sh                       # JVM mode; prints [selftest] 13 passed, 0 failed
 ./build-native.sh              # → target/panamaview-demo, a standalone executable
@@ -296,6 +300,25 @@ stdout and can be checked mechanically rather than by reading a screenshot:
 
 ## Layout
 
+This is a Maven reactor: one version, one `mvn install`, four projects. The root pom is the parent
+and aggregator, and each module below inherits the version from it — so the version is stated once
+instead of in every pom that needs it.
+
+```
+pom.xml                the reactor: parent of the modules, and the version they are built at
+framework/             → io.github.lihuu:panamaview, the library
+scaffold/              → io.github.lihuu:panamaview-scaffold, the generator
+demo-app/              → io.github.lihuu:panamaview-demo, an ordinary consumer
+templates/             not modules — see below
+```
+
+`templates/` is deliberately outside the reactor. A template is copied out of this repository and
+built somewhere this pom does not exist, so giving one a `<parent>` would make every generated
+project unbuildable. Each pins the framework version explicitly instead, and
+`scripts/verify-templates.sh` fails when a pin drifts.
+
+Inside `framework/`:
+
 ```
 src/main/java/panamaview/              portable — JDK types only
   WebApp.java        lifecycle and the entry point
@@ -320,6 +343,7 @@ src/main/java/panamaview/macos/        the only platform implementation
 
 src/main/resources/
   panamaview/panamaview.js   the client bridge — staged into your web root, not copied
+  META-INF/native-image/…/reachability-metadata.json   the FFM registrations, inherited by consumers
 
 demo-app/              an ordinary consumer: the self-test in a real window
   src/main/java/panamaview/demo/App.java   handlers and the self-test handshake
@@ -342,7 +366,8 @@ scripts/verify-templates.sh  builds each template the way a user receives it
 scripts/verify-scaffold.sh   generates from each template, then builds the result
 scripts/verify-npm-package.sh  installs the packed tarball cold, then builds a project from it
 scripts/deploy-private.sh    publishes to a private repository, then fetches it back to check
-  META-INF/native-image/…/reachability-metadata.json
+scripts/framework-coordinates.sh  the one place that knows where the framework's pom is, now that
+                             the root pom is the parent rather than the framework
 ```
 
 The API is intentionally minimal:
@@ -519,12 +544,19 @@ both were unpacked and taken end to end, on real Mach-O arm64 and real ELF x86-6
 what was wrong: a download page says *this is a tool, take it*, and no application outside this
 repository has been built on panamaview yet. When one has been, the archives come back.
 
-### The version lives in thirteen places, and only nine of them move
+### The version lives in eight places, and only seven of them move
 
-Every file in the repository whose version a person writes, and what its version means. Thirteen
-files: nine are the framework's own version under a different name, three are the version of the
+Every file in the repository whose version a person writes, and what its version means. Eight files:
+seven are the framework's own version under a different name, three are the version of the
 *application* a template describes, and one — the Homebrew formula — pins a release that has already
 happened.
+
+It was thirteen, and the difference is the point of the reactor: `scaffold/pom.xml` and
+`demo-app/pom.xml` used to state the framework's version themselves, and had to be bumped alongside
+it by hand. They inherit it now, so there is nothing in them to forget. That is not a smaller number
+to keep in step — it is two fewer chances to keep them out of step, and the second of those two is
+the one that was missed on a release, shipping a tag whose demo depended on a version that had never
+been published.
 
 `templates/*/frontend/package-lock.json` (×3) also records a version, and is not listed: it is
 generated from the `package.json` beside it rather than authored, and npm rewrites it on the next
@@ -533,22 +565,30 @@ disagreeing with the file it mirrors.
 
 | | field | moves with a release? |
 | --- | --- | --- |
-| `pom.xml` | `<version>` | yes — the framework |
-| `scaffold/pom.xml` | `<version>` | yes — the scaffolder |
-| `demo-app/pom.xml` | `<panamaview.version>` | yes — the demo depends on the framework |
+| `pom.xml` | `<version>` | yes — the reactor's parent, and the version its modules are built at |
+| `framework/pom.xml` | `<version>` | yes — the framework; what a consumer resolves |
+| `scaffold/pom.xml` | *(inherited)* | — the scaffolder; nothing to bump |
+| `demo-app/pom.xml` | *(inherited)* | — the demo; nothing to bump, and no pin to forget |
 | `templates/*/pom.xml` (×5) | `<panamaview.version>` | yes — what a generated project depends on |
 | `npm/package.json` | `version` | yes — the package carries the framework, and the projects it generates pin the version it carries |
-| `demo-app/pom.xml`, `templates/*/pom.xml` | `<version>` | **no** — that is the version of the app each one describes |
+| `templates/*/pom.xml` | `<version>` | **no** — that is the version of the app each template describes |
 | `templates/*/frontend/package.json` (×3) | `version` | **no** — same thing, for the frontend package |
 | `packaging/homebrew/panamaview.rb` | `url`'s `tag:` and `revision:` | **no** — it pins the release it builds from, which cannot be the one being cut; see below |
 
-The nine that move are one value, because the consumers are staged from this working tree: a
+The seven that move are one value, because the consumers are staged from this working tree: a
 template pinning anything other than the framework's version generates projects that cannot
 resolve, and an npm package whose `version` is not the framework's ships a framework that the
 projects it generates do not ask for by name. `verify-templates.sh` fails on the first;
 `npm/scripts/build-package.sh` fails on the second, at the moment it stages `lib/`. That is how the
 invariant is enforced rather than remembered — and it is why the release script runs verification
 *before* it bumps anything.
+
+One consequence of the framework inheriting from the parent is worth stating where it can be seen:
+resolving `io.github.lihuu:panamaview` reads `panamaview-parent-<version>.pom` first. That file
+travels with the framework everywhere — deployed beside it, and bundled into the npm package's
+Maven repository for projects that have nothing configured. `scripts/verify-scaffold-library.sh`
+builds a generated project against an empty local repository, which is what catches it if that stops
+being true.
 
 The npm package is the one of the nine that a Maven-only release would have missed, so it is in both
 `release.sh`'s bump and the tag check in `release.yml`: `npm/package.json` is not a pom, and a check

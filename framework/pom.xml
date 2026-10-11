@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!--
+    No groupId or version: both are inherited, so the framework's coordinates are stated once in
+    the whole repository and no two files can disagree about what this is called.
+  -->
+  <parent>
+    <groupId>io.github.lihuu</groupId>
+    <artifactId>panamaview-parent</artifactId>
+    <version>0.2.0</version>
+  </parent>
+
+  <artifactId>panamaview</artifactId>
+  <packaging>jar</packaging>
+
+  <name>panamaview</name>
+  <description>Drive the operating system's web view from Java over the FFM API. No JNI, no JNA,
+    no bundled browser engine.</description>
+
+  <!--
+    Zero runtime dependencies on purpose: the whole point is to talk to
+    Cocoa/WebKit through java.lang.foreign and nothing else.
+  -->
+  <dependencies/>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+      </plugin>
+
+      <!--
+        No exec plugin, and no entry point: this is a library. It has no main() to run and nothing
+        to launch, so declaring one would mean shipping the demo again. The demo lives in demo-app/
+        and is an ordinary consumer, exactly like the templates.
+      -->
+    </plugins>
+  </build>
+</project>

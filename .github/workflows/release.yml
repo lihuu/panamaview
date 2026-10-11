@@ -53,16 +53,30 @@ jobs:
               m = re.search(r"<version>([^<]+)</version>", pathlib.Path(path).read_text())
               return m.group(1) if m else None
 
-          for rel in ("pom.xml", "scaffold/pom.xml"):
+          # The three poms of the reactor, each stating the released version as its own. Two of
+          # them are not poms the framework's own <version> can be read from any more: the root is
+          # the parent and the framework is a module, so framework/pom.xml is what carries the
+          # coordinates a consumer resolves.
+          for rel in ("pom.xml", "framework/pom.xml", "scaffold/pom.xml"):
               found = first_version(rel)
               if found != expected:
                   problems.append(f"{rel} is {found}, tag says {expected}")
 
-          # demo-app pins the framework too; leaving it out lets a tag agree with everything
-          # except one consumer, which is a release that fails to build downstream.
+          # The templates are not modules — they are copied out of this repository and built
+          # somewhere this pom does not exist — so each pins the framework version by hand, and a
+          # pin that drifts generates projects depending on a release that was never cut.
+          #
+          # demo-app is in that loop too even though it is a module now and inherits the version:
+          # the check is that it agrees, and a module that quietly grew its own <panamaview.version>
+          # would be the mistake this loop exists for.
           for pom in [pathlib.Path("demo-app/pom.xml")] + sorted(pathlib.Path("templates").glob("*/pom.xml")):
-              m = re.search(r"<panamaview\.version>([^<]+)</panamaview\.version>", pom.read_text())
-              if not m:
+              text = pom.read_text()
+              m = re.search(r"<panamaview\.version>([^<]+)</panamaview\.version>", text)
+              if m is None:
+                  # A module does not need to pin it; anything else does. Saying which is which
+                  # keeps this from reading as an oversight when demo-app stops carrying the pin.
+                  if "panamaview-demo" in text and "panamaview-parent" in text:
+                      continue
                   problems.append(f"{pom} does not pin <panamaview.version>")
               elif m.group(1) != expected:
                   problems.append(f"{pom} pins {m.group(1)}, tag says {expected}")

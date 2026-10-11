@@ -4,19 +4,20 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>io.github.lihuu</groupId>
+  <parent>
+    <groupId>io.github.lihuu</groupId>
+    <artifactId>panamaview-parent</artifactId>
+    <version>0.2.0</version>
+  </parent>
+
   <artifactId>panamaview-demo</artifactId>
-  <version>0.1.0</version>
   <packaging>jar</packaging>
 
   <name>panamaview demo</name>
   <description>The bridge self-test in a real window. An ordinary consumer of the framework.</description>
 
   <properties>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven.compiler.release>25</maven.compiler.release>
     <main.class>panamaview.demo.Main</main.class>
-    <panamaview.version>0.2.0</panamaview.version>
   </properties>
 
   <!--
@@ -24,13 +25,23 @@
     consumer gets. If this stops building, the framework stopped being usable from outside
     its own source tree, which is a bug in the framework and not in the demo.
 
+    ${project.version} rather than a pinned number, and that is the fix for a mistake this file
+    made once: as a separate project it carried its own <panamaview.version>, release.sh did not
+    know about it, and the release shipped a tag whose demo depended on a version that had never
+    been published — which failed on CI three jobs away from the cause. A module of the reactor
+    cannot get out of step in the first place.
+
+    Being a module does not make it a consumer, though: it still resolves the framework the way
+    anyone else does, from the repository. `mvn -q -B install` at the root is what puts the
+    framework there, and scripts/verify-templates.sh runs it.
+
     Nothing here is ever published. This project exists to be built, not to be depended on.
   -->
   <dependencies>
     <dependency>
       <groupId>io.github.lihuu</groupId>
       <artifactId>panamaview</artifactId>
-      <version>${panamaview.version}</version>
+      <version>${project.version}</version>
     </dependency>
   </dependencies>
 

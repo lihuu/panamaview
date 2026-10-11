@@ -46,19 +46,12 @@ if ! git -C "$REPO" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     exit 1
 fi
 
-# The version pins what generated projects will depend on. It has to be *this* repository's
-# version, because that is the only version of the framework the templates can be known to work
-# with — they are staged from the same working tree.
-VERSION=$(python3 - "$REPO/pom.xml" <<'PY'
-import re, sys
-text = open(sys.argv[1]).read()
-# The first <version> in a pom with no <parent> is the project's own.
-m = re.search(r"<version>([^<]+)</version>", text)
-if not m:
-    sys.exit("no <version> in " + sys.argv[1])
-print(m.group(1))
-PY
-)
+# The version pins what generated projects will depend on. It has to be the *framework's* version,
+# because that is the version a generated project resolves — and since the build became a reactor,
+# the framework's pom is framework/pom.xml while the root pom is the parent. The shared script is
+# the one place that knows this, so this file does not have to.
+. "$REPO/scripts/framework-coordinates.sh"
+VERSION="$FRAMEWORK_VERSION"
 
 # Work files live outside the resource directory, so a failure part-way through cannot leave
 # something behind that the next build would copy into the jar.

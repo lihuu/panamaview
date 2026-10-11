@@ -146,10 +146,18 @@ the scaffolder.
 
 ## Building it in this checkout
 
+This module is part of the repository's Maven reactor, so it is built from the repository root:
+
 ```sh
-./build-native.sh        # → target/panamaview, a native executable
-mvn -q package           # → target/panamaview-scaffold-<version>.jar, runnable with java -jar
+cd ..                    # the repository root, where the parent pom is
+mvn -q install           # the framework, the scaffolder and the demo
+cd scaffold && ./build-native.sh        # → target/panamaview, a native executable
+mvn -q package                          # → target/panamaview-scaffold-<version>.jar
 ```
+
+`mvn -q install` at the root rather than `mvn package` here, because the scaffolder inherits the
+version from the parent pom: Maven has to be able to resolve that parent, and the framework has to
+be installed before the templates staged into this jar are generated against it.
 
 The native form is for the loop around the scaffolder: `scripts/verify-scaffold.sh` runs it, and it
 makes working on a template a build rather than a jar swap. It is not the delivery format — see

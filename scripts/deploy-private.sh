@@ -47,11 +47,17 @@ if [ "${1:-}" = "--verify-only" ]; then
     shift
 fi
 
+# The default is the three modules that get published, in dependency order: the framework, then the
+# scaffolder. The root pom goes first because it is the parent the other two inherit from — Maven
+# resolves a parent before it will read the pom that names it, so publishing the modules without it
+# publishes poms nobody can read. demo-app is not here at all: it exists to be built, not depended
+# on, and was never published.
 if [ "$#" -gt 0 ]; then
     PROJECTS="$*"
 else
     PROJECTS="."
-    [ -f "$ROOT/scaffold/pom.xml" ] && PROJECTS=". scaffold"
+    [ -f "$ROOT/framework/pom.xml" ] && PROJECTS=". framework scaffold"
+    [ -f "$ROOT/scaffold/pom.xml" ] || PROJECTS=". framework"
 fi
 
 say() { printf '\n=== %s\n' "$1"; }
@@ -139,7 +145,12 @@ say "checking every project is at the same version"
 for dir in $PROJECTS; do
     pom="$ROOT/$dir/pom.xml"
     [ -f "$pom" ] || { echo "  no pom.xml in $dir" >&2; exit 1; }
-    other=$(python3 -c "import re,sys;print(re.search(r'<version>([^<]+)</version>',open(sys.argv[1]).read()).group(1))" "$pom")
+    # The module's own <version>, with its <parent> block excluded. The root pom states one; the
+    # modules under it do not, and reading the first <version> in those would return the parent's —
+    # the same number, so the check would pass while measuring nothing. Asking Maven is what makes
+    # the answer the module's own, whether it is stated or inherited.
+    other="$(cd "$ROOT/$dir" && mvn -B -q help:evaluate -Dexpression=project.version \
+        -DforceStdout 2>/dev/null | tail -1)"
     if [ "$other" != "$VERSION" ]; then
         echo "  $dir is at $other, but the framework is at $VERSION" >&2
         echo "  They move together: the templates pin the framework version and the scaffolder" >&2
@@ -192,14 +203,44 @@ for dir in $PROJECTS; do
     # translating ":" and "." to "/" across the whole coordinate string turned the version into a
     # directory chain, so a -SNAPSHOT artifact was looked for under 0/1/0-SNAPSHOT/. Only the group
     # id is a path; the artifact and version are plain names.
-    INFO=$(python3 - "$ROOT/$dir/pom.xml" "$FRESH" <<'COORDS'
+    INFO=$(python3 - "$ROOT/$dir/pom.xml" "$ROOT/pom.xml" "$FRESH" <<'COORDS'
 import re, sys
-text = open(sys.argv[1]).read()
-def one(name):
-    return re.search(rf"<{name}>([^<]+)</{name}>", text).group(1)
-group, artifact, version = one("groupId"), one("artifactId"), one("version")
+
+# Reads the module's own coordinates, falling back to the parent for anything it inherits. The
+# <parent> block comes first in a module's pom and names the same three elements, so reading "the
+# first groupId, artifactId, version" would return the parent's — which for this repository is
+# io.github.lihuu:panamaview-parent:<same version>. That is a real artifact, so the wrong answer
+# would resolve, which is the worst kind: the check would confirm the parent had been published and
+# say nothing about the module it was actually asked about.
+module, parent = sys.argv[1], sys.argv[2]
+
+def strip_comments(text):
+    return re.sub(r"<!--.*?-->", "", text, flags=re.S)
+
+def header_without_parent(path):
+    text = strip_comments(open(path).read())
+    text = re.sub(r"<parent>.*?</parent>", "", text, flags=re.S)
+    return re.split(r"<properties>|<dependencies>|<build>|<modules>|<profiles>", text)[0]
+
+def one(text, name):
+    m = re.search(rf"<{name}>([^<]+)</{name}>", text)
+    return m.group(1) if m else None
+
+own, inherited = header_without_parent(module), header_without_parent(parent)
+# groupId and version are the two that a module may inherit; artifactId never is, or the module
+# would not be a module. Each falls back independently, so a module that inherits one and states the
+# other is read correctly rather than taking whichever arrangement the other one happens to use.
+group = one(own, "groupId") or one(inherited, "groupId")
+artifact = one(own, "artifactId")
+version = one(own, "version") or one(inherited, "version")
+
+missing = [n for n, v in (("groupId", group), ("artifactId", artifact), ("version", version))
+           if v is None]
+if missing:
+    sys.exit(f"{module}: no " + ", ".join(missing))
+
 print(f"{group}:{artifact}:{version}")
-print(f"{sys.argv[2]}/{'/'.join(group.split('.'))}/{artifact}/{version}/{artifact}-{version}.jar")
+print(f"{sys.argv[3]}/{'/'.join(group.split('.'))}/{artifact}/{version}/{artifact}-{version}.jar")
 COORDS
 )
     coordinates=$(printf '%s\n' "$INFO" | sed -n 1p)

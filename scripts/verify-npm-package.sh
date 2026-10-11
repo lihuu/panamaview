@@ -26,10 +26,11 @@ fail() { printf 'verify-npm-package.sh: %s\n' "$1" >&2; exit 1; }
 
 # ---------------------------------------------------------------- one version, two files
 say "the version the package claims, and the version it carries"
-# sed rather than a here-document inside a command substitution: /bin/sh on macOS is bash 3.2,
-# which loses its place in a script when the two are combined. See npm/scripts/build-package.sh.
-VERSION="$(sed -n 's:.*<version>\([^<]*\)</version>.*:\1:p' "$ROOT/pom.xml" | head -1)"
-[ -n "$VERSION" ] || fail "no <version> in $ROOT/pom.xml"
+# The framework's version, from the framework's own pom — the root pom is the parent now that this
+# is a reactor, and its version is a different fact that happens to agree.
+. "$ROOT/scripts/framework-coordinates.sh"
+VERSION="$FRAMEWORK_VERSION"
+[ -n "$VERSION" ] || fail "no version in $FRAMEWORK_POM"
 python3 - "$VERSION" "$NPM_DIR/package.json" <<'PY'
 import json, sys
 
@@ -62,6 +63,8 @@ cat > "$WORK/expected.txt" <<EXPECTED
 package/README.md
 package/bin/panamaview
 package/cli.js
+package/lib/io/github/lihuu/panamaview-parent/$VERSION/panamaview-parent-$VERSION.pom
+package/lib/io/github/lihuu/panamaview-parent/$VERSION/panamaview-parent-$VERSION.pom.sha1
 package/lib/io/github/lihuu/panamaview/$VERSION/panamaview-$VERSION.jar
 package/lib/io/github/lihuu/panamaview/$VERSION/panamaview-$VERSION.jar.sha1
 package/lib/io/github/lihuu/panamaview/$VERSION/panamaview-$VERSION.pom
@@ -73,7 +76,7 @@ if ! diff -u "$WORK/expected.txt" "$WORK/list-first.txt" > "$WORK/list.diff"; th
     sed 's/^/  /' "$WORK/list.diff" >&2
     fail "the tarball is not what package.json's files list describes"
 fi
-echo "  exactly the eight files package.json lists"
+echo "  exactly the ten files package.json lists"
 
 say "a second pack is the same file list"
 # --ignore-scripts because the file list cannot depend on the hook having run again, and the point

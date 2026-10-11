@@ -44,24 +44,30 @@ export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home -v 25 2>/dev/null || /us
 # clean, because build-native.sh refuses to run with two versions of the scaffolder jar in target/.
 (cd "$ROOT/scaffold" && mvn -q -B clean package -DskipTests && ./build-native.sh)
 
-VERSION="$(python3 -c '
-import re, sys
-print(re.search(r"<artifactId>panamaview</artifactId>\s*<version>([^<]+)</version>",
-                open(sys.argv[1]).read()).group(1))' "$ROOT/pom.xml")"
-FRAMEWORK_JAR="$ROOT/target/panamaview-$VERSION.jar"
+# The coordinates come from the framework's own pom, not the root one: since the build became a
+# reactor, the root pom is the parent (io.github.lihuu:panamaview-parent) and the framework is a
+# module beside it. Reading the first <version> in pom.xml used to be the same thing and no longer
+# is — scripts/framework-coordinates.sh is the one place that knows where to look.
+. "$ROOT/scripts/framework-coordinates.sh"
+VERSION="$FRAMEWORK_VERSION"
+FRAMEWORK_JAR="$ROOT/framework/target/panamaview-$VERSION.jar"
 BINARY="$ROOT/scaffold/target/panamaview"
 SCAFFOLDER_JAR="$ROOT/scaffold/target/panamaview-scaffold-$VERSION.jar"
-for file in "$FRAMEWORK_JAR" "$BINARY" "$SCAFFOLDER_JAR"; do
+PARENT_POM="$ROOT/pom.xml"
+for file in "$FRAMEWORK_JAR" "$BINARY" "$SCAFFOLDER_JAR" "$PARENT_POM"; do
     [ -f "$file" ] || fail "expected $file to exist after the build"
 done
 echo "  framework $VERSION"
 
 say "laying out a packaged scaffolder: bin/panamaview beside lib/ as a Maven repository"
 PKG="$WORK/pkg"
-mkdir -p "$PKG/bin" "$PKG/lib/io/github/lihuu/panamaview/$VERSION"
+mkdir -p "$PKG/bin" "$PKG/lib/$FRAMEWORK_REPO_PATH" "$PKG/lib/io/github/lihuu/panamaview-parent/$VERSION"
 cp "$BINARY" "$PKG/bin/panamaview"
-cp "$FRAMEWORK_JAR" "$PKG/lib/io/github/lihuu/panamaview/$VERSION/panamaview-$VERSION.jar"
-cp "$ROOT/pom.xml" "$PKG/lib/io/github/lihuu/panamaview/$VERSION/panamaview-$VERSION.pom"
+cp "$FRAMEWORK_JAR" "$PKG/lib/$FRAMEWORK_REPO_PATH/panamaview-$VERSION.jar"
+cp "$ROOT/framework/pom.xml" "$PKG/lib/$FRAMEWORK_REPO_PATH/panamaview-$VERSION.pom"
+# The parent travels with the framework. It is also what npm/scripts/build-package.sh stages, and
+# this is the layout that catches it if that stops happening.
+cp "$PARENT_POM" "$PKG/lib/io/github/lihuu/panamaview-parent/$VERSION/panamaview-parent-$VERSION.pom"
 (cd "$PKG" && find . -type f | sed 's|^|  |')
 
 # The names come out of the built jar's manifest, not from a list written here, so a template added
@@ -129,10 +135,11 @@ say "and with the library beside the executable itself, the other layout"
 # with a different directory: a launcher that sits at a package root rather than in a bin/. Both are
 # exercised because both are what a package manager will produce, and neither is the other's test.
 FLAT="$WORK/flat"
-mkdir -p "$FLAT/lib/io/github/lihuu/panamaview/$VERSION"
+mkdir -p "$FLAT/lib/$FRAMEWORK_REPO_PATH" "$FLAT/lib/io/github/lihuu/panamaview-parent/$VERSION"
 cp "$BINARY" "$FLAT/panamaview"
-cp "$FRAMEWORK_JAR" "$FLAT/lib/io/github/lihuu/panamaview/$VERSION/panamaview-$VERSION.jar"
-cp "$ROOT/pom.xml" "$FLAT/lib/io/github/lihuu/panamaview/$VERSION/panamaview-$VERSION.pom"
+cp "$FRAMEWORK_JAR" "$FLAT/lib/$FRAMEWORK_REPO_PATH/panamaview-$VERSION.jar"
+cp "$ROOT/framework/pom.xml" "$FLAT/lib/$FRAMEWORK_REPO_PATH/panamaview-$VERSION.pom"
+cp "$PARENT_POM" "$FLAT/lib/io/github/lihuu/panamaview-parent/$VERSION/panamaview-parent-$VERSION.pom"
 (cd "$WORK/generated/vanilla" && "$FLAT/panamaview" create flat --template vanilla) > /dev/null
 wired "$WORK/generated/vanilla/flat" "beside the executable"
 
@@ -147,9 +154,12 @@ say "and through a link, which is how a package manager installs it"
 LINKED="$WORK/linked"
 mkdir -p "$LINKED/keg/bin" "$LINKED/prefix/bin"
 cp "$BINARY" "$LINKED/keg/bin/panamaview"
-mkdir -p "$LINKED/keg/bin/lib/io/github/lihuu/panamaview/$VERSION"
-cp "$FRAMEWORK_JAR" "$LINKED/keg/bin/lib/io/github/lihuu/panamaview/$VERSION/panamaview-$VERSION.jar"
-cp "$ROOT/pom.xml" "$LINKED/keg/bin/lib/io/github/lihuu/panamaview/$VERSION/panamaview-$VERSION.pom"
+mkdir -p "$LINKED/keg/bin/lib/$FRAMEWORK_REPO_PATH" \
+         "$LINKED/keg/bin/lib/io/github/lihuu/panamaview-parent/$VERSION"
+cp "$FRAMEWORK_JAR" "$LINKED/keg/bin/lib/$FRAMEWORK_REPO_PATH/panamaview-$VERSION.jar"
+cp "$ROOT/framework/pom.xml" "$LINKED/keg/bin/lib/$FRAMEWORK_REPO_PATH/panamaview-$VERSION.pom"
+cp "$PARENT_POM" \
+   "$LINKED/keg/bin/lib/io/github/lihuu/panamaview-parent/$VERSION/panamaview-parent-$VERSION.pom"
 ln -s "$LINKED/keg/bin/panamaview" "$LINKED/prefix/bin/panamaview"
 
 (cd "$WORK/generated/vanilla" && "$LINKED/prefix/bin/panamaview" create linked --template vanilla) \
@@ -284,7 +294,7 @@ say "PANAMAVIEW_LIBRARY pointing at a repository of the wrong version: also an e
 WRONG="$WORK/wrong-version/io/github/lihuu/panamaview/0.1.0"
 mkdir -p "$WRONG"
 cp "$FRAMEWORK_JAR" "$WRONG/panamaview-0.1.0.jar"
-cp "$ROOT/pom.xml" "$WRONG/panamaview-0.1.0.pom"
+cp "$ROOT/framework/pom.xml" "$WRONG/panamaview-0.1.0.pom"
 set +e
 OUTPUT="$(cd "$WORK" && PANAMAVIEW_LIBRARY="$WORK/wrong-version" "$PKG/bin/panamaview" \
     create wrongfail/app --template vanilla 2>&1)"
