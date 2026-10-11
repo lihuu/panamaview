@@ -5,10 +5,19 @@ runtime chain without opening a window, so it runs over SSH, in session 0, on a 
 runner — anywhere a JVM runs.
 
 It exists for the same reason `demo-app/` does: the framework jar must carry no application,
-so anything with a `main()` lives in a consumer module that depends on the framework the way
-anyone else would. And it stops at the runtime version on purpose: opening a window is
-milestone 2, which needs a desktop session — not because the code is missing, but because
-Windows does not render one to a headless session.
+so anything with a `main()` lives in a module that depends on the framework the way anyone else
+would. Like `demo-app/`, it is a module of the repository's reactor — it resolves the framework
+out of the local repository rather than out of the reactor, and inherits the version instead of
+pinning it.
+
+It builds on any platform. `Win32`, `Com` and `WebView2` bind their entry points at run time
+through `Linker.nativeLinker()`, so on macOS they compile and are never called; only running the
+probe on Windows reaches the loader. That is what makes it usable as a compile-time check
+everywhere and a real check on Windows.
+
+The probe stops at the runtime version on purpose: opening a window is milestone 2, which needs a
+desktop session — not because the code is missing, but because Windows does not render one to a
+headless session.
 
 ## Run it
 

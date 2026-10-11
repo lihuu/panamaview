@@ -10,7 +10,7 @@ library and no bundled browser engine — everything crosses into Objective-C th
 > [Project Panama](https://openjdk.org/projects/panama/) — named after the canal that joined
 > two oceans. Joining Java and native code is roughly the same trick.
 >
-> **Status.** macOS only. No application outside this repository has been built on it yet,
+> **Status.** macOS and Windows. No application outside this repository has been built on it yet,
 > which is the one thing a framework cannot prove about itself — see
 > [Not done](#not-done-deliberately) for the rest of the honest list.
 
@@ -21,8 +21,13 @@ library and no bundled browser engine — everything crosses into Objective-C th
 Java → FFM → Cocoa → WKWebView → HTML/JS → JS→Java → Java→JS
 ```
 
-macOS is the only platform implemented. It is the one being used to prove the approach, not
-the one the design is bound to — see [Keeping the platform isolated](#keeping-the-platform-isolated).
+macOS is the platform the chains above were proved on. A Windows implementation lives beside it in
+`panamaview.windows` — Win32, COM and WebView2, the same `UiHost` behind the same portable
+framework — and is exercised by `windows-probe/`. What has not happened yet is the same end-to-end
+run on Windows hardware that the macOS chain has had: the code is written and it builds everywhere,
+but "it runs" is a claim about a machine, and that machine is not the one this was written on. See
+[Keeping the platform isolated](#keeping-the-platform-isolated) for why the second implementation
+could be added without touching the first.
 
 ![The demo app running](docs/screenshot.png)
 
@@ -300,7 +305,7 @@ stdout and can be checked mechanically rather than by reading a screenshot:
 
 ## Layout
 
-This is a Maven reactor: one version, one `mvn install`, four projects. The root pom is the parent
+This is a Maven reactor: one version, one `mvn install`, five projects. The root pom is the parent
 and aggregator, and each module below inherits the version from it — so the version is stated once
 instead of in every pom that needs it.
 
@@ -309,8 +314,14 @@ pom.xml                the reactor: parent of the modules, and the version they 
 framework/             → io.github.lihuu:panamaview, the library
 scaffold/              → io.github.lihuu:panamaview-scaffold, the generator
 demo-app/              → io.github.lihuu:panamaview-demo, an ordinary consumer
+windows-probe/         → io.github.lihuu:panamaview-windows-probe, the Windows port's checks
 templates/             not modules — see below
 ```
+
+`windows-probe/` is a module for the same reason `demo-app/` is: the framework jar carries no
+application, so anything with a `main()` lives in a consumer that depends on the framework the way
+anyone else would. It builds on every platform — the Win32 and WebView2 calls bind at run time, not
+compile time — and it is what the Windows port's milestones are checked with.
 
 `templates/` is deliberately outside the reactor. A template is copied out of this repository and
 built somewhere this pom does not exist, so giving one a `<parent>` would make every generated
@@ -330,7 +341,7 @@ src/main/java/panamaview/              portable — JDK types only
   Resources.java     stages classpath web assets on disk for the platform
   Json.java          minimal JSON codec
 
-src/main/java/panamaview/macos/        the only platform implementation
+src/main/java/panamaview/macos/        the macOS implementation
   MacOsHost.java     Cocoa + WKWebView behind UiHost; platform extras
   UiThread.java      libdispatch: hop onto the UI thread
   ObjC.java          objc_msgSend re-typed per call site, autorelease pools, class creation
@@ -340,6 +351,12 @@ src/main/java/panamaview/macos/        the only platform implementation
   AssetSchemeHandler.java  serves assets over it (WKURLSchemeHandler, defined at runtime)
   ObjCDispatch.java  the ObjC class defined at runtime whose methods are Java methods
   NativeBlock.java   builds an Objective-C block by hand
+
+src/main/java/panamaview/windows/      the Windows implementation
+  WindowsHost.java   Win32 + WebView2 behind UiHost
+  Win32.java         user32/kernel32: window class, message pump, DPI
+  Com.java           the COM machinery — vtable dispatch, hand-built handlers
+  WebView2.java      the WebView2 loader: environment, controller, ExecuteScript
 
 src/main/resources/
   panamaview/panamaview.js   the client bridge — staged into your web root, not copied
@@ -544,12 +561,13 @@ both were unpacked and taken end to end, on real Mach-O arm64 and real ELF x86-6
 what was wrong: a download page says *this is a tool, take it*, and no application outside this
 repository has been built on panamaview yet. When one has been, the archives come back.
 
-### The version lives in eight places, and only seven of them move
+### The version lives in sixteen places, and only seven of them move
 
-Every file in the repository whose version a person writes, and what its version means. Eight files:
-seven are the framework's own version under a different name, three are the version of the
-*application* a template describes, and one — the Homebrew formula — pins a release that has already
-happened.
+Every file in the repository whose version a person writes, and what its version means. Sixteen
+files: seven carry the framework's own version under a different name — two state it and five are
+template pins — three are the version of the *application* a template describes, three more are the
+frontend packages beside them, four poms inherit the version rather than repeating it, and one —
+the Homebrew formula — pins a release that has already happened.
 
 It was thirteen, and the difference is the point of the reactor: `scaffold/pom.xml` and
 `demo-app/pom.xml` used to state the framework's version themselves, and had to be bumped alongside
@@ -565,10 +583,11 @@ disagreeing with the file it mirrors.
 
 | | field | moves with a release? |
 | --- | --- | --- |
-| `pom.xml` | `<version>` | yes — the reactor's parent, and the version its modules are built at |
-| `framework/pom.xml` | `<version>` | yes — the framework; what a consumer resolves |
+| `pom.xml` | `<version>` | yes — the reactor's parent, and the version its modules are built at. The framework's own, since every module inherits it |
+| `framework/pom.xml` | *(inherited)* | — the framework; nothing to bump. What a consumer resolves is the root pom's version, which this inherits |
 | `scaffold/pom.xml` | *(inherited)* | — the scaffolder; nothing to bump |
 | `demo-app/pom.xml` | *(inherited)* | — the demo; nothing to bump, and no pin to forget |
+| `windows-probe/pom.xml` | *(inherited)* | — the Windows port's checks; same |
 | `templates/*/pom.xml` (×5) | `<panamaview.version>` | yes — what a generated project depends on |
 | `npm/package.json` | `version` | yes — the package carries the framework, and the projects it generates pin the version it carries |
 | `templates/*/pom.xml` | `<version>` | **no** — that is the version of the app each template describes |

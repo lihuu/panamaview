@@ -147,6 +147,10 @@ def first_version(path):
     match = re.search(r"<version>([^<]+)</version>", path.read_text(encoding="utf-8"))
     return match.group(1) if match else None
 
+def strip_comments(text):
+    """A pom's own explanation is not markup. See the module check below."""
+    return re.sub(r"<!--.*?-->", "", text, flags=re.S)
+
 # Every pom that states the released version as its own. Three of them now, and the framework's is
 # the one a consumer resolves — the root pom is the reactor's parent, whose version is the same
 # number for a different reason.
@@ -155,13 +159,27 @@ for rel in ("pom.xml", "framework/pom.xml", "scaffold/pom.xml"):
     if found != current:
         problems.append(f"{rel} is {found}, expected {current}")
 
-# demo-app is a module and inherits the version, so it is expected *not* to carry a pin. If one
-# reappears it is stating the framework version a second time, which is the mistake that made a
-# release ship a demo depending on a version that was never published.
-demo = root / "demo-app/pom.xml"
-if demo.exists() and re.search(r"<panamaview\.version>", demo.read_text(encoding="utf-8")):
-    problems.append("demo-app/pom.xml pins <panamaview.version>; as a module it inherits the "
-                    "version, and a second copy is one that can drift")
+# Every other module inherits the version and is expected *not* to carry a pin. If one reappears it
+# is stating the framework version a second time, which is the mistake that made a release ship a
+# demo depending on a version that was never published.
+#
+# Read from the root pom's <modules> rather than listed here. A list in this script is a list that
+# goes stale the moment a module is added — which is the same failure, one level up: the release
+# machinery not knowing a file exists. Adding a module is now covered without touching this script.
+for module in re.findall(r"<module>([^<]+)</module>",
+                         (root / "pom.xml").read_text(encoding="utf-8")):
+    pom = root / module / "pom.xml"
+    if not pom.exists():
+        continue
+    if module == "framework":
+        continue                       # the framework states its own version; checked above
+    # Comments stripped first, and that is not tidiness: these poms explain themselves, and
+    # demo-app's comment names the very element being looked for ("it carried its own
+    # <panamaview.version>") as part of saying why it no longer does. Read raw, that sentence
+    # answers yes and the release refuses to run for a pin that is not there.
+    if re.search(r"<panamaview\.version>", strip_comments(pom.read_text(encoding="utf-8"))):
+        problems.append(f"{module}/pom.xml pins <panamaview.version>; as a module it inherits "
+                        f"the version, and a second copy is one that can drift")
 
 for pom in sorted(root.glob("templates/*/pom.xml")):
     text = pom.read_text(encoding="utf-8")
@@ -259,17 +277,26 @@ for pom in sorted(root.glob("templates/*/pom.xml")):
     rewrite(pom, r"<panamaview\.version>[^<]+</panamaview\.version>",
             f"<panamaview.version>{next_}</panamaview.version>", "framework pin")
 
-# demo-app is a module and inherits the version like the scaffolder. It used to be an independent
+# Every other module inherits the version like the scaffolder. demo-app used to be an independent
 # project with its own <panamaview.version>, and that pin was missed on the release that split it
 # out — the failure landed on CI three jobs away from the cause. A module cannot get out of step
 # with the reactor it is built in, so an assertion replaces the rewrite.
-demo_text = (root / "demo-app/pom.xml").read_text(encoding="utf-8")
-if "<parent>" not in demo_text:
-    sys.exit("demo-app/pom.xml has no <parent>; it is supposed to inherit the version")
-if "<panamaview.version>" in demo_text:
-    sys.exit("demo-app/pom.xml pins <panamaview.version> as well as being a module; the pin is "
-             "the copy that gets missed, and inheriting is what replaced it")
-print(f"  {'demo-app/pom.xml':32} inherits the version")
+#
+# Driven by the root pom's <modules>, so a module added tomorrow is covered here automatically.
+# The alternative — one block per module — is a list someone forgets, and forgetting is the exact
+# failure this replaced.
+for module in re.findall(r"<module>([^<]+)</module>",
+                         (root / "pom.xml").read_text(encoding="utf-8")):
+    pom = root / module / "pom.xml"
+    if not pom.exists() or module == "framework":
+        continue                       # the framework states its own version; bumped above
+    text = pom.read_text(encoding="utf-8")
+    if "<parent>" not in text:
+        sys.exit(f"{module}/pom.xml has no <parent>; it is supposed to inherit the version")
+    if "<panamaview.version>" in text:
+        sys.exit(f"{module}/pom.xml pins <panamaview.version> as well as being a module; the "
+                 f"pin is the copy that gets missed, and inheriting is what replaced it")
+    print(f"  {module + '/pom.xml':32} inherits the version")
 
 # npm/package.json carries the framework's version too, for the reason in the header.
 #

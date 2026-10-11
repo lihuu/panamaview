@@ -62,21 +62,33 @@ jobs:
               if found != expected:
                   problems.append(f"{rel} is {found}, tag says {expected}")
 
+          def strip_comments(text):
+              """A pom's own explanation is not markup — see the module loop below."""
+              return re.sub(r"<!--.*?-->", "", text, flags=re.S)
+
+          # Every module inherits the version rather than pinning it. Read from the root pom's
+          # <modules>, not from a list written here: a list here is a list that goes stale the
+          # moment a module is added, and the whole point of this check is to not be that.
+          for module in re.findall(r"<module>([^<]+)</module>",
+                                   pathlib.Path("pom.xml").read_text()):
+              module_pom = pathlib.Path(module) / "pom.xml"
+              if not module_pom.exists():
+                  continue
+              text = strip_comments(module_pom.read_text())
+              if module == "framework":
+                  continue          # states its own version; checked with the poms above
+              m = re.search(r"<panamaview\.version>([^<]+)</panamaview\.version>", text)
+              if m is not None:
+                  problems.append(f"{module_pom} pins {m.group(1)} while being a module; it is "
+                                  f"supposed to inherit the version, and a second copy drifts")
+
           # The templates are not modules — they are copied out of this repository and built
           # somewhere this pom does not exist — so each pins the framework version by hand, and a
           # pin that drifts generates projects depending on a release that was never cut.
-          #
-          # demo-app is in that loop too even though it is a module now and inherits the version:
-          # the check is that it agrees, and a module that quietly grew its own <panamaview.version>
-          # would be the mistake this loop exists for.
-          for pom in [pathlib.Path("demo-app/pom.xml")] + sorted(pathlib.Path("templates").glob("*/pom.xml")):
+          for pom in sorted(pathlib.Path("templates").glob("*/pom.xml")):
               text = pom.read_text()
               m = re.search(r"<panamaview\.version>([^<]+)</panamaview\.version>", text)
               if m is None:
-                  # A module does not need to pin it; anything else does. Saying which is which
-                  # keeps this from reading as an oversight when demo-app stops carrying the pin.
-                  if "panamaview-demo" in text and "panamaview-parent" in text:
-                      continue
                   problems.append(f"{pom} does not pin <panamaview.version>")
               elif m.group(1) != expected:
                   problems.append(f"{pom} pins {m.group(1)}, tag says {expected}")

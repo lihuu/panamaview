@@ -4,9 +4,20 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>io.github.lihuu</groupId>
+  <!--
+    A module of the same reactor as the framework, the scaffolder and the demo, and for the same
+    reason those are: the version is stated once, in the root pom, and inherited here. As an
+    independent project this carried its own <panamaview.version> — which is exactly the shape that
+    shipped a release whose demo pinned a version that had never been published, because the release
+    script did not know the file existed.
+  -->
+  <parent>
+    <groupId>io.github.lihuu</groupId>
+    <artifactId>panamaview-parent</artifactId>
+    <version>0.2.0</version>
+  </parent>
+
   <artifactId>panamaview-windows-probe</artifactId>
-  <version>0.1.0</version>
   <packaging>jar</packaging>
 
   <name>panamaview windows probe</name>
@@ -14,10 +25,7 @@
     without a window. An ordinary consumer of the framework.</description>
 
   <properties>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven.compiler.release>25</maven.compiler.release>
     <main.class>panamaview.probe.WindowsProbe</main.class>
-    <panamaview.version>0.2.0</panamaview.version>
   </properties>
 
   <!--
@@ -28,7 +36,7 @@
     <dependency>
       <groupId>io.github.lihuu</groupId>
       <artifactId>panamaview</artifactId>
-      <version>${panamaview.version}</version>
+      <version>${project.version}</version>
     </dependency>
   </dependencies>
 
