@@ -76,9 +76,9 @@ public final class Smoke {
                     MemorySegment source = sender.reinterpret(Long.MAX_VALUE);
                     // NavigationCompleted fires for the initial about:blank too; executing
                     // there is what 0x8007139F (ERROR_INVALID_STATE) was punishing. The
-                    // script runs when it is our page that finished loading.
-                    String page = Native.currentSource(source);
-                    if (page == null || !page.startsWith("data:text/html")) {
+                    // title is how we tell that from our own page.
+                    String title = Native.documentTitle(source);
+                    if (!"panamaview smoke".equals(title)) {
                         return 0;
                     }
                     stage("navigation", "our page finished loading");
@@ -103,7 +103,7 @@ public final class Smoke {
                     Native.putBounds(controller, Native.clientRect(arena, hwnd));
                     stage("webview", "obtained and sized to the client rect");
                     Native.addNavigationCompleted(webview[0], navigationDone);
-                    Native.navigate(webview[0], pageUrl(arena));
+                    Native.navigateToString(webview[0], pageHtml());
                     return 0;
                 } catch (Throwable t) {
                     return failAndQuit(t);
@@ -166,17 +166,16 @@ public final class Smoke {
     }
 
     /**
-     * The page the window navigates to: a data URL, so the smoke carries no assets and the
-     * visual is still worth looking at on the RDP desktop. Spaces, quotes and hashes are
-     * percent-encoded; nothing else in the markup needs it.
+     * The page the window shows, carried by NavigateToString so the smoke needs no assets and
+     * no scheme support (WebView2 does not navigate data: URLs). The title is load-bearing: it
+     * is how NavigationCompleted tells this page from the initial about:blank.
      */
-    private static MemorySegment pageUrl(Arena arena) {
-        String html = "<body style='font-family:sans-serif;background:#14181f;color:#e8eaed;"
+    private static String pageHtml() {
+        return "<html><head><title>panamaview smoke</title></head>"
+                + "<body style='font-family:sans-serif;background:#14181f;color:#e8eaed;"
                 + "display:grid;place-items:center;height:95vh;margin:0'>"
                 + "<div style='text-align:center'><h1>panamaview - Windows smoke</h1>"
-                + "<p>If this window reached your screen, the WebView2 chain works.</p></div></body>";
-        String url = "data:text/html," + html.replace(" ", "%20").replace("#", "%23").replace("'", "%27");
-        return arena.allocateFrom(url, StandardCharsets.UTF_16LE);
+                + "<p>If this window reached your screen, the WebView2 chain works.</p></div></body></html>";
     }
 
     private static int failAndQuit(String what) {
