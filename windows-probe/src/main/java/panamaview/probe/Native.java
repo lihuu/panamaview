@@ -9,6 +9,7 @@ import java.lang.foreign.SymbolLookup;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.lang.invoke.VarHandle;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 
@@ -209,6 +210,26 @@ final class Native {
             ADDRESS.withName("hbrBackground"), ADDRESS.withName("lpszMenuName"), ADDRESS.withName("lpszClassName"),
             ADDRESS.withName("hIconSm"));
 
+    // Field handles, not raw element indexes: the struct mixes 4- and 8-byte fields, and an
+    // ADDRESS element index on a mixed layout is a byte-offset lie (this file already made
+    // that mistake once - the crash named it).
+    private static final VarHandle WCX_CBSIZE = field(WNDCLASSEX, "cbSize", int.class);
+    private static final VarHandle WCX_STYLE = field(WNDCLASSEX, "style", int.class);
+    private static final VarHandle WCX_WNDPROC = field(WNDCLASSEX, "lpfnWndProc", MemorySegment.class);
+    private static final VarHandle WCX_CLS_EXTRA = field(WNDCLASSEX, "cbClsExtra", int.class);
+    private static final VarHandle WCX_WND_EXTRA = field(WNDCLASSEX, "cbWndExtra", int.class);
+    private static final VarHandle WCX_INSTANCE = field(WNDCLASSEX, "hInstance", MemorySegment.class);
+    private static final VarHandle WCX_ICON = field(WNDCLASSEX, "hIcon", MemorySegment.class);
+    private static final VarHandle WCX_CURSOR = field(WNDCLASSEX, "hCursor", MemorySegment.class);
+    private static final VarHandle WCX_BACKGROUND = field(WNDCLASSEX, "hbrBackground", MemorySegment.class);
+    private static final VarHandle WCX_MENU_NAME = field(WNDCLASSEX, "lpszMenuName", MemorySegment.class);
+    private static final VarHandle WCX_CLASS_NAME = field(WNDCLASSEX, "lpszClassName", MemorySegment.class);
+    private static final VarHandle WCX_ICON_SMALL = field(WNDCLASSEX, "hIconSm", MemorySegment.class);
+
+    private static VarHandle field(MemoryLayout struct, String name, Class<?> carrier) {
+        return struct.varHandle(MemoryLayout.PathElement.groupElement(name));
+    }
+
     /** {@code {HWND; UINT; WPARAM; LPARAM; DWORD time; POINT pt; DWORD lPrivate}} — 48 bytes on x64. */
     private static final MemoryLayout MSG = MemoryLayout.structLayout(
             ADDRESS.withName("hwnd"), JAVA_INT.withName("message"), MemoryLayout.paddingLayout(4),
@@ -321,18 +342,18 @@ final class Native {
             MemorySegment cursor = (MemorySegment) LOAD_CURSOR.invoke(MemorySegment.NULL, idResource(IDC_ARROW));
 
             MemorySegment wcx = arena.allocate(WNDCLASSEX);
-            wcx.setAtIndex(JAVA_INT, 0, (int) WNDCLASSEX.byteSize());    // cbSize
-            wcx.setAtIndex(JAVA_INT, 1, CS_HREDRAW_VREDRAW);             // style
-            wcx.setAtIndex(ADDRESS, 2, wndProc);                         // lpfnWndProc
-            wcx.setAtIndex(JAVA_INT, 3, 0);                              // cbClsExtra
-            wcx.setAtIndex(JAVA_INT, 4, 0);                              // cbWndExtra
-            wcx.setAtIndex(ADDRESS, 5, instance);                        // hInstance
-            wcx.setAtIndex(ADDRESS, 6, MemorySegment.NULL);              // hIcon
-            wcx.setAtIndex(ADDRESS, 7, cursor);                          // hCursor
-            wcx.setAtIndex(ADDRESS, 8, MemorySegment.ofAddress(COLOR_WINDOW_PLUS_ONE)); // hbrBackground
-            wcx.setAtIndex(ADDRESS, 9, MemorySegment.NULL);              // lpszMenuName
-            wcx.setAtIndex(ADDRESS, 10, className);                      // lpszClassName
-            wcx.setAtIndex(ADDRESS, 11, MemorySegment.NULL);             // hIconSm
+            WCX_CBSIZE.set(wcx, 0L, (int) WNDCLASSEX.byteSize());       // cbSize
+            WCX_STYLE.set(wcx, 0L, CS_HREDRAW_VREDRAW);                  // style
+            WCX_WNDPROC.set(wcx, 0L, wndProc);                           // lpfnWndProc
+            WCX_CLS_EXTRA.set(wcx, 0L, 0);                               // cbClsExtra
+            WCX_WND_EXTRA.set(wcx, 0L, 0);                               // cbWndExtra
+            WCX_INSTANCE.set(wcx, 0L, instance);                         // hInstance
+            WCX_ICON.set(wcx, 0L, MemorySegment.NULL);                   // hIcon
+            WCX_CURSOR.set(wcx, 0L, cursor);                             // hCursor
+            WCX_BACKGROUND.set(wcx, 0L, MemorySegment.ofAddress(COLOR_WINDOW_PLUS_ONE)); // hbrBackground
+            WCX_MENU_NAME.set(wcx, 0L, MemorySegment.NULL);              // lpszMenuName
+            WCX_CLASS_NAME.set(wcx, 0L, className);                      // lpszClassName
+            WCX_ICON_SMALL.set(wcx, 0L, MemorySegment.NULL);             // hIconSm
             short atom = (short) REGISTER_CLASS.invoke(wcx);
             if (atom == 0) {
                 throw new IllegalStateException("RegisterClassExW failed");
