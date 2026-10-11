@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>panamaview</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>panamaview</h1>
+    <p class="sub">
+      Win32 + WebView2，由 Java 通过 FFM API 直接驱动。没有 JNI，没有 JNA，没有捆绑浏览器内核。
+      页面里的每个按钮都通过桥接调用真正的 Java 方法。
+    </p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>点击 · 输入 → 调用 Java</h2>
+      <div class="row">
+        <label for="name">名字</label>
+        <input id="name" value="世界" autocomplete="off" spellcheck="false">
+        <button id="greet">打招呼</button>
+      </div>
+      <pre id="greetOut">等 Java 回话……</pre>
+    </section>
+
+    <section class="card">
+      <h2>Java 侧的状态（每次点击都落在 Java 的堆里）</h2>
+      <div class="row">
+        <button id="count">再数一次</button>
+        <span id="countOut" class="pill">0</span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>慢任务 · 进度推送 · 取消</h2>
+      <div class="row">
+        <button id="start">开始慢任务</button>
+        <button id="cancel">取消它</button>
+      </div>
+      <pre id="taskOut">还没开始。</pre>
+    </section>
+
+    <section class="card">
+      <h2>UI 线程绑定（bindUi）</h2>
+      <div class="row">
+        <button id="info">窗口在哪？</button>
+      </div>
+      <pre id="infoOut">问一下 Java……</pre>
+    </section>
+
+    <section class="card">
+      <h2>Java → 页面 收件箱</h2>
+      <pre id="inbox">还没收到 Java 推送的消息……</pre>
+    </section>
+  </main>
+
+  <script src="panamaview.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

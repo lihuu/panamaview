@@ -1,12 +1,19 @@
 package panamaview.windows;
 
+import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
+import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import java.lang.invoke.VarHandle;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
+import static java.lang.foreign.ValueLayout.JAVA_BYTE;
+import static java.lang.foreign.ValueLayout.JAVA_INT;
 
 /**
  * COM through the FFM API: the Windows counterpart of what {@code panamaview.macos.ObjC} does
@@ -19,31 +26,45 @@ import static java.lang.foreign.ValueLayout.ADDRESS;
  * compiler — the same trick re-typing {@code objc_msgSend} per call site plays on macOS, and
  * the reason the no-glue-library design ports here at all.
  *
- * <h2>The cache</h2>
- * Every instance of one interface class shares one vtable, and a slot's signature is fixed by
- * the interface declaration, so a handle can be cached per (vtable, slot) pair and reused
- * across objects. Call sites own the descriptor they bind with; the cache is keyed without it,
- * so binding one slot under two descriptors would be a bug this class cannot catch — it would
- * quietly hand back whichever handle arrived first.
+ * <p>Two rules this code lives by, both learned the hard way in the prototype that proved the
+ * platform out (see NOTES.md, the Windows section):
  *
- * <h2>Reference counting</h2>
+ * <ul>
+ *   <li>a pointer that crosses from native into Java arrives as a zero-length segment, and is
+ *       reinterpreted before its first dereference — every time, including inside upcalls;</li>
+ *   <li>vtable slots are read out of the shipped header's own annotations, never out of
+ *       memory — an off-by-one registers the remove_ listener where the add_ belongs and
+ *       waits forever for an event nobody asked for.</li>
+ * </ul>
+ *
+ * <h2>Reference counting, for real</h2>
  * COM objects are reference counted, and this side does from the start what the Objective-C
- * side admits it does not (NOTES.md section 7): every interface a method hands back arrives
- * with a reference the receiver owns, and owning means calling {@code Release} — IUnknown's
- * slot 2 — when done. The long-lived-object leak that macOS documents is a debt this platform
- * has not taken on.
+ * side admits it does not (NOTES.md section 7). Objects built here carry an atomic count next
+ * to their vtable; {@code AddRef} bumps it, {@code Release} drops it, and reaching zero frees
+ * the object — vtable, stubs and all, each in an arena of its own.
  */
 final class Com {
 
     private Com() {
     }
 
-    private static final Linker LINKER = Linker.nativeLinker();
+    static final Linker LINKER = Linker.nativeLinker();
+    private static final MethodHandles.Lookup LOOKUP = MethodHandles.lookup();
 
     /** IUnknown's slots — every COM interface begins with these three. */
     static final int QUERY_INTERFACE = 0;
     static final int ADD_REF = 1;
     static final int RELEASE = 2;
+
+    private static final MemoryLayout OBJECT = MemoryLayout.structLayout(
+            ADDRESS.withName("lpVtbl"), MemoryLayout.paddingLayout(4), JAVA_INT.withName("refCount"),
+            MemoryLayout.paddingLayout(4));
+    private static final VarHandle REF_COUNT = OBJECT.varHandle(MemoryLayout.PathElement.groupElement("refCount"));
+
+    private static final int E_NOINTERFACE = 0x80004002;
+
+    private static final byte[] IID_IUNKNOWN = {
+            0, 0, 0, 0, 0, 0, 0, 0, (byte) 0xC0, 0, 0, 0, 0, 0, 0, 0x46};
 
     private record VtableSlot(MemorySegment vtable, int slot) {
     }
@@ -52,13 +73,10 @@ final class Com {
 
     /** The vtable pointer is a COM object's first field. */
     static MemorySegment vtable(MemorySegment object) {
-        return object.getAtIndex(ADDRESS, 0);
+        return object.getAtIndex(ADDRESS, 0).reinterpret(Long.MAX_VALUE);
     }
 
-    /**
-     * A downcall handle for one slot of the interface's vtable, cached per (vtable, slot).
-     * The handle's first argument is always the object itself.
-     */
+    /** A downcall handle for one slot of the interface's vtable, cached per (vtable, slot). */
     static MethodHandle bind(MemorySegment object, int slot, FunctionDescriptor descriptor) {
         return BOUND.computeIfAbsent(new VtableSlot(vtable(object), slot),
                 key -> LINKER.downcallHandle(key.vtable().getAtIndex(ADDRESS, key.slot()), descriptor));
@@ -81,7 +99,197 @@ final class Com {
             case 0x80070057 -> " (E_INVALIDARG)";
             case 0x80004001 -> " (E_NOTIMPL)";
             case 0x80004005 -> " (E_FAIL)";
+            case 0x8007139F -> " (ERROR_INVALID_STATE — the browser is not ready for this yet)";
             default -> "";
         };
+    }
+
+    // ------------------------------------------------------------- calls into foreign objects
+
+    /** A plain {@code HRESULT method(self)} call, for the IUnknown members. */
+    static int callSelf(MemorySegment object, int slot, String what) {
+        try {
+            return (int) bind(object, slot, FunctionDescriptor.of(JAVA_INT, ADDRESS)).invoke(object);
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException(what + " could not be called", t);
+        }
+    }
+
+    /** A {@code HRESULT method(self, pointer)} call, for getters that write through an out-pointer. */
+    static void callGetter(MemorySegment object, int slot, MemorySegment out, String what) {
+        try {
+            check((int) bind(object, slot, FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS)).invoke(object, out), what);
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException(what + " could not be called", t);
+        }
+    }
+
+    // ------------------------------------------------------------- objects we build
+
+    /** {@code Invoke(self, HRESULT, pointer)} — the shape of every completed-handler callback. */
+    interface Completed {
+        int invoke(MemorySegment self, int errorCode, MemorySegment result);
+    }
+
+    /** {@code Invoke(self, sender, args)} — the shape of every event-handler callback. */
+    interface Event {
+        int invoke(MemorySegment self, MemorySegment sender, MemorySegment args);
+    }
+
+    private static final FunctionDescriptor COMPLETED_INVOKE =
+            FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, ADDRESS);
+    private static final FunctionDescriptor EVENT_INVOKE =
+            FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS);
+    private static final FunctionDescriptor QI_DESCRIPTOR =
+            FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS);
+    private static final FunctionDescriptor COUNT_DESCRIPTOR =
+            FunctionDescriptor.of(JAVA_INT, ADDRESS);
+
+    /**
+     * A handler object the browser can hold: four slots (QueryInterface, AddRef, Release,
+     * Invoke), an honest reference count, and an arena of its own so that reaching zero frees
+     * everything at once.
+     *
+     * <p>QueryInterface answers IUnknown and nothing else. These objects are passed and stored
+     * through their typed pointers, and the one interface every COM object must answer is
+     * IUnknown; inventing yes-answers for interfaces the object does not implement is a lie
+     * that crashes later, somewhere else.
+     */
+    static MemorySegment completed(Completed body) {
+        return build(COMPLETED_INVOKE, mh(Completed.class, "invoke",
+                MethodType.methodType(int.class, MemorySegment.class, int.class, MemorySegment.class), body));
+    }
+
+    static MemorySegment event(Event body) {
+        return build(EVENT_INVOKE, mh(Event.class, "invoke",
+                MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, MemorySegment.class), body));
+    }
+
+    private static MethodHandle mh(Class<?> type, String name, MethodType shape, Object receiver) {
+        try {
+            return LOOKUP.findVirtual(type, name, shape).bindTo(receiver);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /** Objects whose count has reached zero are freed here; everything else outlives the process. */
+    private static final ConcurrentHashMap<MemorySegment, Arena> LIVE = new ConcurrentHashMap<>();
+
+    private static MemorySegment build(FunctionDescriptor invokeDescriptor, MethodHandle invoke) {
+        Arena arena = Arena.ofShared();   // the browser may Release from any of its threads
+        MemorySegment object = arena.allocate(OBJECT);
+        MemorySegment vtbl = arena.allocate(ADDRESS, 4);
+        vtbl.setAtIndex(ADDRESS, QUERY_INTERFACE, LINKER.upcallStub(QI_MH, QI_DESCRIPTOR, arena));
+        vtbl.setAtIndex(ADDRESS, ADD_REF, LINKER.upcallStub(ADD_REF_MH, COUNT_DESCRIPTOR, arena));
+        vtbl.setAtIndex(ADDRESS, RELEASE, LINKER.upcallStub(RELEASE_MH, COUNT_DESCRIPTOR, arena));
+        vtbl.setAtIndex(ADDRESS, 3, LINKER.upcallStub(invoke, invokeDescriptor, arena));
+        object.setAtIndex(ADDRESS, 0, vtbl);
+        REF_COUNT.set(object, 0L, 0);
+        LIVE.put(object, arena);
+        return object;
+    }
+
+    private static int queryInterface(MemorySegment selfArg, MemorySegment riid, MemorySegment out) {
+        MemorySegment self = selfArg.reinterpret(Long.MAX_VALUE);
+        MemorySegment iid = riid.reinterpret(16);
+        for (int i = 0; i < 16; i++) {
+            if (iid.get(JAVA_BYTE, i) != IID_IUNKNOWN[i]) {
+                return E_NOINTERFACE;
+            }
+        }
+        out.reinterpret(8).setAtIndex(ADDRESS, 0, self);
+        bump(self, 1);
+        return 0;
+    }
+
+    private static int addRef(MemorySegment selfArg) {
+        return bump(selfArg.reinterpret(Long.MAX_VALUE), 1);
+    }
+
+    private static int release(MemorySegment selfArg) {
+        MemorySegment self = selfArg.reinterpret(Long.MAX_VALUE);
+        int count = bump(self, -1);
+        if (count == 0) {
+            Arena arena = LIVE.remove(self);
+            if (arena != null) {
+                arena.close();
+            }
+        }
+        return count;
+    }
+
+    private static int bump(MemorySegment self, int delta) {
+        int previous = (int) REF_COUNT.getAndAdd(self, 0L, delta);
+        return previous + delta;
+    }
+
+    private static final MethodHandle QI_MH;
+    private static final MethodHandle ADD_REF_MH;
+    private static final MethodHandle RELEASE_MH;
+
+    static {
+        try {
+            QI_MH = LOOKUP.findStatic(Com.class, "queryInterface", MethodType.methodType(
+                    int.class, MemorySegment.class, MemorySegment.class, MemorySegment.class));
+            ADD_REF_MH = LOOKUP.findStatic(Com.class, "addRef", MethodType.methodType(int.class, MemorySegment.class));
+            RELEASE_MH = LOOKUP.findStatic(Com.class, "release", MethodType.methodType(int.class, MemorySegment.class));
+        } catch (ReflectiveOperationException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
+    // ------------------------------------------------------------- QueryInterface, outbound
+
+    /** {@code {DWORD; WORD; WORD; BYTE[8]}} — the memory form of a GUID, parsed from its text. */
+    static byte[] guid(String text) {
+        String hex = text.replace("-", "");
+        byte[] out = new byte[16];
+        for (int i = 0; i < 16; i++) {
+            out[i] = (byte) Integer.parseInt(hex.substring(i * 2, i * 2 + 2), 16);
+        }
+        // Data1, Data2 and Data3 ride little-endian in memory; Data4 as written.
+        swap(out, 0, 3);
+        swap(out, 1, 2);
+        swap(out, 4, 5);
+        swap(out, 6, 7);
+        return out;
+    }
+
+    private static void swap(byte[] bytes, int a, int b) {
+        byte t = bytes[a];
+        bytes[a] = bytes[b];
+        bytes[b] = t;
+    }
+
+    /**
+     * Asks a foreign object for one of its interfaces. The returned pointer comes with a
+     * reference the caller owns; this framework keeps its long-lived objects for the process
+     * lifetime, the same way the macOS side keeps everything it was handed.
+     */
+    static MemorySegment queryInterface(MemorySegment unknown, String iid) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment iidMemory = arena.allocate(16);
+            MemorySegment.copy(MemorySegment.ofArray(guid(iid)), 0, iidMemory, 0, 16);
+            MemorySegment out = arena.allocate(ADDRESS);
+            try {
+                int hresult = (int) bind(unknown, QUERY_INTERFACE,
+                        FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS)).invoke(unknown, iidMemory, out);
+                check(hresult, "QueryInterface");
+            } catch (IllegalStateException e) {
+                throw e;
+            } catch (Throwable t) {
+                throw new IllegalStateException("QueryInterface could not be called", t);
+            }
+            MemorySegment result = out.getAtIndex(ADDRESS, 0);
+            if (result.equals(MemorySegment.NULL)) {
+                throw new IllegalStateException("QueryInterface for " + iid + " succeeded but returned nothing");
+            }
+            return result.reinterpret(Long.MAX_VALUE);
+        }
     }
 }
