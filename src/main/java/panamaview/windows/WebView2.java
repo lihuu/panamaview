@@ -30,7 +30,7 @@ import static java.lang.foreign.ValueLayout.JAVA_INT;
  * table instead is how a listener gets registered on the remove_ slot of the same event and
  * the run waits forever for an event nobody asked for.
  */
-final class WebView2 {
+public final class WebView2 {
 
     private WebView2() {
     }
