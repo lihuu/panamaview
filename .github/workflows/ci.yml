@@ -78,12 +78,17 @@ jobs:
           jar="framework/target/panamaview-$version.jar"
           [ -f "$jar" ] || { echo "::error::no $jar — the framework did not build"; exit 1; }
 
-          jar tf "$jar" > target/jar-contents.txt
-          cat target/jar-contents.txt
+          # Listed into the module's own target/, not the repository root's: the framework is a
+          # module now, and the root has no target/ of its own to write into. That is what failed
+          # the first time this ran — "line 15: target/jar-contents.txt: No such file or
+          # directory", which reads like a shell problem and is really a path from the old layout.
+          contents="framework/target/jar-contents.txt"
+          jar tf "$jar" > "$contents"
+          cat "$contents"
 
           fail=0
           for pattern in '^panamaview/App' '^panamaview/macos/Main' '^demo/' '^web/'; do
-            if grep -qE "$pattern" target/jar-contents.txt; then
+            if grep -qE "$pattern" "$contents"; then
               echo "::error::the framework jar carries an application: $pattern"
               fail=1
             fi
