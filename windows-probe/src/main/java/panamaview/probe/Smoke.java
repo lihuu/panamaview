@@ -60,7 +60,7 @@ public final class Smoke {
                     if (errorCode < 0) {
                         return failAndQuit("ExecuteScript completed with 0x" + Integer.toHexString(errorCode));
                     }
-                    MemorySegment json = result.getAtIndex(ADDRESS, 0);
+                    MemorySegment json = result.reinterpret(Long.MAX_VALUE).getAtIndex(ADDRESS, 0);
                     scriptResult = json.equals(MemorySegment.NULL) ? "(null)"
                             : json.reinterpret(Long.MAX_VALUE).getString(0, StandardCharsets.UTF_16LE);
                     stage("script", "2+2 returned " + scriptResult);
@@ -71,12 +71,15 @@ public final class Smoke {
                 }
             });
 
-            MemorySegment controllerDone = Native.completedHandler((self, errorCode, controller) -> {
+            MemorySegment controllerDone = Native.completedHandler((self, errorCode, controllerArg) -> {
                 try {
                     if (errorCode < 0) {
                         return failAndQuit("CreateCoreWebView2Controller completed with 0x" + Integer.toHexString(errorCode));
                     }
                     stage("controller", "created");
+                    // Every pointer arriving from native is a zero-length segment until
+                    // reinterpreted; the crash earlier in this branch named that rule.
+                    MemorySegment controller = controllerArg.reinterpret(Long.MAX_VALUE);
                     webview[0] = Native.coreWebView2(controller);
                     Native.putIsVisible(controller, true);
                     Native.putBounds(controller, Native.clientRect(arena, hwnd));
@@ -89,12 +92,13 @@ public final class Smoke {
                 }
             });
 
-            MemorySegment environmentDone = Native.completedHandler((self, errorCode, environment) -> {
+            MemorySegment environmentDone = Native.completedHandler((self, errorCode, environmentArg) -> {
                 try {
                     if (errorCode < 0) {
                         return failAndQuit("environment completed with 0x" + Integer.toHexString(errorCode));
                     }
                     stage("environment", "created");
+                    MemorySegment environment = environmentArg.reinterpret(Long.MAX_VALUE);
                     Native.createController(environment, hwnd, controllerDone);
                     return 0;
                 } catch (Throwable t) {
