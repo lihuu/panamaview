@@ -11,7 +11,9 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.invoke.VarHandle;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.function.Consumer;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
@@ -153,6 +155,10 @@ final class Native {
     private static final int WEBVIEW_ADD_NAVIGATION_COMPLETED = 15;
     private static final int WEBVIEW_EXECUTE_SCRIPT = 29;
     private static final int WEBVIEW_GET_DOCUMENT_TITLE = 48;
+    private static final int WEBVIEW_CAPTURE_PREVIEW = 31;   // XFGVIRT line 29 + 2
+
+    /** COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT: PNG. */
+    private static final int IMAGE_FORMAT_PNG = 0;
 
     private static final FunctionDescriptor HR_THIS_PTR = FunctionDescriptor.of(JAVA_INT, ADDRESS);
     private static final FunctionDescriptor HR_THIS_PTR_PTR = FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS);
@@ -258,6 +264,49 @@ final class Native {
                 : value.reinterpret(Long.MAX_VALUE).getString(0, StandardCharsets.UTF_16LE);
     }
 
+    /**
+     * Renders the web view as PNG into {@code png}, through CapturePreview into a stream backed
+     * by an HGLOBAL. This is the run's eyes: whatever is wrong with events, scripts or anything
+     * else, the picture is the ground truth of what the page shows.
+     */
+    static void capturePreview(MemorySegment webview, Path png, Runnable onDone, Consumer<String> onError) {
+        MemorySegment streamOut = LIFE.allocate(ADDRESS);
+        call("CreateStreamOnHGlobal", CREATE_STREAM, MemorySegment.NULL, 1 /* fDeleteOnRelease */, streamOut);
+        // The stream (and its HGLOBAL) must outlive this call: the capture fills it later.
+        final MemorySegment stream = streamOut.getAtIndex(ADDRESS, 0).reinterpret(Long.MAX_VALUE);
+
+        MemorySegment captured = completedHandler((self, errorCode, ignored) -> {
+            try {
+                if (errorCode < 0) {
+                    onError.accept("CapturePreview completed with 0x" + Integer.toHexString(errorCode));
+                    return errorCode;
+                }
+                MemorySegment hglobalOut = LIFE.allocate(ADDRESS);
+                call("GetHGlobalFromStream", GET_HGLOBAL, stream, hglobalOut);
+                MemorySegment hglobal = hglobalOut.getAtIndex(ADDRESS, 0).reinterpret(Long.MAX_VALUE);
+                long size = (long) GLOBAL_SIZE.invoke(hglobal);
+                MemorySegment data = (MemorySegment) GLOBAL_LOCK.invoke(hglobal);
+                if (data.equals(MemorySegment.NULL)) {
+                    onError.accept("GlobalLock returned null for " + size + " bytes");
+                    return 0;
+                }
+                byte[] bytes = new byte[Math.toIntExact(size)];
+                MemorySegment.copy(data, 0, MemorySegment.ofArray(bytes), 0, size);
+                GLOBAL_UNLOCK.invoke(hglobal);
+                Files.write(png, bytes);
+                onDone.run();
+                return 0;
+            } catch (Throwable t) {
+                onError.accept(t.toString());
+                return -1;
+            }
+        });
+
+        call("CapturePreview", slot(webview, WEBVIEW_CAPTURE_PREVIEW,
+                FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, ADDRESS, ADDRESS)),
+                webview, IMAGE_FORMAT_PNG, stream, captured);
+    }
+
     static void executeScript(MemorySegment webview, String script, MemorySegment handler) {
         try (Arena confined = Arena.ofConfined()) {
             call("ExecuteScript", slot(webview, WEBVIEW_EXECUTE_SCRIPT,
@@ -347,6 +396,18 @@ final class Native {
             bind(USER32, "LoadCursorW", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS));
     private static final MethodHandle GET_CLIENT_RECT =
             bind(USER32, "GetClientRect", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
+    // The capture path: a stream over an HGLOBAL is how CapturePreview hands its pixels over,
+    // and the HGLOBAL is read with the classic Global* calls.
+    private static final MethodHandle CREATE_STREAM =
+            bind(OLE32, "CreateStreamOnHGlobal", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, ADDRESS));
+    private static final MethodHandle GET_HGLOBAL =
+            bind(OLE32, "GetHGlobalFromStream", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
+    private static final MethodHandle GLOBAL_SIZE =
+            bind(KERNEL32, "GlobalSize", FunctionDescriptor.of(JAVA_LONG, ADDRESS));
+    private static final MethodHandle GLOBAL_LOCK =
+            bind(KERNEL32, "GlobalLock", FunctionDescriptor.of(ADDRESS, ADDRESS));
+    private static final MethodHandle GLOBAL_UNLOCK =
+            bind(KERNEL32, "GlobalUnlock", FunctionDescriptor.of(JAVA_INT, ADDRESS));
     private static final MethodHandle SET_TIMER =
             bind(USER32, "SetTimer", FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_LONG, JAVA_INT, ADDRESS));
     private static final MethodHandle KILL_TIMER =
