@@ -179,7 +179,22 @@ for dir in $PROJECTS; do
     # only here: the verification below deliberately uses the default transport, because that is
     # what a consuming project uses, and proving resolution works with anything else would prove
     # the wrong thing.
-    ( cd "$ROOT/$dir" && mvn -B -q deploy \
+    # -N on the aggregator, and that is not a speed setting.
+    #
+    # The root pom aggregates framework, demo-app and windows-probe. A bare `mvn deploy` there walks
+    # its <modules> and publishes all three. Two of them are applications, and the project's rule is
+    # that they are never published -- demo-app exists to be built, windows-probe to be run. Deployed
+    # anyway, they are in the private repository under the framework's version, and because the
+    # release repository refuses to overwrite, the *next* deploy of the same version fails with a 409
+    # naming a module nobody asked to publish. Measured on 0.3.0: all four artifacts were present and
+    # the framework's own deploy reported the failure.
+    #
+    # -N stops the walk, so the aggregator publishes its own pom and nothing else. The framework is
+    # listed separately in PROJECTS and is deployed as itself, which is also the only way its jar is
+    # the one built from framework/target.
+    NON_RECURSIVE=""
+    [ "$dir" = "." ] && NON_RECURSIVE="-N"
+    ( cd "$ROOT/$dir" && mvn -B -q deploy $NON_RECURSIVE \
         -DskipTests \
         -Dmaven.resolver.transport=wagon \
         -DaltDeploymentRepository="$REPO_ID::default::$REPO_URL" )
