@@ -480,17 +480,23 @@ final class Native {
      * but is not visible on the interactive desktop is how a smoke run reports PASS to nobody.
      */
     static String windowState(Arena arena, MemorySegment hwnd) {
-        MemorySegment rect = arena.allocate(RECT);
-        call("GetWindowRect", GET_WINDOW_RECT, hwnd, rect);
-        MemorySegment desktop = (MemorySegment) GET_THREAD_DESKTOP.invoke(0);
-        MemorySegment name = arena.allocate(256 * 2);
-        MemorySegment nameLen = arena.allocate(JAVA_INT);
-        GET_USER_OBJECT_NAME.invoke(desktop, 2 /* UOI_NAME */, name, 512, nameLen);
-        String desktopName = name.getString(0, StandardCharsets.UTF_16LE);
-        return "visible=" + ((int) IS_WINDOW_VISIBLE.invoke(hwnd) != 0)
-                + ", rect=" + rect.get(JAVA_INT, 0) + "," + rect.get(JAVA_INT, 4)
-                + ".." + rect.get(JAVA_INT, 8) + "," + rect.get(JAVA_INT, 12)
-                + ", desktop=" + desktopName;
+        try {
+            MemorySegment rect = arena.allocate(RECT);
+            call("GetWindowRect", GET_WINDOW_RECT, hwnd, rect);
+            MemorySegment desktop = (MemorySegment) GET_THREAD_DESKTOP.invoke(0);
+            MemorySegment name = arena.allocate(256 * 2);
+            MemorySegment nameLen = arena.allocate(JAVA_INT);
+            GET_USER_OBJECT_NAME.invoke(desktop, 2 /* UOI_NAME */, name, 512, nameLen);
+            String desktopName = name.getString(0, StandardCharsets.UTF_16LE);
+            return "visible=" + ((int) IS_WINDOW_VISIBLE.invoke(hwnd) != 0)
+                    + ", rect=" + rect.get(JAVA_INT, 0) + "," + rect.get(JAVA_INT, 4)
+                    + ".." + rect.get(JAVA_INT, 8) + "," + rect.get(JAVA_INT, 12)
+                    + ", desktop=" + desktopName;
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException(t);
+        }
     }
 
     /**
