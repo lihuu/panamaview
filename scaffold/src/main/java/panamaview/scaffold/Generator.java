@@ -81,11 +81,41 @@ final class Generator {
             if (entry.executable()) {
                 // A jar carries no file modes, so this is restored from the manifest rather than
                 // from the file next to it. Without it, ./run.sh fails in the generated project.
-                Files.setPosixFilePermissions(destination, EXECUTABLE);
+                //
+                // Not every filesystem has POSIX permissions, and asking one that does not is
+                // what broke this: on Windows `setPosixFilePermissions` throws
+                // UnsupportedOperationException, which killed `create` three files into a
+                // ten-file project. Hence setExecutable, which treats that answer as "no such
+                // thing here" rather than as a failure — see it for why the distinction holds.
+                setExecutable(destination);
             }
             written.add(entry.path());
         }
         return written.size();
+    }
+
+    /**
+     * Marks a file executable, where the platform has such a thing.
+     *
+     * <p>POSIX permissions are a property of the filesystem, not of the operating system, so this
+     * asks the filesystem rather than testing {@code os.name}: a project generated onto a POSIX
+     * mount on Windows is served correctly, and so is one generated onto a FAT stick on macOS.
+     * {@code Files.getFileStore} would answer the same question, but it answers it in advance and
+     * by a different route; letting the call fail is one code path instead of two.
+     *
+     * <p>Only {@code UnsupportedOperationException} is swallowed, and it is the one exception that
+     * means "this filesystem does not model permissions" rather than "this write did not happen".
+     * Anything else — a read-only mount, a missing parent — is still a failure and still reported.
+     *
+     * <p>Nothing is lost where it does not apply: Windows decides executability by extension
+     * ({@code .bat}, {@code .cmd}, {@code .exe}), not by a mode bit, so there is no bit to set.
+     */
+    private static void setExecutable(Path file) throws IOException {
+        try {
+            Files.setPosixFilePermissions(file, EXECUTABLE);
+        } catch (UnsupportedOperationException e) {
+            // The filesystem does not model this. Nothing to do, and nothing wrong.
+        }
     }
 
     /**
