@@ -415,6 +415,14 @@ final class Native {
     private static final MethodHandle SET_WINDOW_POS =
             bind(USER32, "SetWindowPos", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS,
                     JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT));
+    private static final MethodHandle IS_WINDOW_VISIBLE =
+            bind(USER32, "IsWindowVisible", FunctionDescriptor.of(JAVA_INT, ADDRESS));
+    private static final MethodHandle GET_WINDOW_RECT =
+            bind(USER32, "GetWindowRect", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
+    private static final MethodHandle GET_THREAD_DESKTOP =
+            bind(KERNEL32, "GetThreadDesktop", FunctionDescriptor.of(ADDRESS, JAVA_INT));
+    private static final MethodHandle GET_USER_OBJECT_NAME =
+            bind(USER32, "GetUserObjectInformationW", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT, ADDRESS));
     private static final MethodHandle DEF_WINDOW_PROC =
             bind(USER32, "DefWindowProcW", FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_INT, JAVA_LONG, JAVA_LONG));
     private static final MethodHandle POST_QUIT_MESSAGE =
@@ -464,6 +472,25 @@ final class Native {
         MemorySegment rect = arena.allocate(RECT);
         call("GetClientRect", GET_CLIENT_RECT, hwnd, rect);
         return rect;
+    }
+
+    /**
+     * Where the window actually is, as the session sees it: visible, on-screen rectangle, and
+     * the name of the desktop the calling thread's window sits on. A window that was "shown"
+     * but is not visible on the interactive desktop is how a smoke run reports PASS to nobody.
+     */
+    static String windowState(Arena arena, MemorySegment hwnd) {
+        MemorySegment rect = arena.allocate(RECT);
+        call("GetWindowRect", GET_WINDOW_RECT, hwnd, rect);
+        MemorySegment desktop = (MemorySegment) GET_THREAD_DESKTOP.invoke(0);
+        MemorySegment name = arena.allocate(256 * 2);
+        MemorySegment nameLen = arena.allocate(JAVA_INT);
+        GET_USER_OBJECT_NAME.invoke(desktop, 2 /* UOI_NAME */, name, 512, nameLen);
+        String desktopName = name.getString(0, StandardCharsets.UTF_16LE);
+        return "visible=" + (IS_WINDOW_VISIBLE.invoke(hwnd) != 0)
+                + ", rect=" + rect.get(JAVA_INT, 0) + "," + rect.get(JAVA_INT, 4)
+                + ".." + rect.get(JAVA_INT, 8) + "," + rect.get(JAVA_INT, 12)
+                + ", desktop=" + desktopName;
     }
 
     /**
