@@ -199,7 +199,8 @@ final class Native {
 
     static void addNavigationCompleted(MemorySegment webview, MemorySegment handler) {
         MemorySegment token = LIFE.allocate(JAVA_LONG);   // EventRegistrationToken: one 64-bit value
-        call("add_NavigationCompleted", slot(webview, WEBVIEW_ADD_NAVIGATION_COMPLETED, HR_THIS_PTR_PTR),
+        call("add_NavigationCompleted", slot(webview, WEBVIEW_ADD_NAVIGATION_COMPLETED,
+                FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS)),
                 webview, handler, token);
     }
 
