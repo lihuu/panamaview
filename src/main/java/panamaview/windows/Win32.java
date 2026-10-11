@@ -230,10 +230,11 @@ final class Win32 {
      */
     static MemorySegment createWindow(Arena arena, String title, int width, int height, Procedure procedure) {
         MemorySegment wndProc = LINKER.upcallStub(
-                // Looked up on the interface, by the interface's own method name: the adapter
-                // is just the receiver, and a rename of the implementation must not break the
-                // stub that reaches it.
-                mh(Procedure.class, "onMessage",
+                // Bound to the concrete adapter, by the concrete method name - the exact shape
+                // the prototype proved out. CreateWindowExW dispatches WM_NCCREATE and friends
+                // through this stub while the window is being built, so anything off here does
+                // not surface as an error code: creation just returns NULL.
+                mh(ProcedureAdapter.class, "dispatch",
                         MethodType.methodType(long.class, MemorySegment.class, int.class, long.class, long.class),
                         new ProcedureAdapter(procedure)),
                 FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_INT, JAVA_LONG, JAVA_LONG), LIFE);
@@ -300,8 +301,7 @@ final class Win32 {
             this.delegate = delegate;
         }
 
-        @Override
-        public long onMessage(MemorySegment hwnd, int message, long wparam, long lparam) {
+        long dispatch(MemorySegment hwnd, int message, long wparam, long lparam) {
             try {
                 return delegate.onMessage(hwnd, message, wparam, lparam);
             } catch (Throwable t) {
