@@ -422,10 +422,6 @@ final class Native {
             bind(USER32, "IsWindowVisible", FunctionDescriptor.of(JAVA_INT, ADDRESS));
     private static final MethodHandle GET_WINDOW_RECT =
             bind(USER32, "GetWindowRect", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
-    private static final MethodHandle GET_THREAD_DESKTOP =
-            bind(KERNELBASE, "GetThreadDesktop", FunctionDescriptor.of(ADDRESS, JAVA_INT));
-    private static final MethodHandle GET_USER_OBJECT_NAME =
-            bind(USER32, "GetUserObjectInformationW", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT, ADDRESS));
     private static final MethodHandle DEF_WINDOW_PROC =
             bind(USER32, "DefWindowProcW", FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_INT, JAVA_LONG, JAVA_LONG));
     private static final MethodHandle POST_QUIT_MESSAGE =
@@ -486,19 +482,46 @@ final class Native {
         try {
             MemorySegment rect = arena.allocate(RECT);
             call("GetWindowRect", GET_WINDOW_RECT, hwnd, rect);
-            MemorySegment desktop = (MemorySegment) GET_THREAD_DESKTOP.invoke(0);
-            MemorySegment name = arena.allocate(256 * 2);
-            MemorySegment nameLen = arena.allocate(JAVA_INT);
-            GET_USER_OBJECT_NAME.invoke(desktop, 2 /* UOI_NAME */, name, 512, nameLen);
-            String desktopName = name.getString(0, StandardCharsets.UTF_16LE);
+            String desktopName = desktopName(arena);
             return "visible=" + ((int) IS_WINDOW_VISIBLE.invoke(hwnd) != 0)
                     + ", rect=" + rect.get(JAVA_INT, 0) + "," + rect.get(JAVA_INT, 4)
                     + ".." + rect.get(JAVA_INT, 8) + "," + rect.get(JAVA_INT, 12)
-                    + ", desktop=" + desktopName;
+                    + (desktopName == null ? "" : ", desktop=" + desktopName);
         } catch (IllegalStateException e) {
             throw e;
         } catch (Throwable t) {
             throw new IllegalStateException(t);
+        }
+    }
+
+    /**
+     * The desktop the thread's windows live on, or null when the API cannot be found: useful
+     * diagnostics, never load-bearing. GetThreadDesktop has moved between DLLs across Windows
+     * builds, so the lookup asks each candidate and gives up gracefully.
+     */
+    private static String desktopName(Arena arena) {
+        try {
+            MethodHandle getThreadDesktop = null;
+            MethodHandle getUserObjectName = LINKER.downcallHandle(
+                    USER32.find("GetUserObjectInformationW").orElseThrow(() -> new UnsatisfiedLinkError("x")),
+                    FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT, ADDRESS));
+            for (SymbolLookup candidate : new SymbolLookup[] {KERNEL32, KERNELBASE, USER32}) {
+                var address = candidate.find("GetThreadDesktop");
+                if (address.isPresent()) {
+                    getThreadDesktop = LINKER.downcallHandle(address.get(), FunctionDescriptor.of(ADDRESS, JAVA_INT));
+                    break;
+                }
+            }
+            if (getThreadDesktop == null) {
+                return null;
+            }
+            MemorySegment desktop = (MemorySegment) getThreadDesktop.invoke(0);
+            MemorySegment name = arena.allocate(256 * 2);
+            MemorySegment nameLen = arena.allocate(JAVA_INT);
+            getUserObjectName.invoke(desktop, 2 /* UOI_NAME */, name, 512, nameLen);
+            return name.getString(0, StandardCharsets.UTF_16LE);
+        } catch (Throwable t) {
+            return null;
         }
     }
 
