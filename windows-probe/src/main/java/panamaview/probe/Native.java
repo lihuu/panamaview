@@ -366,6 +366,9 @@ final class Native {
     private static final long IDC_ARROW = 32512;
 
     private static final SymbolLookup KERNEL32 = SymbolLookup.libraryLookup("kernel32.dll", LIFE);
+    // Some functions this smoke wants no longer live in kernel32's own export table on modern
+    // Windows; kernelbase is where the implementations actually are.
+    private static final SymbolLookup KERNELBASE = SymbolLookup.libraryLookup("kernelbase.dll", LIFE);
     private static final SymbolLookup USER32 = SymbolLookup.libraryLookup("user32.dll", LIFE);
     private static final SymbolLookup OLE32 = SymbolLookup.libraryLookup("ole32.dll", LIFE);
 
@@ -420,7 +423,7 @@ final class Native {
     private static final MethodHandle GET_WINDOW_RECT =
             bind(USER32, "GetWindowRect", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
     private static final MethodHandle GET_THREAD_DESKTOP =
-            bind(KERNEL32, "GetThreadDesktop", FunctionDescriptor.of(ADDRESS, JAVA_INT));
+            bind(KERNELBASE, "GetThreadDesktop", FunctionDescriptor.of(ADDRESS, JAVA_INT));
     private static final MethodHandle GET_USER_OBJECT_NAME =
             bind(USER32, "GetUserObjectInformationW", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT, ADDRESS));
     private static final MethodHandle DEF_WINDOW_PROC =
