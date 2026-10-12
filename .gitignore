@@ -15,17 +15,10 @@ target/
 /npm/lib/
 /npm/*.tgz
 
-# Editors
-.idea/
+# IDEA's module file names this project, so it stays here. The rest of what an editor leaves behind
+# -- .idea/, .vscode/, .alma-snapshots/, .worktrees/ -- is this machine's habit rather than this
+# project's, and lives in ~/.gitignore_global, which every repository already reads.
 *.iml
-.vscode/
-# Editor-tool state (not project content)
-.alma-snapshots/
-
-# One agent, one worktree -- kept inside the project rather than beside it, so the app's file tree
-# and the editor see it without a second checkout to remember. Ignored because it is a second
-# checkout of this same repository, not content.
-.worktrees/
 
 # The WebView2 loader DLL: fetched by windows-probe/fetch-loader.ps1 and checksum-verified.
 # A third-party binary, like the Tailwind standalone binary — staged, not tracked.
