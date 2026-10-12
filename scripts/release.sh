@@ -395,12 +395,21 @@ fi
 # only publishes with --release, because a version on Maven Central cannot be withdrawn. Printing the
 # command is the whole of this step -- the release script's job is the tag, and a tag that has not
 # been cut yet is the wrong thing to publish.
+#
+# And the one field that does not move with the others. `<scm><tag>` in the root pom is a literal, and
+# the tag check in release.yml compares the tag against every <version> rather than against this, so a
+# stale one is caught nowhere -- and a published pom is permanent. It is read back and printed rather
+# than rewritten: what the pom should say about where a version came from is a decision, and this
+# script moves version fields.
 say "the public repository"
 if [ -x "$ROOT/scripts/publish-central.sh" ]; then
     echo "  this release is tagged, not published. To put v$NEXT on Maven Central:"
     echo "    ./scripts/publish-central.sh            # builds, checks and uploads; stops before publishing"
     echo "    ./scripts/publish-central.sh --release  # ... and then publishes it"
     echo "  Publishing is permanent, so it is not part of this script."
+    SCM_TAG="$(sed -n 's:.*<tag>\([^<]*\)</tag>.*:\1:p' "$ROOT/pom.xml" | head -1)"
+    echo "  One field is not moved by this script: pom.xml's <scm><tag> says ${SCM_TAG:-nothing}, and the"
+    echo "  published pom carries that as written, permanently. Check it before publishing v$NEXT."
 else
     echo "  no publish-central.sh"
 fi
