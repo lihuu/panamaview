@@ -46,7 +46,7 @@ with no framework around it yet.
 
 It opens a window on the desktop it runs in, so it must be launched from an **interactive
 session** (RDP or the console), not SSH — in session 0 WebView2 does not run. It ends by
-itself (a watchdog quits it after two minutes if the chain stalls), and every stage lands
+itself (a watchdog quits it after four minutes if the chain stalls), and every stage lands
 in `smoke-result.txt` beside this file, so the run can be judged by someone who was not
 watching the screen:
 

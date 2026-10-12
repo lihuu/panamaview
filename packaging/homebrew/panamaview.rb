@@ -3,7 +3,8 @@ class Panamaview < Formula
   homepage "https://github.com/lihuu/panamaview"
   # A git url rather than the source tarball, and not by preference: npm/scripts/build-package.sh
   # decides which files are a template with `git ls-files`, and it refuses to run outside a git
-  # checkout. archive/refs/tags/v0.2.0.tar.gz was downloaded and unpacked to check: it has no .git, so
+  # checkout. archive/refs/tags/v0.2.0.tar.gz -- the release that was current when this was measured --
+  # was downloaded and unpacked to check: it has no .git, so
   # the package cannot be staged from it. A tag plus the commit it names is the same pin the tarball's
   # sha256 would have been, and a stronger one.
   #
@@ -12,13 +13,11 @@ class Panamaview < Formula
   # here can only ever name a release that has already happened: the commit a release will create does
   # not exist yet while the release script is running. So this pin is updated by hand when the file is
   # copied into a tap, release.sh prints it in a section of its own -- unlike a sample in a document,
-  # this is not history to leave alone. The pin below names v0.2.0, which predates the scaffolder being
-  # JavaScript, so this formula does not install from it today: `install` says so, by name, rather than
-  # failing on a missing file. A stale pin is a failure with a message either way.
+  # this is not history to leave alone.
   url "https://github.com/lihuu/panamaview.git",
       using:    :git,
-      tag:      "v0.2.0",
-      revision: "37081c9ac2e96d56820a901b6089426f2c55e055"
+      tag:      "v0.3.0",
+      revision: "cdd17f168e43d9e73c5cb8dd8e1569d0df697e86"
   license "MIT"
 
   # For the JDK the framework is built with, not for native-image: what is built here is a jar. The
@@ -53,8 +52,8 @@ class Panamaview < Formula
     # Every pin from before the scaffolder became JavaScript names a release this formula cannot
     # install: npm/src/scaffold.js did not exist, and the command was a native binary the package
     # carried. Said here rather than left to Homebrew's missing-file error, because the pin is the one
-    # thing this file is expected to get stale -- v0.2.0, the pin below, is exactly such a release, and
-    # it is re-pointed by hand when this file is copied into a tap.
+    # thing this file is expected to get stale -- any pin below v0.3.0 is such a release, and a pin is
+    # re-pointed by hand when this file is copied into a tap.
     unless (buildpath/"npm/src/scaffold.js").exist?
       odie <<~EOS
         This formula pins v#{version}, which predates the scaffolder being JavaScript: there is no
