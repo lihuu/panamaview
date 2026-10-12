@@ -1,15 +1,9 @@
 #!/bin/sh
 # Build a standalone executable with GraalVM Native Image.
 #
-# POSIX shell, so this is for macOS and Linux. On Windows the equivalent has to be a .cmd or a .ps1
-# — Windows has no /bin/sh, and the platform lookup below is macOS's own. Saying so here is the
-# difference between "this project does not do that yet" and a confusing failure halfway through a
-# build; `run.sh` is the path that works everywhere, and it is what the README leads with.
-#
-# POSIX shell, so this is for macOS and Linux. On Windows the equivalent has to be a .cmd or a .ps1
-# — Windows has no /bin/sh, and the platform lookup below is macOS's own. Saying so here is the
-# difference between "this project does not do that yet" and a confusing failure halfway through a
-# build; `run.sh` is the path that works everywhere, and it is what the README leads with.
+# POSIX shell, so this is for macOS and Linux. Windows has a run.cmd beside this file instead --
+# it is the same build, and the reason it is a second script rather than a branch here is that
+# Windows has no /bin/sh, and the platform lookup below is macOS's own.
 set -e
 cd "$(dirname "$0")"
 

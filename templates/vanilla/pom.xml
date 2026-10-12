@@ -67,10 +67,15 @@
                to say "this argument, only here". -->
           <arguments>
             <argument>--enable-native-access=ALL-UNNAMED</argument>
-            <!-- Whatever the caller set, so `mvn exec:exec -Dpanamaview.check=true` works the way
-                 `JAVA_OPTS=-Dpanamaview.check=true ./run.sh` does. An unset property expands to
-                 nothing; unlike an empty <argument/>, Maven drops an unset one entirely. -->
-            <argument>${panamaview.jvmArgs}</argument>
+            <!-- There was a ${panamaview.jvmArgs} argument here, to let
+                 `mvn exec:exec -Dpanamaview.check=true` reach the JVM the way JAVA_OPTS does for
+                 ./run.sh. It broke the plain command instead: an unset property does NOT disappear;
+                 it is passed through as an *empty* argument, and java takes the empty string for the
+                 main class. Measured: the argument list came out with an empty element between
+                 the native-access flag and -cp, and the build died with "Could not find or load
+                 main class", on macOS and Windows
+                 alike. No verification script used this path, which is why nothing caught it.
+                 ./run.sh is how a non-default JVM flag is passed; this plugin runs the default. -->
             <argument>-cp</argument>
             <classpath/>
             <argument>${main.class}</argument>
@@ -113,7 +118,6 @@
               <arguments>
                 <argument>-XstartOnFirstThread</argument>
                 <argument>--enable-native-access=ALL-UNNAMED</argument>
-                <argument>${panamaview.jvmArgs}</argument>
                 <argument>-cp</argument>
                 <classpath/>
                 <argument>${main.class}</argument>
