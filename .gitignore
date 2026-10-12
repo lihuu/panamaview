@@ -22,6 +22,11 @@ target/
 # Editor-tool state (not project content)
 .alma-snapshots/
 
+# One agent, one worktree -- kept inside the project rather than beside it, so the app's file tree
+# and the editor see it without a second checkout to remember. Ignored because it is a second
+# checkout of this same repository, not content.
+.worktrees/
+
 # The WebView2 loader DLL: fetched by windows-probe/fetch-loader.ps1 and checksum-verified.
 # A third-party binary, like the Tailwind standalone binary — staged, not tracked.
 /windows-probe/loader/
