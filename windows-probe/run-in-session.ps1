@@ -63,10 +63,11 @@ try {
         if ($state -ne "Running" -and (Test-Path $log)) { break }
     }
 
-    $state = (Get-ScheduledTask -TaskName $task).State
-    if ($state -eq "Running") {
-        Write-Warning "still running after ${TimeoutSeconds}s; the log so far follows"
-    }
+    # Read before anything is unregistered: LastTaskResult describes the last run, so it has to be
+    # read while this task still has one.
+    $info   = Get-ScheduledTaskInfo -TaskName $task
+    $state  = (Get-ScheduledTask -TaskName $task).State
+    $result = $info.LastTaskResult
 
     if (Test-Path $log) {
         Get-Content $log
@@ -74,14 +75,24 @@ try {
         Write-Warning "no log at $log — the task produced nothing, which is itself a result"
     }
 
-    # The task's LastTaskResult is the wrapped script's exit code, which is what a caller should
-    # branch on. Reported rather than thrown, so the log above is still visible.
-    $result = (Get-ScheduledTaskInfo -TaskName $task).LastTaskResult
+    # 0x41301 is SCHED_S_TASK_RUNNING, and it is not an exit code: a task still going reports it in
+    # LastTaskResult. Measured — the first version of this file hit its timeout, printed 267009, and
+    # left the app running in the user's session with nothing to say so. Reported as a distinct
+    # outcome (exit 2) rather than passed through as if the wrapped script had returned it, and the
+    # process is stopped: the task is about to be unregistered, and an unregistered task cannot stop
+    # what it started, so the window would stay open on the user's screen forever.
+    if ($state -eq "Running" -or $result -eq 0x41301) {
+        Write-Warning "still running after ${TimeoutSeconds}s; stopping it (raise -TimeoutSeconds for a longer job)"
+        Stop-ScheduledTask -TaskName $task -ErrorAction SilentlyContinue
+        Stop-Process -Name "java" -ErrorAction SilentlyContinue
+        exit 2
+    }
+
     Write-Host "exit code: $result"
     exit $result
 }
 finally {
-    # Left registered on failure on purpose? No — a task that stays behind runs again on schedule
-    # changes nobody made. Unregistered here, and the failure is already in the log.
+    # A task that stays behind runs again on a schedule change nobody made. The exit above happens
+    # before this, so the code is the wrapped script's (or 2 for the timeout above).
     Unregister-ScheduledTask -TaskName $task -Confirm:$false -ErrorAction SilentlyContinue
 }
