@@ -150,10 +150,21 @@
           <artifactId>maven-gpg-plugin</artifactId>
           <version>3.2.8</version>
           <configuration>
-            <!-- Loopback + a passphrase from settings.xml or an agent, so this works in a
-                 non-interactive shell. Without it, gpg tries to open a pinentry dialog and a
-                 headless run hangs until it times out. -->
-            <pinentryMode>loopback</pinentryMode>
+            <!--
+              `gpgArguments`, not a `pinentryMode` element: this plugin has no such parameter, and
+              naming one that does not exist is silently ignored. Maven prints "Parameter
+              'pinentryMode' is unknown for plugin" as a warning and signs anyway, so a config that
+              does nothing looks like a config that works. Checked against the plugin's own
+              plugin.xml rather than the documentation.
+
+              loopback is what keeps a headless run from opening a pinentry dialog and hanging until
+              it times out. It needs the key to have no passphrase, or one supplied through
+              passphraseEnvName. The key this repository documents is generated with %no-protection.
+            -->
+            <gpgArguments>
+              <arg>--pinentry-mode</arg>
+              <arg>loopback</arg>
+            </gpgArguments>
           </configuration>
           <executions>
             <execution>
