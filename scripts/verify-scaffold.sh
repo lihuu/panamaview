@@ -106,19 +106,35 @@ case "$OUTPUT" in
         ;;
 esac
 
-# ---------------------------------------------------------------- one project per template
+# ---------------------------------------------------------------- the native build
 #
-# Parallel, capped, same as verify-templates.sh and for the same reason: each pass ends in a
-# native-image compile, which is nearly all of the time this script takes. Every step below
-# already runs inside a subshell of its own (`(cd ... && ...)`), so the loop can be split without
-# changing what any step sees; what it needs is a thread cap so the compiles do not fight, which
-# is where the speed actually comes from — see the note there.
+# One template is compiled to a native executable, not five.
 #
-# The cap: cores ÷ templates, floor of 2.
-NATIVE_IMAGE_THREADS="${NATIVE_IMAGE_THREADS:-$(( $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4) / $(printf '%s\n' $TEMPLATES | wc -l | tr -d ' ') ))}"
-[ "$NATIVE_IMAGE_THREADS" -lt 2 ] && NATIVE_IMAGE_THREADS=2
-export NATIVE_IMAGE_THREADS
-echo "building with $NATIVE_IMAGE_THREADS native-image thread(s) each"
+# The five templates are one Java program with five frontends. Their build-native.sh scripts are
+# identical down to the md5 of the native-image command line, they all name com.example.Main, and
+# what differs in their Main.java is comments and the list of assets the check step looks for. A
+# native-image compile spends its ~55s analysing the Java side — the FFM calls into Cocoa, WebKit
+# and WebView2 — and does not care which javascript ended up in web/. So the other four compiles
+# were the same compile four more times.
+#
+# What is *not* the same across templates, and stays per-template below: the frontend build itself
+# (vite, the angular CLI, the Tailwind CLI — seconds each, and genuinely different work), the
+# asset check, and run.sh on the JVM path.
+#
+# vanilla is the one compiled, and that choice is deliberate rather than "the first one". It is the
+# only template whose web/ contents are checked in; react, vue and angular produce theirs from a
+# frontend build at run time. So it is the copy where the compile step is not entangled with npm,
+# vite or an angular CLI — if native-image itself breaks, this isolates it.
+#
+# When only one template is being verified there is nothing to share, so that one is compiled.
+# That is the CI case: its matrix hands each runner a single template, and collapsing the compile
+# there would silently drop native coverage for four of the five. Locally, where no argument is
+# given and all five are verified, one compile covers the set.
+if [ "$(printf '%s\n' $TEMPLATES | wc -l | tr -d ' ')" -gt 1 ]; then
+    NATIVE_TEMPLATE="vanilla"
+else
+    NATIVE_TEMPLATE="$TEMPLATES"
+fi
 
 : > "$WORK/pids"
 for name in $TEMPLATES; do
@@ -215,16 +231,25 @@ LINKS
     say "[$name] ./run.sh — the JVM path, with the check that needs no window"
     (cd "$TARGET" && JAVA_OPTS=-Dpanamaview.check=true ./run.sh)
 
-    say "[$name] ./build-native.sh"
-    export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home -v 25 2>/dev/null || /usr/libexec/java_home)}"
-    (cd "$TARGET" && ./build-native.sh > "$WORK/$name-native.log" 2>&1) || {
-        echo "native build failed; last 40 lines:" >&2
-        tail -40 "$WORK/$name-native.log" >&2
-        exit 1
-    }
+    # The native build runs for one template only; see the note above the loop for why. The other
+    # four stop here, having done everything up to and including run.sh on the JVM path.
+    #
+    # This is not a silent skip: the log says which template was compiled, so a run that stops
+    # short of a native executable does not read as one that built five of them.
+    if [ "$name" = "$NATIVE_TEMPLATE" ]; then
+        say "[$name] ./build-native.sh (the one template that is compiled natively)"
+        export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home -v 25 2>/dev/null || /usr/libexec/java_home)}"
+        (cd "$TARGET" && ./build-native.sh > "$WORK/$name-native.log" 2>&1) || {
+            echo "native build failed; last 40 lines:" >&2
+            tail -40 "$WORK/$name-native.log" >&2
+            exit 1
+        }
 
-    say "[$name] the native executable, same check"
-    (cd "$TARGET" && "./target/sample-app" -Dpanamaview.check=true)
+        say "[$name] the native executable, same check"
+        (cd "$TARGET" && "./target/sample-app" -Dpanamaview.check=true)
+    else
+        say "[$name] native build skipped (covered by $NATIVE_TEMPLATE; this one differs in its frontend)"
+    fi
   ) > "$WORK/$name.log" 2>&1 &
     printf '%s %s\n' "$name" "$!" >> "$WORK/pids"
 done

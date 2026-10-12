@@ -36,10 +36,12 @@ mvn -q dependency:build-classpath -Dmdep.outputFile=target/classpath.txt
 # NATIVE_IMAGE_THREADS caps how many threads native-image uses to compile.
 #
 # Unset, native-image sizes itself for the whole machine, which is right for one build and wrong
-# for several at once: five of these on a fourteen-core box spent their time waiting on each
-# other (load average 175) and finished no faster than running them two at a time. scripts/
-# verify-templates.sh sets it so that the templates build in parallel instead of in turn.
-# Nothing in a normal build needs to set it.
+# for several at once: measured here, five of these at once on a fourteen-core box spent their time
+# waiting on each other (load average 175) and finished no faster than running them two at a time.
+# Nothing in a normal build needs to set it, and nothing does now — the verification scripts
+# compile one template, so there is no second build to contend with. The hook stays because the
+# contention is a property of native-image, not of this repository's layout, and the next person to
+# run several of these at once should not have to rediscover the number.
 exec "$NATIVE_IMAGE" \
     --no-fallback \
     -H:IncludeResources='web/.*' \
