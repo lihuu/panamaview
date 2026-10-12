@@ -105,54 +105,90 @@ mvn -B -q -Pcentral -Dmaven.repo.local="$REPO" -DskipPublishing=true deploy
 
 # ------------------------------------------------------------------ assemble the bundle
 #
-# From the plugin's staging tree, which is correct apart from the twelve files below. Read from
-# there rather than from target/ so that the layout is the plugin's, not a second implementation of
-# it -- if the layout ever changes, this follows it.
-say "removing the files that must not be published"
-STAGE="$ROOT/target/central-staging"
-[ -d "$STAGE" ] || { echo "no staging tree at $STAGE; the build did not stage anything" >&2; exit 1; }
+# Assembled here from the module targets, not taken from the plugin's staging tree.
+#
+# The plugin's tree would be the natural source, but it only exists when the plugin is allowed to
+# upload -- `-DskipPublishing=true` skips the staging as well as the upload, so the tree is empty and
+# there is nothing to correct. Letting it upload means a failed deployment record for every attempt.
+#
+# What the plugin's tree held, measured by diffing a bundle it built against one Central accepted:
+# 32 files were right and 12 were not. The 12 are the local-repository bookkeeping Maven writes
+# because the plugin uses its staging directory as an install target -- maven-metadata-local.xml at
+# the artifactId level (a directory with no pom, a hard failure), _remote.repositories beside each
+# artifact, and four checksums for each. Building the tree here means they are never created.
+#
+# The layout is Central's: <groupId as path>/<artifactId>/<version>/, holding the pom and, for a jar
+# module, the jar with its sources and javadoc.
+say "assembling the bundle"
+STAGE="$ROOT/target/central-publish/staging"
+rm -rf "$ROOT/target/central-publish"
+mkdir -p "$STAGE"
 
-before=$(find "$STAGE" -type f | wc -l | tr -d ' ')
+# One file, from wherever the build left it to where Central wants it.
+place() {
+    src=$1; dest=$2
+    [ -f "$src" ] || { echo "publish-central.sh: missing $src — was the build run?" >&2; exit 1; }
+    mkdir -p "$(dirname "$dest")"
+    cp "$src" "$dest"
+}
 
-# maven-metadata-local.xml: the version index Maven writes at the artifactId level. It lands in a
-# directory that holds no .pom, which is a hard validation failure on its own.
-# _remote.repositories: Maven's note of which repository an artifact came from -- local bookkeeping,
-# never part of a publication. Named as "not valid" by the validator once the other is gone.
-find "$STAGE" \( -name 'maven-metadata-local.xml' -o -name '_remote.repositories' \) -print |
-    sed 's|^|  |' | sort
-find "$STAGE" \( -name 'maven-metadata-local.xml' -o -name '_remote.repositories' \) -delete
-# Their checksums would be orphans, and a checksum for a file that is not there is itself invalid.
-for f in maven-metadata-local.xml _remote.repositories; do
-    find "$STAGE" \( -name "$f.md5" -o -name "$f.sha1" -o -name "$f.sha256" -o -name "$f.sha512" \) -delete
+V="$FRAMEWORK_VERSION"
+# FRAMEWORK_REPO_PATH is "<groupId as path>/<artifactId>/<version>" -- the framework's own directory
+# inside a repository. The parent's is the same path with the artifactId swapped, which is a
+# directory beside it rather than under it.
+FRAMEWORK_DIR="$STAGE/$FRAMEWORK_REPO_PATH"
+PARENT_DIR="$STAGE/$(dirname "$FRAMEWORK_REPO_PATH")/panamaview-parent/$V"
+
+# The parent pom. Consumers resolving the framework read it before the framework's own pom, so it
+# has to be published or every dependency on the framework fails to resolve.
+place "$ROOT/target/panamaview-parent-$V.pom"     "$PARENT_DIR/panamaview-parent-$V.pom"
+place "$ROOT/target/panamaview-parent-$V.pom.asc" "$PARENT_DIR/panamaview-parent-$V.pom.asc"
+
+# The framework: pom, jar, and the sources and javadoc jars Central requires beside every jar.
+for ext in pom jar sources.jar javadoc.jar; do
+    for suffix in "" ".asc"; do
+        place "$ROOT/framework/target/panamaview-$V.$ext$suffix" \
+              "$FRAMEWORK_DIR/panamaview-$V.$ext$suffix"
+    done
 done
 
-after=$(find "$STAGE" -type f | wc -l | tr -d ' ')
-echo "  $before files -> $after"
+# Checksums, written here rather than by the plugin. Central requires md5 and sha1 for every file;
+# sha256 and sha512 are accepted, and are what the plugin's own bundles carried, so they are written
+# too. Not for the .asc files: the plugin produced none for those, and a bundle that differs from a
+# known-good one in a way nobody asked for is a risk taken for no gain.
+say "checksumming"
+find "$STAGE" -type f ! -name '*.asc' | while read -r f; do
+    ( cd "$(dirname "$f")" && b=$(basename "$f") && {
+        md5 -q "$b" | tr -d '\n' > "$b.md5"
+        shasum -a 1   "$b" | cut -d' ' -f1 | tr -d '\n' > "$b.sha1"
+        shasum -a 256 "$b" | cut -d' ' -f1 | tr -d '\n' > "$b.sha256"
+        shasum -a 512 "$b" | cut -d' ' -f1 | tr -d '\n' > "$b.sha512"
+    } )
+done
 
-# A directory with no pom is what the validator rejects, so assert it here instead of finding out
-# from a failed upload. This is the check that would have saved the first attempt.
-python3 - "$STAGE" <<'PY'
+# The layout is the thing Central validates, so assert it here rather than learning it from a
+# rejected upload: no directory may hold files without a .pom, every artifact needs its .asc and its
+# md5 and sha1. This is the check that would have caught the first attempt before it was uploaded.
+python3 - "$STAGE" <<'PYCHECK'
 import sys, pathlib
 stage = pathlib.Path(sys.argv[1])
-bad = []
-for d in [p for p in stage.rglob('*') if p.is_dir()]:
+problems = []
+for d in sorted(p for p in stage.rglob('*') if p.is_dir()):
     files = [f for f in d.iterdir() if f.is_file()]
     if files and not any(f.name.endswith('.pom') for f in files):
-        bad.append(d.relative_to(stage).as_posix() + '/  (' + ', '.join(f.name for f in files) + ')')
-if bad:
-    print('these directories hold files but no .pom, which Central rejects:', file=sys.stderr)
-    for b in bad:
-        print('  ' + b, file=sys.stderr)
+        problems.append(f"{d.relative_to(stage)}/ holds {len(files)} file(s) and no .pom")
+for artifact in sorted(stage.rglob('*.pom')) + sorted(stage.rglob('*.jar')):
+    for suffix in ('.asc', '.md5', '.sha1'):
+        if not artifact.with_name(artifact.name + suffix).is_file():
+            problems.append(f"{artifact.relative_to(stage)} has no {suffix}")
+if problems:
+    print('the bundle would be rejected:', file=sys.stderr)
+    for p in problems:
+        print('  ' + p, file=sys.stderr)
     sys.exit(1)
-print('  every directory with files has a .pom')
-PY
-
-say "packing the bundle"
-BUNDLE="$ROOT/target/central-publish/central-bundle.zip"
-rm -rf "$ROOT/target/central-publish"
-mkdir -p "$ROOT/target/central-publish"
-( cd "$STAGE" && zip -q -r -X "$BUNDLE" . )
-echo "  $BUNDLE ($(find "$STAGE" -type f | wc -l | tr -d ' ') files, $(wc -c < "$BUNDLE" | tr -d ' ') bytes)"
+total = len([f for f in stage.rglob('*') if f.is_file()])
+print(f'  {total} files, layout checked')
+PYCHECK
 
 # ------------------------------------------------------------------ upload
 say "uploading to the Central Portal"
