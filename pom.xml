@@ -13,6 +13,42 @@
   <description>The reactor that builds panamaview, its demo and its Windows probe together.</description>
 
   <!--
+    Required by Maven Central, and only by Maven Central: the private repository accepts a pom with
+    none of this. They are stated on the parent because the parent is published too — a consumer
+    resolving `io.github.lihuu:panamaview` reads this pom first, so every field Central insists on
+    has to be here even though this file builds nothing.
+
+    `url` names the repository rather than a site, because there is no site. Central wants a
+    resolvable page describing the project, and the README is that page.
+  -->
+  <url>https://github.com/lihuu/panamaview</url>
+
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>https://opensource.org/licenses/MIT</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+
+  <developers>
+    <developer>
+      <id>lihuu</id>
+      <name>lihuu</name>
+      <url>https://github.com/lihuu</url>
+    </developer>
+  </developers>
+
+  <scm>
+    <!-- developerConnection is the ssh form Central's tooling expects; connection is the anonymous
+         read-only one. Both are required, and both point at the same repository. -->
+    <connection>scm:git:https://github.com/lihuu/panamaview.git</connection>
+    <developerConnection>scm:git:ssh://git@github.com/lihuu/panamaview.git</developerConnection>
+    <url>https://github.com/lihuu/panamaview</url>
+    <tag>v0.3.0</tag>
+  </scm>
+
+  <!--
     One tree, one version, one build. `mvn install` here builds every module below in dependency
     order, and nothing has to be installed by hand first.
 
@@ -63,7 +99,132 @@
           <artifactId>maven-compiler-plugin</artifactId>
           <version>3.13.0</version>
         </plugin>
+
+        <!--
+          Maven Central's four extras, versioned here and *bound* only in the `central` profile
+          below. Versioning and binding are separated on purpose: the versions are facts about the
+          build, the binding is a property of one publication target, and the private repository
+          wants none of it. A `mvn deploy` from scripts/deploy-private.sh must keep doing exactly
+          what it did before — it deploys to Aliyun with `-DaltDeploymentRepository`, and the
+          central-publishing plugin would otherwise intercept that same `deploy` phase.
+
+          What Central requires beyond the pom metadata above:
+            - a -sources.jar and a -javadoc.jar beside every .jar (content is not inspected, but
+              the files must exist)
+            - a detached .asc GPG signature for every file, including the poms
+            - checksums, which central-publishing-maven-plugin generates itself
+        -->
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-source-plugin</artifactId>
+          <version>3.3.1</version>
+          <executions>
+            <execution>
+              <id>attach-sources</id>
+              <goals><goal>jar-no-fork</goal></goals>
+            </execution>
+          </executions>
+        </plugin>
+
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-javadoc-plugin</artifactId>
+          <version>3.12.0</version>
+          <executions>
+            <execution>
+              <id>attach-javadocs</id>
+              <goals><goal>jar</goal></goals>
+            </execution>
+          </executions>
+          <configuration>
+            <!-- A doc-comment lint failing a publication is a trade nobody asked for: the
+                 javadoc jar's contents are not inspected by Central, and a warning about a
+                 missing @param should not be what stops a release. -->
+            <doclint>none</doclint>
+            <quiet>true</quiet>
+          </configuration>
+        </plugin>
+
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-gpg-plugin</artifactId>
+          <version>3.2.8</version>
+          <configuration>
+            <!-- Loopback + a passphrase from settings.xml or an agent, so this works in a
+                 non-interactive shell. Without it, gpg tries to open a pinentry dialog and a
+                 headless run hangs until it times out. -->
+            <pinentryMode>loopback</pinentryMode>
+          </configuration>
+          <executions>
+            <execution>
+              <id>sign-artifacts</id>
+              <phase>verify</phase>
+              <goals><goal>sign</goal></goals>
+            </execution>
+          </executions>
+        </plugin>
+
+        <plugin>
+          <groupId>org.sonatype.central</groupId>
+          <artifactId>central-publishing-maven-plugin</artifactId>
+          <version>0.11.0</version>
+          <extensions>true</extensions>
+          <configuration>
+            <publishingServerId>central</publishingServerId>
+            <!--
+              Only these two of the four modules. Central is permanent and public; demo-app and
+              windows-probe are applications this repository's own rule says are never published
+              anywhere. The plugin bundles *every* module of the reactor by default, jar or not,
+              with no notion of "this one is an app" — so the two have to be named.
+
+              The value is an exact artifactId, matched with a plain string compare: a groupId
+              prefix, a stray space, or a typo does not fail, it silently publishes the module.
+            -->
+            <excludeArtifacts>
+              <artifact>panamaview-demo</artifact>
+              <artifact>panamaview-windows-probe</artifact>
+            </excludeArtifacts>
+            <autoPublish>false</autoPublish>
+            <waitUntil>validated</waitUntil>
+          </configuration>
+        </plugin>
       </plugins>
     </pluginManagement>
   </build>
+
+  <!--
+    The publication target, as a profile rather than part of the build.
+
+    Nothing below runs unless `-Pcentral` is named. That is what keeps scripts/deploy-private.sh —
+    a bare `mvn deploy` against Aliyun — from being intercepted by a plugin that also owns the
+    `deploy` phase, and what keeps an ordinary `mvn install` from asking for a GPG passphrase.
+
+    `release.sh` will drive this profile; a private-repository deploy never sees it.
+  -->
+  <profiles>
+    <profile>
+      <id>central</id>
+      <build>
+        <plugins>
+          <!-- Bound here, not in pluginManagement: this is the list of plugins that actually run. -->
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-source-plugin</artifactId>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-javadoc-plugin</artifactId>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+          </plugin>
+          <plugin>
+            <groupId>org.sonatype.central</groupId>
+            <artifactId>central-publishing-maven-plugin</artifactId>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>

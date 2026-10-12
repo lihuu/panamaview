@@ -120,9 +120,46 @@ republish a version that is already there, and then **resolves both artifacts ba
 local repository and compares hashes**, because "the upload returned 201" and "another machine can
 get the file that was just built" are different claims. `--verify-only` runs that check on its own.
 
-It targets a private repository, not Maven Central. Publishing the framework publicly is a later
-step, and it waits on something this repository cannot supply by itself: evidence that someone has
-built a real application on it.
+### Publishing to Maven Central
+
+`deploy-private.sh` targets a private repository. The public one is a profile, and it is wired but
+has not been published to yet:
+
+```sh
+mvn -Pcentral deploy                 # builds the bundle and uploads it to the Central Portal
+```
+
+Four things it needs, in the order they bite:
+
+1. **A GPG key.** Central rejects an unsigned file, with no exemption. Use an **RSA 4096 primary
+   key** — a subkey will not do, because Maven verifies against the primary key only — and publish
+   it to a keyserver (`keyserver.ubuntu.com`). Expiry is fine as long as it has not expired; the
+   default is two years.
+2. **A Central Portal user token** in `~/.m2/settings.xml`, under server id `central`. Not the
+   account password: the plugin dropped password support in 0.5.0. Generate one at
+   <https://central.sonatype.com/usertoken>; it cannot be read back after the dialog closes.
+3. **The `io.github.lihuu` namespace**, granted when the Portal account is signed into with GitHub
+   as `lihuu`. No DNS record and no verification repo is needed for an `io.github.*` namespace —
+   Sonatype reads it from the GitHub identity. If the namespace is missing, that is a support
+   email, not a configuration problem.
+4. **Version `0.3.0` or later.** The OSSRH pipeline this used to go through was shut down on
+   2025-06-30; the current one is the Central Portal, and the old `nexus-staging-maven-plugin` no
+   longer works.
+
+What the profile adds, and why it is a profile rather than part of the build: `maven-source-plugin`
+and `maven-javadoc-plugin` (Central requires a `-sources.jar` and a `-javadoc.jar` beside every jar;
+their contents are not inspected, but the files must exist), `maven-gpg-plugin` with
+`pinentryMode=loopback` so a headless run signs instead of hanging on a dialog, and
+`central-publishing-maven-plugin`. The last one owns the `deploy` phase, which is exactly why it is
+behind `-Pcentral`: `deploy-private.sh` also runs `mvn deploy`, and without the profile it would be
+intercepted.
+
+`excludeArtifacts` names `panamaview-demo` and `panamaview-windows-probe`. The plugin bundles
+**every** module of the reactor by default — it has no notion of "this one is an application" — and
+Central is permanent and public, so the two applications this repository never publishes anywhere
+have to be named. The value is matched with a plain string compare against the artifactId, so a
+typo does not fail: it publishes the module. Verified by building the bundle and reading it: it
+holds `panamaview-parent` and `panamaview`, and neither application.
 
 ## Starting a project
 
