@@ -24,9 +24,9 @@ page's own promise. A test that can only pass is not evidence.
 
 ## Before it will build
 
-`io.github.lihuu:panamaview` has to be resolvable — from Maven Central once it is published there,
-from a private repository the machine is configured for, or from the framework checkout with
-`mvn install -DskipTests`. This project deliberately has no fallback to the framework's source
+`io.github.lihuu:panamaview` has to be resolvable — from Maven Central, where it is published from
+`0.3.0` on, from a private repository the machine is configured for, or from the framework checkout
+with `mvn install -DskipTests`. This project deliberately has no fallback to the framework's source
 tree; if it stops building, the framework stopped being usable from outside itself.
 
 ## Run it

@@ -37,10 +37,10 @@ point:
 - **the scaffolder**, as JavaScript, run by Node — generating a project needs no JVM
 - **the framework**, `io.github.lihuu:panamaview`, laid out as a Maven repository
 
-That second one is the point. The framework is not on Maven Central, so a generated project would
-otherwise depend on an artifact that cannot be resolved. Instead the scaffolder copies the
-framework into `<project>/.panamaview/lib` and points the generated `pom.xml` at it with a
-`file://` repository:
+That second one is the point. The framework is on Maven Central, but a generated project that
+resolved from there would need the network on its first build, and would take whatever else the
+machine happened to have as readily as that. Instead the scaffolder copies the framework into
+`<project>/.panamaview/lib` and points the generated `pom.xml` at it with a `file://` repository:
 
 ```xml
 <repository>
