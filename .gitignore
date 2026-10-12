@@ -15,11 +15,6 @@ target/
 /npm/lib/
 /npm/*.tgz
 
-# IDEA's module file names this project, so it stays here. The rest of what an editor leaves behind
-# -- .idea/, .vscode/, .alma-snapshots/, .worktrees/ -- is this machine's habit rather than this
-# project's, and lives in ~/.gitignore_global, which every repository already reads.
-*.iml
-
 # The WebView2 loader DLL: fetched by windows-probe/fetch-loader.ps1 and checksum-verified.
 # A third-party binary, like the Tailwind standalone binary — staged, not tracked.
 /windows-probe/loader/
