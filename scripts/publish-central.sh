@@ -145,10 +145,11 @@ place "$ROOT/target/panamaview-parent-$V.pom"     "$PARENT_DIR/panamaview-parent
 place "$ROOT/target/panamaview-parent-$V.pom.asc" "$PARENT_DIR/panamaview-parent-$V.pom.asc"
 
 # The framework: pom, jar, and the sources and javadoc jars Central requires beside every jar.
-for ext in pom jar sources.jar javadoc.jar; do
+# The suffixes are classifiers, so they sit between the version and the extension.
+for base in "panamaview-$V.pom" "panamaview-$V.jar" \
+            "panamaview-$V-sources.jar" "panamaview-$V-javadoc.jar"; do
     for suffix in "" ".asc"; do
-        place "$ROOT/framework/target/panamaview-$V.$ext$suffix" \
-              "$FRAMEWORK_DIR/panamaview-$V.$ext$suffix"
+        place "$ROOT/framework/target/$base$suffix" "$FRAMEWORK_DIR/$base$suffix"
     done
 done
 
