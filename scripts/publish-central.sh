@@ -140,10 +140,16 @@ place() {
 
 V="$FRAMEWORK_VERSION"
 # FRAMEWORK_REPO_PATH is "<groupId as path>/<artifactId>/<version>" -- the framework's own directory
-# inside a repository. The parent's is the same path with the artifactId swapped, which is a
-# directory beside it rather than under it.
+# inside a repository.
 FRAMEWORK_DIR="$STAGE/$FRAMEWORK_REPO_PATH"
-PARENT_DIR="$STAGE/$(dirname "$FRAMEWORK_REPO_PATH")/panamaview-parent/$V"
+# The parent sits *beside* the framework, not under it: <group as path>/panamaview-parent/<version>,
+# where the framework's is <group as path>/panamaview/<version>. Taking the framework's directory and
+# swapping in the parent's artifactId gives .../panamaview/panamaview-parent/..., which is not a path
+# any Maven repository uses -- and the damage is not confined to that one file: with the parent pom
+# unresolvable, the framework's own pom cannot inherit url/licenses/scm/developers from it, so the
+# validator reported those four as missing too.
+GROUP_DIR=$(dirname "$(dirname "$FRAMEWORK_REPO_PATH")")
+PARENT_DIR="$STAGE/$GROUP_DIR/panamaview-parent/$V"
 
 # The parent pom. Consumers resolving the framework read it before the framework's own pom, so it
 # has to be published or every dependency on the framework fails to resolve.
