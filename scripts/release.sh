@@ -388,6 +388,23 @@ else
     echo "  none"
 fi
 
+# ------------------------------------------------------------------ the public repository
+#
+# After the private deploy, and after the bump, so that what would be published is the version this
+# release just settled on. Not automatic: publish-central.sh uploads and validates by default and
+# only publishes with --release, because a version on Maven Central cannot be withdrawn. Printing the
+# command is the whole of this step -- the release script's job is the tag, and a tag that has not
+# been cut yet is the wrong thing to publish.
+say "the public repository"
+if [ -x "$ROOT/scripts/publish-central.sh" ]; then
+    echo "  this release is tagged, not published. To put v$NEXT on Maven Central:"
+    echo "    ./scripts/publish-central.sh            # builds, checks and uploads; stops before publishing"
+    echo "    ./scripts/publish-central.sh --release  # ... and then publishes it"
+    echo "  Publishing is permanent, so it is not part of this script."
+else
+    echo "  no publish-central.sh"
+fi
+
 # ------------------------------------------------------------------ what CI will be told
 say "diff"
 git --no-pager diff --stat

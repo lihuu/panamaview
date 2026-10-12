@@ -122,14 +122,31 @@ get the file that was just built" are different claims. `--verify-only` runs tha
 
 ### Publishing to Maven Central
 
-`deploy-private.sh` targets a private repository. The public one is a profile, and it is wired but
-has not been published to yet:
+`deploy-private.sh` targets a private repository. The public one is this:
 
 ```sh
-mvn -Pcentral deploy                 # builds the bundle and uploads it to the Central Portal
+./scripts/publish-central.sh              # build, sign, check, upload; stop before publishing
+./scripts/publish-central.sh --release    # ... and then publish it
 ```
 
-Four things it needs, in the order they bite:
+`0.3.0` is on Central — <https://repo1.maven.org/maven2/io/github/lihuu/panamaview/0.3.0/> — so a
+project can depend on `io.github.lihuu:panamaview` with nothing configured.
+
+**`mvn -Pcentral deploy` does not work**, and the script exists because of why. The plugin treats its
+own staging directory as a Maven local repository, so the install mechanism writes its bookkeeping
+into the tree it is about to publish: `maven-metadata-local.xml` at the artifactId level (a directory
+holding no `.pom`, which Central rejects on its own), `_remote.repositories` beside each artifact, and
+four checksums for each. Twelve files that must never leave the machine. Not fixable from outside the
+plugin — `-Dmaven.install.skip=true` does not stop it, a dedicated `-Dmaven.repo.local` does not
+either, deleting beforehand does not survive because the tree is rebuilt each run, and there is no
+file-level filter. The script builds and signs with the plugin, assembles the tree itself without
+those twelve files, checks the layout against the same rules Central applies, and uploads through the
+Portal API.
+
+Publishing is behind `--release` on purpose: a deployment that validates is not published by
+uploading it, and a version on Central cannot be withdrawn.
+
+Three things it needs, in the order they bite:
 
 1. **A GPG key.** Central rejects an unsigned file, with no exemption. Use an **RSA 4096 primary
    key** — a subkey will not do, because Maven verifies against the primary key only — and publish
@@ -142,9 +159,9 @@ Four things it needs, in the order they bite:
    as `lihuu`. No DNS record and no verification repo is needed for an `io.github.*` namespace —
    Sonatype reads it from the GitHub identity. If the namespace is missing, that is a support
    email, not a configuration problem.
-4. **Version `0.3.0` or later.** The OSSRH pipeline this used to go through was shut down on
-   2025-06-30; the current one is the Central Portal, and the old `nexus-staging-maven-plugin` no
-   longer works.
+A note on the pipeline: the OSSRH route these instructions used to describe was shut down on
+2025-06-30. The current one is the Central Portal, and the old `nexus-staging-maven-plugin` no longer
+works — `central-publishing-maven-plugin` is what replaced it.
 
 What the profile adds, and why it is a profile rather than part of the build: `maven-source-plugin`
 and `maven-javadoc-plugin` (Central requires a `-sources.jar` and a `-javadoc.jar` beside every jar;
