@@ -1,6 +1,6 @@
 {
   "name": "create-panamaview",
-  "version": "0.3.1",
+  "version": "0.3.0",
   "description": "Create a panamaview project: a native window driven from Java over the FFM API, with no JNI and no bundled browser engine.",
   "homepage": "https://github.com/lihuu/panamaview",
   "repository": {
