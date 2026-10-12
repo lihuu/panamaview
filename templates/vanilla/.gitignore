@@ -1,2 +1,7 @@
 # Build output
 target/
+
+# WebView2Loader.dll, downloaded by fetch-loader.ps1 on Windows. Fetched once and verified
+# against a sha256 rather than committed, the same as the Tailwind standalone binary: a binary in
+# the repository is one nobody can review, and Microsoft publishes it somewhere that can be checked.
+loader/

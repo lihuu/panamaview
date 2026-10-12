@@ -54,8 +54,15 @@ The two places a platform actually shows through, and what happens to them:
 
 On Windows, `WebView2Loader.dll` has to sit beside the working directory (or in `loader/`) before
 the window will open — it is the loader for the WebView2 runtime the system already has, and it is
-not installed with it. `windows-probe/fetch-loader.ps1` in the framework repository downloads it
-with a checksum check. Without it the app stops with a message naming the file.
+not installed with it. `fetch-loader.ps1`, in this directory, downloads it from the NuGet package
+Microsoft publishes it in and checks its sha256 before using it:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File fetch-loader.ps1
+```
+
+Run that once; `loader/` is ignored by git. Without it the app stops with a message naming the file.
+It is a Windows-only step — macOS uses the system WebKit.
 
 ## Run it
 
