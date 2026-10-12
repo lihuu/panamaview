@@ -192,6 +192,13 @@ print(f'  {total} files, layout checked')
 PYCHECK
 
 # ------------------------------------------------------------------ upload
+# zipped from inside the staging directory, so the archive's entries are the repository paths and
+# not a wrapping directory: Central reads the bundle as a repository tree.
+say "packing the bundle"
+BUNDLE="$ROOT/target/central-publish/central-bundle.zip"
+( cd "$STAGE" && zip -q -r -X "$BUNDLE" . )
+echo "  central-bundle.zip ($(wc -c < "$BUNDLE" | tr -d ' ') bytes)"
+
 say "uploading to the Central Portal"
 ID=$(curl -sS -X POST -H "Authorization: Bearer $TOKEN" \
         -F "bundle=@$BUNDLE" \
