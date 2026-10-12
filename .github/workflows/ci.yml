@@ -17,21 +17,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Pinned, not apt's. Ubuntu's shellcheck is 0.9.0 and the newest release is 0.11.0, and they
-      # do not agree: 0.11 dropped SC2002 and SC2015, so two real findings passed locally and
-      # failed here. A lint that depends on which version the runner happens to carry is a lint
-      # whose verdict means nothing. The pin is what makes "clean locally" and "clean in CI" the
-      # same claim.
+      # scripts/lint.sh, not a copy of it. It pins the same shellcheck version and lints the same
+      # files, and the point of calling it is that there is one place both facts live -- the version
+      # is pinned because apt's 0.9.0 and 0.11.0 disagree (0.11 dropped SC2002 and SC2015, so
+      # findings passed locally and failed here), and the local run is only worth anything if it
+      # lints what this lints.
+      #
+      # That is not hypothetical: an unquoted variable in scripts/verify-scaffold.sh failed six
+      # consecutive CI runs, because nothing on the machine where it was written ran the lint. The
+      # script now exists for both sides to call.
       - name: Lint
-        run: |
-          set -eu
-          version=0.11.0
-          url="https://github.com/koalaman/shellcheck/releases/download/v$version/shellcheck-v$version.linux.x86_64.tar.xz"
-          curl -fsSL "$url" | tar -xJ
-          bin="$PWD/shellcheck-v$version/shellcheck"
-          "$bin" --version
-          "$bin" scripts/*.sh npm/scripts/*.sh \
-                 templates/*/*.sh templates/*/scripts/*.sh
+        run: ./scripts/lint.sh
 
       # deploy-private.sh itself cannot run here — it needs credentials this repository must not
       # hold. Everything it decides before uploading anything can be checked without them, and that

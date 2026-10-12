@@ -212,6 +212,18 @@ if problems:
 print(f"  all at {current}")
 PY
 
+# ------------------------------------------------------------------ lint
+#
+# Outside the --skip-verify branch on purpose, and before the slow checks rather than after.
+#
+# It takes a second and catches a class of failure that nothing else here sees: CI lints the shell
+# scripts with a pinned shellcheck, and a release whose scripts fail that lint cannot be merged --
+# six consecutive CI runs failed on one unquoted variable before this was run anywhere locally.
+# A lint is cheap enough that "the caller asked to skip the nine-minute checks" is not a reason to
+# skip it too; the flag exists for iterating on this script, and this runs in the time that takes.
+say "linting the shell scripts"
+./scripts/lint.sh
+
 # ------------------------------------------------------------------ prove it before claiming it
 #
 # The templates and the scaffolder are what a release is *for*, so a project generated from every

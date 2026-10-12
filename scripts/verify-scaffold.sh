@@ -130,7 +130,7 @@ esac
 # That is the CI case: its matrix hands each runner a single template, and collapsing the compile
 # there would silently drop native coverage for four of the five. Locally, where no argument is
 # given and all five are verified, one compile covers the set.
-if [ "$(printf '%s\n' $TEMPLATES | wc -l | tr -d ' ')" -gt 1 ]; then
+if [ "$(printf '%s\n' "$TEMPLATES" | wc -l | tr -d ' ')" -gt 1 ]; then
     NATIVE_TEMPLATE="vanilla"
 else
     NATIVE_TEMPLATE="$TEMPLATES"
