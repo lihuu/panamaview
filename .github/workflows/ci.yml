@@ -103,9 +103,10 @@ jobs:
       - name: A consumer can build and stage a page
         run: (cd demo-app && JAVA_OPTS=-Dpanamaview.check=true ./run.sh)
 
-      # The scaffolder handed to someone through npm carries the framework with it,
-      # because `io.github.lihuu:panamaview` is not on Maven Central and a generated project that
-      # cannot resolve its one dependency is the failure this whole packaging exists to prevent.
+      # The scaffolder handed to someone through npm carries the framework with it. The framework is
+      # on Maven Central, so this is no longer about a dependency that cannot be resolved; it is about
+      # a generated project needing nothing configured and nothing fetched, which is the property this
+      # packaging exists to guarantee.
       # This checks the wiring and then builds a generated project against an empty repository, so
       # "it resolved from the bundled copy" is observed rather than assumed.
       - name: A packaged scaffolder can build a project with nothing configured

@@ -7,10 +7,10 @@
 # framework can only come from the copy the package carries, and the build is checked for saying so.
 #
 # That last part is the whole point of the package. A generated project depends on
-# io.github.lihuu:panamaview, which is not on Maven Central; if the carried copy is not used, the
-# build either fails on a machine that has nothing installed, or — much worse — succeeds on a
-# machine that happens to have the framework in its local repository, and says nothing. So the
-# check is not "it built" but "it built from this".
+# io.github.lihuu:panamaview, and the framework is on Maven Central, so a build that fetched it from
+# there would pass on a networked machine; if the carried copy is not used, the build either fails on
+# a machine that has nothing installed, or — much worse — succeeds from wherever else it found the
+# framework, and says nothing. So the check is not "it built" but "it built from this".
 #
 # Usage: verify-npm-package.sh
 set -eu

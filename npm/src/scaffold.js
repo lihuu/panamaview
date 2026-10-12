@@ -319,12 +319,13 @@ const IGNORED = CARRIED + '/';
 /*
  * The copy of the framework that travels with a packaged scaffolder.
  *
- * A generated project depends on io.github.lihuu:panamaview, which is not on Maven Central. A
- * scaffolder handed to someone through npm therefore has to carry the framework with it, or it
- * generates a project whose one dependency cannot be resolved — an error that lands in a file the
- * user did not write, about an artifact they never heard of. So the package ships the framework laid
- * out as a Maven repository, and the generated project is pointed at it with a file:// repository;
- * see bundle().
+ * A generated project depends on io.github.lihuu:panamaview. The framework is on Maven Central, but a
+ * generated project that fetched it would depend on the network for its first build, and would take
+ * whatever else the machine happened to have just as readily. So a scaffolder handed to someone
+ * through npm carries the framework with it, rather than generating a project whose one dependency
+ * has to be fetched — an error that lands in a file the user did not write, about an artifact they
+ * never heard of. The package ships the framework laid out as a Maven repository, and the generated
+ * project is pointed at it with a file:// repository; see bundle().
  *
  * *Nothing is searched for.* There are exactly three rules, in this order:
  *
@@ -393,7 +394,7 @@ function findLibrary(version) {
 /**
  * Wires a generated project to the framework copy the package carries.
  *
- * Three things, all three needed. The copy, because the framework is not on Maven Central. The
+ * Three things, all three needed. The copy, so that a generated project has nothing to fetch. The
  * repository that points at the copy, because without it Maven resolves the framework from wherever
  * the machine happens to have it — which is the failure this whole arrangement exists to remove, and
  * it is silent on a machine that has it. And the ignore entry, because otherwise every generated
@@ -443,9 +444,10 @@ function addRepository(pom) {
   if (text.includes(`<id>${REPOSITORY_ID}</id>`)) return;
 
   const block = `  <!--
-    The framework travels inside the project: it is not on Maven Central, so the copy this url
-    points at is what makes ./run.sh work with no repository configured. The url is relative to
-    the project rather than fixed at generation time, because projects get moved and copied. The
+    The framework travels inside the project: it is on Maven Central now, but the copy this url
+    points at is what makes ./run.sh work with no repository configured and nothing to fetch. The
+    url is relative to the project rather than fixed at generation time, because projects get moved
+    and copied. The
     id is what Maven records as the artifact's origin, so a build log naming it is saying this
     copy was the one used.
   -->

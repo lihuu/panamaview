@@ -2,10 +2,11 @@
 # Verify the library a packaged scaffolder carries, and that a project built from it needs nothing
 # else.
 #
-# A generated project depends on io.github.lihuu:panamaview, which is not on Maven Central. A package
-# delivered through npm therefore has to carry the framework with it, and the generated
-# project has to be pointed at that copy. Anything less is a scaffolder that hands someone a project
-# which cannot resolve its one dependency — the failure this script exists to catch.
+# A generated project depends on io.github.lihuu:panamaview, and a package delivered through npm
+# carries the framework with it rather than leaving the first build to fetch it. The framework is on
+# Maven Central now, so "it resolved" is no longer evidence of anything on a networked machine: what
+# this checks is that the generated project was pointed at the copy the package carries, and that the
+# copy is what Maven recorded as the origin — the failure it exists to catch.
 #
 # So none of this is checked by reading files. A packaged scaffolder is laid out the way a package
 # lays one out — cli.js, src/ and lib/ at one directory, which is the whole of what npm installs —

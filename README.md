@@ -101,7 +101,8 @@ do need it: the `demo-app` in this checkout, a template copied by hand, and anyt
 scaffolder run out of a checkout rather than installed from npm.
 
 Those depend on `io.github.lihuu:panamaview`, so that artifact has to be resolvable before anything
-will build. Until it is published to Maven Central, there are two ways:
+will build. It is on Maven Central now — [Publishing to Maven Central](#publishing-to-maven-central)
+records what that took — and there are two other ways:
 
 ```sh
 mvn install -DskipTests       # in this repository; makes it resolvable on this machine only
@@ -120,9 +121,73 @@ republish a version that is already there, and then **resolves both artifacts ba
 local repository and compares hashes**, because "the upload returned 201" and "another machine can
 get the file that was just built" are different claims. `--verify-only` runs that check on its own.
 
-It targets a private repository, not Maven Central. Publishing the framework publicly is a later
-step, and it waits on something this repository cannot supply by itself: evidence that someone has
-built a real application on it.
+### Publishing to Maven Central
+
+`deploy-private.sh` targets a private repository. The public one is this:
+
+```sh
+./scripts/publish-central.sh              # build, sign, check, upload; stop before publishing
+./scripts/publish-central.sh --release    # ... and then publish it
+```
+
+`0.3.0` is on Central — <https://repo1.maven.org/maven2/io/github/lihuu/panamaview/0.3.0/> — so a
+project can depend on `io.github.lihuu:panamaview` with nothing configured.
+
+**`mvn -Pcentral deploy` does not work**, and the script exists because of why. The plugin treats its
+own staging directory as a Maven local repository, so the install mechanism writes its bookkeeping
+into the tree it is about to publish: `maven-metadata-local.xml` at the artifactId level (a directory
+holding no `.pom`, which Central rejects on its own), `_remote.repositories` beside each artifact, and
+four checksums for each. Twelve files that must never leave the machine. Not fixable from outside the
+plugin — `-Dmaven.install.skip=true` does not stop it, a dedicated `-Dmaven.repo.local` does not
+either, deleting beforehand does not survive because the tree is rebuilt each run, and there is no
+file-level filter. The script builds and signs with the plugin, assembles the tree itself without
+those twelve files, checks the layout against the same rules Central applies, and uploads through the
+Portal API.
+
+Publishing is behind `--release` on purpose: a deployment that validates is not published by
+uploading it, and a version on Central cannot be withdrawn.
+
+Three things it needs, in the order they bite:
+
+1. **A GPG key.** Central rejects an unsigned file, with no exemption. Use an **RSA 4096 primary
+   key** — a subkey will not do, because Maven verifies against the primary key only — and publish
+   it to a keyserver (`keyserver.ubuntu.com`). Expiry is fine as long as it has not expired; the
+   default is two years.
+2. **A Central Portal user token** in `~/.m2/settings.xml`, under server id `central`. Not the
+   account password: the plugin dropped password support in 0.5.0. Generate one at
+   <https://central.sonatype.com/usertoken>; it cannot be read back after the dialog closes.
+3. **The `io.github.lihuu` namespace**, granted when the Portal account is signed into with GitHub
+   as `lihuu`. No DNS record and no verification repo is needed for an `io.github.*` namespace —
+   Sonatype reads it from the GitHub identity. If the namespace is missing, that is a support
+   email, not a configuration problem.
+
+A note on the pipeline: the OSSRH route these instructions used to describe was shut down on
+2025-06-30. The current one is the Central Portal, and the old `nexus-staging-maven-plugin` no longer
+works — `central-publishing-maven-plugin` is what replaced it.
+
+What the profile adds, and why it is a profile rather than part of the build: `maven-source-plugin`
+and `maven-javadoc-plugin` (Central requires a `-sources.jar` and a `-javadoc.jar` beside every jar;
+their contents are not inspected, but the files must exist), `maven-gpg-plugin` with
+`gpgArguments` passing `--pinentry-mode loopback` so a headless run signs instead of hanging on a
+dialog (the plugin has no `pinentryMode` element: Maven ignores an unknown parameter with a warning,
+so the wrong spelling signs anyway and reads as if it worked), and
+`central-publishing-maven-plugin`. The last one owns the `deploy` phase, which is exactly why it is
+behind `-Pcentral`: `deploy-private.sh` also runs `mvn deploy`, and without the profile it would be
+intercepted.
+
+`excludeArtifacts` names `panamaview-demo` and `panamaview-windows-probe`. The plugin bundles
+**every** module of the reactor by default — it has no notion of "this one is an application" — and
+Central is permanent and public, so the two applications this repository never publishes anywhere
+have to be named. The value is matched with a plain string compare against the artifactId, so a
+typo does not fail: it publishes the module.
+
+Which of the two mechanisms kept them out is worth being precise about. `-DskipPublishing=true` makes
+the plugin filter *every* artifact before it stages anything, so its tree stays empty and
+`excludeArtifacts` is never consulted on the path this script takes; what the bundle holds is what
+the script's own `place` calls put there. The plugin's setting is insurance for a direct
+`mvn -Pcentral deploy`, which is the route this section says does not work. For what actually went
+out, read the repository rather than this file: <https://repo1.maven.org/maven2/io/github/lihuu/>
+holds `panamaview` and `panamaview-parent`, and neither application.
 
 ## Starting a project
 
@@ -160,12 +225,12 @@ gone rather than marked unmaintained: a formula pinning a release it cannot buil
 no formula, and a Homebrew tap only covers macOS while this scaffolder runs wherever npm does.
 
 The npm package installs two things: the scaffolder, and `io.github.lihuu:panamaview` laid out
-as a Maven repository. The second is the point. The framework is not on Maven Central and a generated
-project depends on it, so without it every generated project fails to resolve its one dependency —
-in a file the user did not write, about an artifact they have never heard of. Instead the scaffolder
-copies the framework into `<project>/.panamaview/lib` and points the generated `pom.xml` at it with a
-`file://` repository, so nothing is fetched from anywhere and no local repository needs priming
-first. The build log names `panamaview-bundled` as where the framework came from, which makes it
+as a Maven repository. The second is the point. The framework is on Maven Central now, but relying on
+that would make a generated project's first build depend on the network — and on nothing having gone
+stale in between — while still letting it resolve from whatever the machine happened to have. So the
+scaffolder copies the framework into `<project>/.panamaview/lib` and points the generated `pom.xml`
+at it with a `file://` repository, so nothing is fetched from anywhere and no local repository needs
+priming first. The build log names `panamaview-bundled` as where the framework came from, which makes it
 checkable rather than promised.
 
 npm is the channel that needs nothing installed: `npx` runs it on any platform Node runs on. The
