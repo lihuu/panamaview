@@ -51,7 +51,7 @@ SETTINGS="${SETTINGS:-$HOME/.m2/settings.xml}"
 [ -f "$SETTINGS" ] || { echo "publish-central.sh: no settings file at $SETTINGS" >&2; exit 2; }
 
 CREDS=$(python3 - "$SETTINGS" <<'PY'
-import re, sys, xml.etree.ElementTree as ET
+import base64, sys, xml.etree.ElementTree as ET
 
 # Parsed, not pattern-matched: a settings file is XML, and a regex over it is one comment or one
 # attribute away from reading the wrong value.
@@ -77,12 +77,18 @@ for server in root.iter(ns + 'server'):
     u, p = text(server, 'username'), text(server, 'password')
     if not u or not p:
         sys.exit('the central server entry has no username/password')
-    print(f'{u}\t{p}')
+    # The base64 of "username:password", produced here rather than by the shell.
+    #
+    # Print the two values, let the shell join and encode them, and the separator becomes part of
+    # what is encoded: it was written as a tab first, a tab is a byte like any other, and so every
+    # upload answered {"error":{"message":"Invalid token"}} for a token that was correct. The Portal
+    # wants a colon between the two, and encoding it away from the values is how it stops being one.
+    print(base64.b64encode(f'{u}:{p}'.encode()).decode())
     sys.exit(0)
 sys.exit('no <server> with id central in the settings file; see the README')
 PY
 ) || exit 2
-TOKEN=$(printf '%s' "$CREDS" | base64)
+TOKEN="$CREDS"
 
 # ------------------------------------------------------------------ version, from the poms
 # shellcheck source=scripts/framework-coordinates.sh
