@@ -3,7 +3,7 @@
 # else.
 #
 # A generated project depends on io.github.lihuu:panamaview, which is not on Maven Central. A package
-# delivered through npm or Homebrew therefore has to carry the framework with it, and the generated
+# delivered through npm therefore has to carry the framework with it, and the generated
 # project has to be pointed at that copy. Anything less is a scaffolder that hands someone a project
 # which cannot resolve its one dependency — the failure this script exists to catch.
 #
@@ -166,8 +166,8 @@ done
 
 say "and through a link, which is how a package manager installs it"
 #
-# The one that was actually broken in the Java version, and the reason this section exists. npm and
-# Homebrew do not copy the command into <prefix>/bin, they link it there, and a program that asks
+# The one that was actually broken in the Java version, and the reason this section exists. npm
+# does not copy the command into <prefix>/bin, it links it there, and a program that asks
 # where it was invoked from is told the link. Both layouts above can then be present and correct in
 # the keg while a user typing the command finds nothing beside the link, generates a project, and
 # gets a project that resolves no framework — silently, since the scaffolder works and the project is

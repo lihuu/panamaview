@@ -56,6 +56,30 @@ run-smoke.cmd
 
 Expected last stage: `stage script  2+2 returned 4` and a PASS verdict line.
 
+### Running it from SSH
+
+`run-smoke.cmd` needs an interactive session, and an SSH connection is session 0 — so from a
+terminal on another machine the smoke looks like it cannot run at all, and the failure is WebView2's
+`0x80070578`, which names nothing about sessions.
+
+`run-in-session.ps1` is the way in: it registers a scheduled task with `-LogonType Interactive`,
+which makes Windows run it in the logged-on user's session rather than the one the connection
+created, and returns the wrapped script's exit code.
+
+```powershell
+# from the SSH session
+.\run-in-session.ps1 -File .\smoke-wrapper.ps1 -TimeoutSeconds 300
+```
+
+The session id is deliberately not a parameter: it changes with how the user connected — measured on
+one machine, `console` was session 1 with nobody at the keyboard and session 2 once an RDP connection
+took session 1. Wrap what you want to run in a script, and its output is returned here and left in
+`<script>.session.log` beside it.
+
+Exit codes: the wrapped script's own, or `2` if it was still running at the timeout — in which case
+the task and the process it started are stopped, because an unregistered task cannot stop what it
+started and the window would stay on the user's screen.
+
 ## Requirements
 
 - Windows on x64, with the WebView2 Evergreen runtime installed. It is preinstalled on

@@ -109,20 +109,9 @@ directory you know is on the PATH instead of changing npm's configuration:
 npm install -g --prefix ~/.local create-panamaview
 ```
 
-There is also a Homebrew formula in the repository, at `packaging/homebrew/panamaview.rb`, which
-installs the same two things of its own — the CLI, and the framework laid out as a Maven repository
-beside it. Its pin names a release from before the scaffolder was JavaScript, so it says so and
-declines to install until it is re-pointed; that is done by hand when the file is copied into a tap.
-Until it is in a tap:
-
-```sh
-brew tap-new lihuu/panamaview
-cp packaging/homebrew/panamaview.rb "$(brew --repository lihuu/panamaview)/Formula/"
-brew install lihuu/panamaview/panamaview
-```
-
-Homebrew installs formulae from taps rather than from paths, so the three lines above are the
-working form of `brew install --formula packaging/homebrew/panamaview.rb`.
+There was a Homebrew formula in the repository until 2026-10-12. It is gone, and deliberately not
+replaced by one marked unmaintained: a formula that pins a release it cannot install from is worse
+than no formula, and a tap only covers macOS while this package runs wherever npm does.
 
 ## Versions
 

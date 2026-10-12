@@ -46,12 +46,6 @@
 # versions. Those are the version of the *application* a template describes, not of the framework,
 # and tying them together would mean a generated project's version jumping whenever panamaview did.
 #
-# The Homebrew formula is the other one, and it is not a matter of choice. It names a tag *and the
-# commit that tag points at*, and `brew audit` requires the revision beside the tag -- but the commit
-# this release creates does not exist while this script is running, and a commit cannot contain its
-# own sha. So it is printed near the end rather than rewritten, in a section of its own: unlike a
-# sample in a document, which is history to leave alone, this one is the pin a user installs from.
-#
 # Because verification runs before the bump, a mismatch introduced here fails this script rather
 # than the release. That ordering matters: a release that fails after the tag exists is one you
 # cannot back out of, since a pushed tag is a public claim that the version is real.
@@ -392,28 +386,6 @@ if found=$(git ls-files '*.md' | xargs grep -ln "panamaview[^ ]*$CURRENT\|^panam
     echo "  (sample output and past-release records; update the samples, leave the records)"
 else
     echo "  none"
-fi
-
-# The Homebrew formula is deliberately not in that list, and not because it does not carry the
-# version. It names a tag *and the commit that tag points at*, and the commit this release is about
-# to create does not exist yet -- a commit cannot contain its own sha, and `brew audit` requires the
-# revision beside a tag, so there is nothing to write here. Reported instead of rewritten: unlike a
-# sample in a README, which is history to leave alone, this one is the pin a user installs from.
-say "the Homebrew formula's pin"
-FORMULA="packaging/homebrew/panamaview.rb"
-if pinned=$(grep -n 'tag: *"v' "$FORMULA" 2>/dev/null) && [ -n "$pinned" ]; then
-    printf '%s\n' "$pinned" | sed 's/^/  /'
-    case "$pinned" in
-        *"\"v$CURRENT\""*)
-            echo "  pinned to v$CURRENT, which is about to stop being the latest release. Re-pin it"
-            echo "  to v$NEXT -- and to the commit v$NEXT points at -- when this file is copied into"
-            echo "  a tap. The commit does not exist until this script has tagged it:"
-            echo "    git rev-parse v$NEXT^{commit}"
-            ;;
-        *) echo "  check that it names v$NEXT and that release's commit" ;;
-    esac
-else
-    echo "  no tag found in $FORMULA"
 fi
 
 # ------------------------------------------------------------------ what CI will be told

@@ -165,7 +165,7 @@ echo "  .gitignore carried whole, and the carried library is ignored"
 # ---------------------------------------------------------------- the cold machine
 say "building it with an empty local repository and no repository configured"
 # Nothing but the framework's own url: no repository, no mirror, no profile. -s and -gs both point
-# at it so that neither the user's settings nor Homebrew's maven can quietly add one back.
+# at it so that neither the user's settings nor a package manager's maven can quietly add one back.
 cat > "$WORK/settings.xml" <<'XML'
 <settings>
   <!-- Deliberately empty. A build that needs anything configured does not belong in this test. -->

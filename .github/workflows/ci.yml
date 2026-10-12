@@ -103,7 +103,7 @@ jobs:
       - name: A consumer can build and stage a page
         run: (cd demo-app && JAVA_OPTS=-Dpanamaview.check=true ./run.sh)
 
-      # The scaffolder handed to someone through npm or Homebrew carries the framework with it,
+      # The scaffolder handed to someone through npm carries the framework with it,
       # because `io.github.lihuu:panamaview` is not on Maven Central and a generated project that
       # cannot resolve its one dependency is the failure this whole packaging exists to prevent.
       # This checks the wiring and then builds a generated project against an empty repository, so
