@@ -43,8 +43,13 @@ Remove-Item $log -Force -ErrorAction SilentlyContinue
 # desktop. $env:USERDOMAIN is the machine name for a local account, which is what this needs.
 $userId = "$env:COMPUTERNAME\$env:USERNAME"
 
+# `-Command "& 'x.ps1'"`, not `-File x.ps1`: the output has to be redirected to the log, and -File
+# takes no redirection. But -Command does not pass the script's exit code through on its own --
+# measured, a wrapped script that ran `exit 7` reported 1 -- so the trailing `exit $LASTEXITCODE`
+# is what makes LastTaskResult the wrapped script's own code rather than PowerShell's opinion of
+# whether it ran. Without it the caller cannot branch on anything the wrapped script decided.
 $action = New-ScheduledTaskAction -Execute "powershell.exe" `
-    -Argument "-NoProfile -ExecutionPolicy Bypass -Command `"& '$target' *> '$log'`""
+    -Argument "-NoProfile -ExecutionPolicy Bypass -Command `"& '$target' *> '$log'; exit `$LASTEXITCODE`""
 
 # -LogonType Interactive is the whole point; see the header. Limited, because running a build does
 # not need elevation and asking for it would put a UAC prompt on the user's screen.
