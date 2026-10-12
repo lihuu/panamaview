@@ -55,16 +55,30 @@ import re, sys, xml.etree.ElementTree as ET
 
 # Parsed, not pattern-matched: a settings file is XML, and a regex over it is one comment or one
 # attribute away from reading the wrong value.
-ns = {'m': 'http://maven.apache.org/SETTINGS/1.0.0'}
+#
+# Namespace-aware by necessity, and that is not decoration: a settings file declares the Maven
+# SETTINGS namespace on <settings>, so every element below it carries that URI. Matching on a bare
+# 'server' finds nothing at all, and matching the parent while reading children by unqualified name
+# finds the server and then an empty id -- which reads as "no such entry" rather than as the bug it
+# is. Both were written and measured before this became one function.
 tree = ET.parse(sys.argv[1])
-for server in tree.getroot().findall('.//m:server', ns) or tree.getroot().findall('.//server'):
-    if server.findtext('id', '').strip() == 'central':
-        u = server.findtext('username', '').strip()
-        p = server.findtext('password', '').strip()
-        if not u or not p:
-            sys.exit('the central server entry has no username/password')
-        print(f'{u}\t{p}')
-        sys.exit(0)
+root = tree.getroot()
+ns = ''
+if root.tag.startswith('{'):
+    ns = root.tag[:root.tag.index('}') + 1]
+
+def text(element, name):
+    found = element.find(ns + name)
+    return (found.text or '').strip() if found is not None else ''
+
+for server in root.iter(ns + 'server'):
+    if text(server, 'id') != 'central':
+        continue
+    u, p = text(server, 'username'), text(server, 'password')
+    if not u or not p:
+        sys.exit('the central server entry has no username/password')
+    print(f'{u}\t{p}')
+    sys.exit(0)
 sys.exit('no <server> with id central in the settings file; see the README')
 PY
 ) || exit 2
