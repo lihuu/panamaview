@@ -22,19 +22,55 @@ No Electron bloat. No bundled Chromium. Zero JNI, JNA, or C/C++ shims.
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start & Scaffolding Tool
 
-Create a new application in seconds using the official npm scaffolder:
+`panamaview` provides an official project generator published to npm as [`create-panamaview`](https://www.npmjs.com/package/create-panamaview) (CLI command `panamaview`).
+
+### 1. Instant Generation (via `npx`)
+
+No installation required — `npx` automatically runs the latest version:
 
 ```sh
-# Generate project interactively
-npx create-panamaview create my-app --template react
+# Interactive prompt (selects template if omitted)
+npx create-panamaview create my-app
+
+# Or specify options directly
+npx create-panamaview create my-app --template react --package com.example.myapp --title "My App"
 
 # Run the app
 cd my-app
 ./run.sh            # JVM mode
 ./build-native.sh   # Standalone native executable via GraalVM Native Image
 ```
+
+### 2. Global CLI Installation (Optional)
+
+If you prefer having the `panamaview` command available directly on your `$PATH`:
+
+```sh
+npm install -g create-panamaview
+
+# After installing globally:
+panamaview create my-app --template vue
+panamaview templates    # List all available templates and node requirements
+```
+
+### CLI Command & Options
+
+```
+panamaview create <dir> [options]
+panamaview templates
+panamaview version | help
+```
+
+| Option | Description | Default |
+| :--- | :--- | :--- |
+| `<dir>` | Target directory to create the project in (`.` for current directory) | Required |
+| `-t, --template <name>` | Template: `vanilla`, `vanilla-tailwind`, `react`, `vue`, `angular` | Interactive selection |
+| `-p, --package <pkg>` | Root Java package name | `com.example.<dir>` |
+| `--title <text>` | Window and document title | Derived from directory name |
+| `-f, --force` | Allow generating into a non-empty directory | `false` |
+| `templates` | Lists all available templates with Node requirements | — |
 
 ### Official Templates
 
@@ -47,6 +83,14 @@ cd my-app
 | `angular` | Angular 19 | ✅ Build-only | History mode | Angular DevServer |
 
 > **Note on Node.js:** Node is used only for frontend bundling during development. Released applications run as pure native executables with zero Node dependencies.
+
+### 💡 Self-Contained Offline First-Build
+
+A standout design of `create-panamaview`: the npm package **bundles a local copy of the framework runtime** directly inside `<project>/.panamaview/lib` as a pre-packaged Maven repository.
+
+When your project is generated:
+- **No network dependency on day 1**: You can run `./run.sh` immediately without waiting for downloads from Maven Central.
+- **Zero version drift**: The project is guaranteed to build against the exact matched framework version.
 
 ---
 
