@@ -713,6 +713,10 @@ evidence, so it is listed for a human to look at rather than rewritten.
 
 ## Notes
 
+The [JavaFX WebView / Native Image research plan](docs/javafx-webview-native-image.md) records a
+future experiment. Its first gate is a working native WebView with a bidirectional JavaScript
+bridge; benchmarking follows only after that gate passes. No JavaFX dependency is introduced.
+
 `NOTES.md` records what was actually hard: the FFM rules that are not in the tutorials, the ABI
 cases, autorelease-pool discipline, the libdispatch details behind the threading fix, what
 GraalVM accepts and what it rejects, the measurements, and the two occasions where a test looked
