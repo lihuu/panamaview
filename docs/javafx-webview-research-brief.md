@@ -2,6 +2,8 @@
 
 状态：可交给调研 agent 执行；本文件是任务输入，不是兼容性结论。
 
+首轮调研已按本任务说明执行，结果见 [调研报告](javafx-webview-research-findings.md)。
+
 ## 目标与本轮边界
 
 总体目标是判断 JavaFX WebView 能否在保留 Native Image 分发的前提下，降低 panamaview

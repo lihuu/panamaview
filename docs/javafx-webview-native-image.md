@@ -1,9 +1,12 @@
 # 技术探索：JavaFX WebView 与 GraalVM Native Image
 
-状态：后续研究任务，尚未启动 PoC；不代表 JavaFX WebView 的 Native Image 兼容性已得到验证。
+状态：已完成首轮资料调研，尚未启动 PoC；不代表 JavaFX WebView 的 Native Image 兼容性已得到验证。
 
 下一步调研的问题、证据要求与交付格式见
 [调研任务说明](javafx-webview-research-brief.md)，可直接交给调研 agent。
+
+首轮调研的证据、平台差异与下一步建议见
+[调研报告](javafx-webview-research-findings.md)。本报告不改变下述 PoC 验收门槛与当前技术路线。
 
 ## 1. 背景
 
