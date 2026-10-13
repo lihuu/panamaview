@@ -1,5 +1,9 @@
 # 技术探索：JavaFX WebView 与 GraalVM Native Image
 
+阶段决定：本阶段结束，FFM + 系统 WebView 继续作为主线，JavaFX WebView 与 JavaFX 原生
+控件保留为后续集成项。全部 PoC 代码和证据保存在 `codex/poc-javafx-native-image`，见
+[阶段结论与索引](../experiments/README.md)。
+
 状态：已执行独立 macOS 原生 PoC。本机窗口、页面、双向 Bridge、清理及隔离运行已通过，
 但需要启动适配与原生库补丁；全新未安装 JDK 的机器和长期稳定性尚未验证。
 
