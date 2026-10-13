@@ -1,0 +1,11 @@
+[poc] mac-native-bootstrap CFRunLoop on initial thread
+Oct 13, 2026 1:03:21 PM com.sun.javafx.application.PlatformImpl startup
+WARNING: Unsupported JavaFX configuration: classes were loaded from 'unnamed module @a274a9e'
+[ui-poc] environment java=25.0.2 javafx=25.0.2+4 image=runtime
+[ui-poc] PASS stage-showing=true
+[ui-poc] PASS button-event on-fx-thread=true count=1
+[ui-poc] PASS control-state=Action count: 1 · Native UI verified
+[ui-poc] PASS snapshot=780x420
+[ui-poc] close-request
+[ui-poc] stop closeRequested=true exit=0
+[ui-poc] launch-returned exit=0

@@ -1,0 +1,38 @@
+Process:         javafx-native-ui [64993]
+Path:            /Users/USER/*/javafx-native-ui
+Load Address:    0x102fbc000
+Identifier:      javafx-native-ui
+Version:         0
+Code Type:       ARM64
+Platform:        macOS
+Parent Process:  Python [64992]
+Target Type:     live task
+
+Date/Time:       2026-10-13 13:03:23.304 +0800
+Launch Time:     2026-10-13 13:03:20.508 +0800
+OS Version:      macOS 27.2 (26B5101f)
+Report Version:  7
+Analysis Tool:   /usr/bin/vmmap
+
+Physical footprint:         138.1M
+Physical footprint (peak):  138.1M
+Idle exit:                  untracked
+----
+
+Virtual Memory Map of process 64993 (javafx-native-ui)
+__TEXT                      105700000-105708000    [   32K    32K     0K     0K] r-x/rwx SM=COW          /Users/lihu/git/panamaview/experiments/javafx-native-ui/target/isolated-ui-o_z9h10e/cache/libprism_es2.dylib
+__DATA_CONST                105708000-10570c000    [   16K    16K    16K     0K] r--/rwx SM=COW          /Users/lihu/git/panamaview/experiments/javafx-native-ui/target/isolated-ui-o_z9h10e/cache/libprism_es2.dylib
+__LINKEDIT                  105710000-105718000    [   32K    16K     0K     0K] r--/rwx SM=COW          /Users/lihu/git/panamaview/experiments/javafx-native-ui/target/isolated-ui-o_z9h10e/cache/libprism_es2.dylib
+__TEXT                      10e1a0000-10e1e8000    [  288K   272K     0K     0K] r-x/rwx SM=COW          /Users/lihu/git/panamaview/experiments/javafx-native-ui/target/isolated-ui-o_z9h10e/cache/libglass.dylib
+__DATA_CONST                10e1e8000-10e1ec000    [   16K    16K    16K     0K] r--/rwx SM=COW          /Users/lihu/git/panamaview/experiments/javafx-native-ui/target/isolated-ui-o_z9h10e/cache/libglass.dylib
+__LINKEDIT                  10e1fc000-10e214000    [   96K    48K     0K     0K] r--/rwx SM=COW          /Users/lihu/git/panamaview/experiments/javafx-native-ui/target/isolated-ui-o_z9h10e/cache/libglass.dylib
+__TEXT                      118d28000-118d30000    [   32K    32K     0K     0K] r-x/rwx SM=COW          /Users/lihu/git/panamaview/experiments/javafx-native-ui/target/isolated-ui-o_z9h10e/cache/libjavafx_font.dylib
+__DATA_CONST                118d30000-118d34000    [   16K    16K    16K     0K] r--/rwx SM=COW          /Users/lihu/git/panamaview/experiments/javafx-native-ui/target/isolated-ui-o_z9h10e/cache/libjavafx_font.dylib
+__LINKEDIT                  118d38000-118d44000    [   48K    16K     0K     0K] r--/rwx SM=COW          /Users/lihu/git/panamaview/experiments/javafx-native-ui/target/isolated-ui-o_z9h10e/cache/libjavafx_font.dylib
+__DATA                      10570c000-105710000    [   16K    16K    16K     0K] rw-/rwx SM=COW          /Users/lihu/git/panamaview/experiments/javafx-native-ui/target/isolated-ui-o_z9h10e/cache/libprism_es2.dylib
+__DATA                      10e1ec000-10e1f8000    [   48K    48K    48K     0K] rw-/rwx SM=COW          /Users/lihu/git/panamaview/experiments/javafx-native-ui/target/isolated-ui-o_z9h10e/cache/libglass.dylib
+__DATA                      10e1f8000-10e1fc000    [   16K    16K    16K     0K] rw-/rwx SM=PRV          /Users/lihu/git/panamaview/experiments/javafx-native-ui/target/isolated-ui-o_z9h10e/cache/libglass.dylib
+__DATA                      118d34000-118d38000    [   16K    16K    16K     0K] rw-/rwx SM=COW          /Users/lihu/git/panamaview/experiments/javafx-native-ui/target/isolated-ui-o_z9h10e/cache/libjavafx_font.dylib
+
+Full raw capture: loaded-libraries.txt.gz
+Raw SHA256: a45e612b815d4c736b53441b88b3d3a079fb9b596b251e752d5eed7a072d7f4e

@@ -2,6 +2,9 @@
 
 实测日期：2026-10-13。独立构建项目，不依赖 panamaview，不加入根 Maven reactor。
 
+另有 [JavaFX 原生控件 Native Image 对照 PoC](../javafx-native-ui/README.md)，验证不使用
+WebView 的 Label/Button/TextField 界面；本文件的补丁结论限于 WebView 实验。
+
 **已在本机实际运行 GraalVM Native Image：窗口、本地 HTML/CSS/JS、双向 Bridge、页面
 渲染、资源清理和正常进程退出均通过。** 原生文件单独搬到隔离目录、移除 Java/GraalVM
 环境变量后也通过；运行时映射中有 JavaFX WebKit，没有 `libjvm.dylib` 或安装的 JDK 库。

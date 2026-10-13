@@ -1,0 +1,62 @@
+========================================================================================================================
+GraalVM Native Image: Generating 'javafx-native-ui' (executable)...
+========================================================================================================================
+For detailed information and explanations on the build output, visit:
+https://github.com/oracle/graal/blob/master/docs/reference-manual/native-image/BuildOutput.md
+------------------------------------------------------------------------------------------------------------------------
+[1/8] Initializing...                                                                                    (4.8s @ 0.16GB)
+ Java version: 25.0.2+10, vendor version: GraalVM CE 25.0.2+10.1
+ Graal compiler: optimization level: 2, target machine: armv8.1-a
+ C compiler: cc (apple, arm64, 17.0.0)
+ Garbage collector: Serial GC (max heap size: 80% of RAM)
+ 1 user-specific feature(s):
+ - com.oracle.svm.thirdparty.gson.GsonFeature
+------------------------------------------------------------------------------------------------------------------------
+Build resources:
+ - 3.82GB of memory (22.2% of system memory, set via '-Xmx4g')
+ - 12 thread(s) (100.0% of 12 available processor(s), determined at start)
+[2/8] Performing analysis...  [*****]                                                                    (6.8s @ 1.18GB)
+    9,106 types,  14,785 fields, and  44,119 methods found reachable
+    2,973 types,   1,184 fields, and   5,049 methods registered for reflection
+       84 types,      79 fields, and     122 methods registered for JNI access
+        7 downcalls and 0 upcalls registered for foreign access
+        4 native libraries: -framework Foundation, dl, pthread, z
+[3/8] Building universe...                                                                               (1.6s @ 1.06GB)
+[4/8] Parsing methods...      [*]                                                                        (0.7s @ 1.14GB)
+[5/8] Inlining methods...     [***]                                                                      (0.6s @ 1.27GB)
+[6/8] Compiling methods...    [***]                                                                      (7.4s @ 1.24GB)
+[7/8] Laying out methods...   [**]                                                                       (2.1s @ 1.54GB)
+[8/8] Creating image...       [*]                                                                        (1.9s @ 0.93GB)
+  19.51MB (48.16%) for code area:    26,653 compilation units
+  20.45MB (50.48%) for image heap:  207,759 objects and 80 resources
+ 549.47kB ( 1.36%) for other data
+  40.50MB in total image size, 40.50MB in total file size
+------------------------------------------------------------------------------------------------------------------------
+Top 10 origins of code area:                                Top 10 object types in image heap:
+   7.30MB java.base                                            5.31MB byte[] for code metadata
+   5.28MB javafx-graphics-25.0.2-mac-aarch64.jar               2.78MB byte[] for java.lang.String
+   2.65MB java.xml                                             1.97MB java.lang.String
+   1.35MB svm.jar (Native Image)                               1.82MB com.oracle.svm.core.hub.DynamicHubCompanion
+   1.24MB java.desktop                                         1.50MB byte[] for general heap data
+ 743.79kB javafx-controls-25.0.2-mac-aarch64.jar               1.27MB java.lang.Class
+ 267.08kB javafx-base-25.0.2-mac-aarch64.jar                 525.37kB int[][]
+ 110.11kB java.logging                                       479.14kB java.util.HashMap$Node
+  91.15kB jdk.proxy1                                         454.00kB byte[] for reflection metadata
+  78.34kB org.graalvm.nativeimage.base                       426.30kB heap alignment
+ 236.00kB for 12 more packages                                 3.91MB for 1854 more object types
+------------------------------------------------------------------------------------------------------------------------
+Recommendations:
+ FUTR: Use '--future-defaults=all' to prepare for future releases.
+ AWT:  Use the tracing agent to collect metadata for AWT.
+ HEAP: Set max heap for improved and more predictable memory usage.
+ CPU:  Enable more CPU features with '-march=native' for improved performance.
+------------------------------------------------------------------------------------------------------------------------
+                       2.1s (7.9% of total time) in 1055 GCs | Peak RSS: 2.41GB | CPU load: 6.94
+------------------------------------------------------------------------------------------------------------------------
+Build artifacts:
+ /Users/lihu/git/panamaview/experiments/javafx-native-ui/target/dist/javafx-native-ui (executable)
+========================================================================================================================
+Finished generating 'javafx-native-ui' in 26.6s.
+real 28.90
+user 184.00
+sys 5.47

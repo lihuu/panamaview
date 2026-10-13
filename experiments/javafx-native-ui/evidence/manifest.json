@@ -1,0 +1,21 @@
+{
+  "date": "2026-10-13",
+  "os": "macOS27.2 / arm64",
+  "javafx": "25.0.2+4",
+  "graalvm": "CE25.0.2+10.1 / JDK25.0.2+10",
+  "executable_bytes": 40503472,
+  "executable_sha256": "5aa6629f1012049e3fc22a35b3e9aa71afd0dd2059b66259ee926c6305eba342",
+  "libraries": "original javafx-controls/graphics/base; no vendor library patch",
+  "runtime_checks": {
+    "stage": true,
+    "button_event": true,
+    "control_state": true,
+    "snapshot": true,
+    "normal_exit": true,
+    "relocated_binary": true,
+    "webkit_mapped": false,
+    "jvm_mapped": false,
+    "installed_jdk_mapped": false
+  },
+  "scope": "basic native controls on this Mac; a physically JDK-free clean host, FXML, third-party controls and long-term stability untested"
+}
