@@ -100,6 +100,39 @@ Thread，因此本实验按 JavaFX 的线程规则实现其余回调和操作；
 这台机器仍安装有 JDK，不能代替物理无 JDK 的干净机器验收。原始 `vmmap` 记录已压缩保存。
 `config` 目录保存本次观察到的 metadata 快照，构建命令仍要求重新运行真实 JVM 测试采集。
 
+### 体积核查
+
+`python3 experiments/backend-comparison/audit-size.py` 重新计算实际二进制的 SHA256、gzip 大小、
+前端一致性和动态库内嵌位置；本次输出见 [size-audit.json](evidence/size-audit.json)。
+
+JavaFX WebView 的 157.32 MiB 单文件中，`libjfxwebkit.dylib` 占 **101.91 MiB**。
+核查在可执行文件的偏移 49,720,584 处找到了该库完整、逐字节一致的内容，而非根据 JAR
+大小推测。这里把预编译库作为资源原样内嵌，未对库内部函数做裁剪；Native Image 的 Java
+可达性分析不会把这份资源自动变成裁剪过的 WebKit。其余约 55.41 MiB 包含 JavaFX、Java
+浏览器绑定及网络代码、Native Image 运行时代码、metadata 和其他资源，不是 WebKit 净成本。
+
+库是单一 arm64 Mach-O，不是多架构合包。`size -m` 显示 `__text` 约 54.39 MiB，`__const`
+约 31.93 MiB，另有异常展开数据等；没有发现 DWARF segment。补丁前原库是 107,502,752 字节，
+补丁后是 106,859,712 字节，补丁未造成膨胀。JavaFX 非平台 JAR 只有数百字节，不能把
+classpath 中带 classifier 与不带 classifier 的条目理解成装了两份 JavaFX。采集的资源
+配置只列出四个实际使用的原生库；逐字节检查也找到这四个库，没有证据显示整个 Maven
+classpath 的 JAR 都被原样打入。
+
+两种 WebView 的编译前端逐文件 hash 一致，应用页面资源合计 3,626 字节；这不含框架
+Bridge 脚本和 JavaFX 宿主注入脚本。两端使用同一个框架 JAR 中的 Bridge 脚本。
+JavaFX 控件也确实是 `--no-fallback` Native Image，已复验 `image=runtime` 和无 JVM 库映射；
+它使用 JavaFX 控件界面，没有 WebView/WebKit，其 38.63 MiB 不能当作相同页面的对照结果。
+
+| 路线 | 未压缩单文件 | 同一文件 gzip level 6 |
+|---|---:|---:|
+| FFM + WKWebView | 18.79 MiB | 6.51 MiB |
+| JavaFX WebView | 157.32 MiB | 55.34 MiB |
+| JavaFX 控件 | 38.63 MiB | 13.50 MiB |
+
+这些压缩值只说明下载压缩可以显著减小体积，尚未包含正式安装包结构、签名、公证等。
+把 WebKit 外置只能改变可执行文件大小，完整分发仍要携带该库；更换或裁剪 WebKit 构建
+可能影响体积，但需要另做可运行的实验，157.32 MiB 不是 JavaFX WebView 的不可优化下限。
+
 ## 分发与下一步
 
 保留多个源码后端不要求把它们放入一个发行包。本实验在构建时选定依赖和入口，分别产出。

@@ -1,0 +1,177 @@
+{
+  "compression": "gzip level 6, mtime=0; single executable, not an installer",
+  "artifacts": {
+    "ffm": {
+      "bytes": 19706144,
+      "sha256": "0b105f4de08b88321c1295943e38506e77083a9eb9f343735eb31717343d2336",
+      "gzip_bytes": 6822398
+    },
+    "javafx-webview": {
+      "bytes": 164961600,
+      "sha256": "60d1b24aa17360b16b9f00ff8873b38035c442c8bb85e8ba90f8c9c2ac643615",
+      "gzip_bytes": 58032200
+    },
+    "javafx-ui": {
+      "bytes": 40503472,
+      "sha256": "5aa6629f1012049e3fc22a35b3e9aa71afd0dd2059b66259ee926c6305eba342",
+      "gzip_bytes": 14151186
+    }
+  },
+  "javafx_native_libraries": [
+    {
+      "jar": "javafx-web-25.0.2-mac-aarch64.jar",
+      "library": "libjfxwebkit.dylib",
+      "raw_bytes": 106859712,
+      "jar_compressed_bytes": 36719749,
+      "sha256": "389dfeb0fa3419330ffbd476c49e4363b268e3ba6ad698f4bd3f965a0ba930c0",
+      "byte_identical_embedded_offset": 49720584
+    },
+    {
+      "jar": "javafx-graphics-25.0.2-mac-aarch64.jar",
+      "library": "libjavafx_iio.dylib",
+      "raw_bytes": 310624,
+      "jar_compressed_bytes": 136504,
+      "sha256": "a99331636a3672756557b7fe2d0fb66c40c77851f33b8ad6d5cc0a84ed30a5fd",
+      "byte_identical_embedded_offset": -1
+    },
+    {
+      "jar": "javafx-graphics-25.0.2-mac-aarch64.jar",
+      "library": "libprism_mtl.dylib",
+      "raw_bytes": 251024,
+      "jar_compressed_bytes": 63785,
+      "sha256": "5aa337ca43feb3e57a1491a9918f7e867f82794577f13025251e075d84249f08",
+      "byte_identical_embedded_offset": -1
+    },
+    {
+      "jar": "javafx-graphics-25.0.2-mac-aarch64.jar",
+      "library": "libglass.dylib",
+      "raw_bytes": 448208,
+      "jar_compressed_bytes": 124910,
+      "sha256": "0cba6cdfee183df00d8962320abc7be8573cf1417d0ae4d94f5713e13742c7af",
+      "byte_identical_embedded_offset": 29509704
+    },
+    {
+      "jar": "javafx-graphics-25.0.2-mac-aarch64.jar",
+      "library": "libjavafx_font.dylib",
+      "raw_bytes": 101056,
+      "jar_compressed_bytes": 19291,
+      "sha256": "5f4119fa42ead4e061b7271c55eaca85cfadf3e1ce1050d62eb4476cfb77b787",
+      "byte_identical_embedded_offset": 31236240
+    },
+    {
+      "jar": "javafx-graphics-25.0.2-mac-aarch64.jar",
+      "library": "libprism_common.dylib",
+      "raw_bytes": 35312,
+      "jar_compressed_bytes": 6464,
+      "sha256": "b138c07a684e8a9d196c9722c3ebfe93a5bb8b1e71619c6bbf24ecc35f02ac58",
+      "byte_identical_embedded_offset": -1
+    },
+    {
+      "jar": "javafx-graphics-25.0.2-mac-aarch64.jar",
+      "library": "libprism_es2.dylib",
+      "raw_bytes": 97328,
+      "jar_compressed_bytes": 21979,
+      "sha256": "812b2fb9cdca2edfa0308cfc38813b513680d4ef0295d5cc30222caa65568ab8",
+      "byte_identical_embedded_offset": 31435528
+    },
+    {
+      "jar": "javafx-graphics-25.0.2-mac-aarch64.jar",
+      "library": "libdecora_sse.dylib",
+      "raw_bytes": 106224,
+      "jar_compressed_bytes": 23551,
+      "sha256": "2fc2d6569d853ceaf100d82120aecccefda732212be44f245663213be7f92e66",
+      "byte_identical_embedded_offset": -1
+    },
+    {
+      "jar": "javafx-graphics-25.0.2-mac-aarch64.jar",
+      "library": "libprism_sw.dylib",
+      "raw_bytes": 106816,
+      "jar_compressed_bytes": 32913,
+      "sha256": "2af12d0277423cdcf16fac177a0842527ea3a8f9db3212a2e37d8323479aa925",
+      "byte_identical_embedded_offset": -1
+    },
+    {
+      "jar": "javafx-media-25.0.2-mac-aarch64.jar",
+      "library": "libjfxmedia_avf.dylib",
+      "raw_bytes": 122064,
+      "jar_compressed_bytes": 35200,
+      "sha256": "16e37d6be5fdf35b6084f5ed456a40fedf50abcc64a3ec6c18e7af03226c624e",
+      "byte_identical_embedded_offset": -1
+    },
+    {
+      "jar": "javafx-media-25.0.2-mac-aarch64.jar",
+      "library": "libglib-lite.dylib",
+      "raw_bytes": 1368992,
+      "jar_compressed_bytes": 491161,
+      "sha256": "0feec0bd046a9fabbd9f602353627d4c8bf8f90d7181f8aee0396e9fdf4ffa91",
+      "byte_identical_embedded_offset": -1
+    },
+    {
+      "jar": "javafx-media-25.0.2-mac-aarch64.jar",
+      "library": "libfxplugins.dylib",
+      "raw_bytes": 94928,
+      "jar_compressed_bytes": 19779,
+      "sha256": "59b5219d1b2ea0380bc77ab1d93a17508d3fc07fb2d26b1607e80e5379e4b5e5",
+      "byte_identical_embedded_offset": -1
+    },
+    {
+      "jar": "javafx-media-25.0.2-mac-aarch64.jar",
+      "library": "libgstreamer-lite.dylib",
+      "raw_bytes": 1778112,
+      "jar_compressed_bytes": 719616,
+      "sha256": "d9d7c6f45df8cb5f5f6f7f6034c48d56101124768c2f9475734e4ef1b0fabeb6",
+      "byte_identical_embedded_offset": -1
+    },
+    {
+      "jar": "javafx-media-25.0.2-mac-aarch64.jar",
+      "library": "libjfxmedia.dylib",
+      "raw_bytes": 238416,
+      "jar_compressed_bytes": 79398,
+      "sha256": "13c1f28c9ac7d0e4b2f530ed1057ae9173deebffc7312a559626b722c34a916c",
+      "byte_identical_embedded_offset": -1
+    }
+  ],
+  "identical_frontend": [
+    {
+      "path": "app.js",
+      "bytes": 2946,
+      "sha256": "a6e5eb64420b5dbeb4d83d50332a563d9f9551d209df72cb48244b4240c08b14"
+    },
+    {
+      "path": "fixture.json",
+      "bytes": 13,
+      "sha256": "f7af7ae44bb8fbae8ea089ba5101c1ddd8816fbdcc29abd2235c18669ae0b5a8"
+    },
+    {
+      "path": "index.html",
+      "bytes": 332,
+      "sha256": "e5416fff1d2b07b901002968cb3c5b730e997714ba5cb2300cbee597662374f6"
+    },
+    {
+      "path": "manifest.txt",
+      "bytes": 61,
+      "sha256": "11e515669db787c4ebdea15fcb62a7b3f3ba099096c767297b1f570e7834fd6e"
+    },
+    {
+      "path": "module.js",
+      "bytes": 25,
+      "sha256": "2496df5f88b82a3a0dcd34e29ce9bdafe95fd15da04695c3cd99f74fac55e761"
+    },
+    {
+      "path": "style.css",
+      "bytes": 189,
+      "sha256": "008b8f2611c9b3249393af0760bf8a6edac7fe4d5c7414d1c153fcee98151e03"
+    },
+    {
+      "path": "worker.js",
+      "bytes": 60,
+      "sha256": "7727c9667ab1b17bb8c585e22ba5c6a625ad9c815345f2808bc5cb2c31742738"
+    }
+  ],
+  "frontend_bytes_excluding_framework_bridge_and_host_injection": 3626,
+  "original_unpatched_webkit_bytes": 107502752,
+  "notes": [
+    "Offset -1 means no complete byte-identical copy found by this check; it is not a general resource exclusion proof.",
+    "The controls application has a different UI workload. These sizes are not a runtime performance ranking."
+  ]
+}

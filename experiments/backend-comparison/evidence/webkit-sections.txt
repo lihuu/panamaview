@@ -1,0 +1,28 @@
+Segment __TEXT: 103071744
+	Section __text: 57032024
+	Section __jsc_int: 176932
+	Section __stubs: 4800
+	Section __stub_helper: 4764
+	Section __const: 33479132
+	Section __cstring: 3202584
+	Section __ustring: 7196
+	Section __objc_classname: 1
+	Section __unwind_info: 1155032
+	Section __eh_frame: 7984804
+	total 103047269
+Segment __DATA_CONST: 2801664
+	Section __got: 248
+	Section __mod_init_func: 6456
+	Section __const: 2778936
+	Section __cfstring: 192
+	Section __objc_imageinfo: 8
+	total 2785840
+Segment __DATA: 409600
+	Section __la_symbol_ptr: 3160
+	Section __data: 171504
+	Section __bss: 97528 (zerofill)
+	Section __common: 121096 (zerofill)
+	total 393288
+Segment __LINKEDIT: 819200
+total 107102208
+experiments/backend-comparison/target/javafx/patched-webkit/libjfxwebkit.dylib: Mach-O 64-bit dynamically linked shared library arm64
