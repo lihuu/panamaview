@@ -1,0 +1,61 @@
+{
+  "date": "2026-10-13",
+  "environment": {
+    "macos": "27.2 / arm64",
+    "jdk": "25.0.2+10",
+    "graalvm": "CE 25.0.2+10.1",
+    "javafx": "25.0.2+4",
+    "maven": "3.10.0"
+  },
+  "artifacts": {
+    "ffm": {
+      "bytes": 19706144,
+      "mib": 18.79,
+      "sha256": "0b105f4de08b88321c1295943e38506e77083a9eb9f343735eb31717343d2336",
+      "jvm_checks": 12,
+      "native_checks": 12,
+      "relocated_native_exit": 0,
+      "jvm_mapped": false,
+      "installed_jdk_mapped": false,
+      "javafx_webkit_mapped": false,
+      "javafx_glass_mapped": false,
+      "classpath_artifacts": [
+        "panamaview-0.3.0.jar"
+      ]
+    },
+    "javafx": {
+      "bytes": 164961600,
+      "mib": 157.32,
+      "sha256": "60d1b24aa17360b16b9f00ff8873b38035c442c8bb85e8ba90f8c9c2ac643615",
+      "jvm_checks": 12,
+      "native_checks": 12,
+      "relocated_native_exit": 0,
+      "jvm_mapped": false,
+      "installed_jdk_mapped": false,
+      "javafx_webkit_mapped": true,
+      "javafx_glass_mapped": true,
+      "classpath_artifacts": [
+        "panamaview-0.3.0.jar",
+        "javafx-web-25.0.2-mac-aarch64.jar",
+        "javafx-controls-25.0.2.jar",
+        "javafx-controls-25.0.2-mac-aarch64.jar",
+        "javafx-graphics-25.0.2.jar",
+        "javafx-graphics-25.0.2-mac-aarch64.jar",
+        "javafx-base-25.0.2.jar",
+        "javafx-base-25.0.2-mac-aarch64.jar",
+        "javafx-media-25.0.2.jar",
+        "javafx-media-25.0.2-mac-aarch64.jar",
+        "jdk-jsobject-25.0.2.jar",
+        "jdk-jsobject-25.0.2-mac-aarch64.jar"
+      ]
+    },
+    "javafx-ui": {
+      "bytes": 40503472,
+      "mib": 38.63,
+      "sha256": "5aa6629f1012049e3fc22a35b3e9aa71afd0dd2059b66259ee926c6305eba342",
+      "evidence": "../../javafx-native-ui/evidence/manifest.json",
+      "relocated_verification_repeated": true
+    }
+  },
+  "measurement_scope": "Uncompressed PoC executable sizes, not full installers, framework marginal cost, or repeatable runtime benchmarks. UI PoC uses a different workload; Mac only."
+}

@@ -1,0 +1,36 @@
+{
+  "reflection": [
+    {
+      "type": "com.sun.glass.ui.Application",
+      "jniAccessible": true,
+      "methods": [
+        { "name": "notifyWillFinishLaunching", "parameterTypes": [] },
+        { "name": "notifyDidFinishLaunching", "parameterTypes": [] },
+        { "name": "notifyWillBecomeActive", "parameterTypes": [] },
+        { "name": "notifyDidBecomeActive", "parameterTypes": [] },
+        { "name": "notifyWillResignActive", "parameterTypes": [] },
+        { "name": "notifyDidResignActive", "parameterTypes": [] },
+        { "name": "notifyDidReceiveMemoryWarning", "parameterTypes": [] },
+        { "name": "notifyWillHide", "parameterTypes": [] },
+        { "name": "notifyDidHide", "parameterTypes": [] },
+        { "name": "notifyWillUnhide", "parameterTypes": [] },
+        { "name": "notifyDidUnhide", "parameterTypes": [] },
+        { "name": "notifyOpenFiles", "parameterTypes": ["java.lang.String[]"] },
+        { "name": "notifyWillQuit", "parameterTypes": [] },
+        { "name": "notifyPreferencesChanged", "parameterTypes": ["java.util.Map"] },
+        { "name": "notifyRenderingFinished", "parameterTypes": [] }
+      ]
+    }
+  ],
+  "foreign": {
+    "downcalls": [
+      { "returnType": "void*", "parameterTypes": [] },
+      { "returnType": "void", "parameterTypes": [] },
+      { "returnType": "void", "parameterTypes": ["void*"] },
+      { "returnType": "void*", "parameterTypes": ["void*", "int"] },
+      { "returnType": "void*", "parameterTypes": ["void*", "void*"] },
+      { "returnType": "int", "parameterTypes": ["void*"] },
+      { "returnType": "int", "parameterTypes": ["void*", "double", "char"] }
+    ]
+  }
+}

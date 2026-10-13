@@ -5,6 +5,7 @@ The shipped library has a required load command for libjvm without JVM symbol im
 Weaken that single load command, ad-hoc sign the copy, and create a separate JAR.
 Never modify the downloaded Maven artifact or any installed JavaFX/JDK.
 """
+import argparse
 import hashlib
 import re
 import struct
@@ -12,7 +13,9 @@ import subprocess
 import zipfile
 from pathlib import Path
 
-target = Path("target")
+parser = argparse.ArgumentParser()
+parser.add_argument("--target", type=Path, default=Path("target"))
+target = parser.parse_args().target
 classpath = (target / "classpath.txt").read_text().strip().split(":")
 source = next(Path(p) for p in classpath if p.endswith("javafx-web-25.0.2-mac-aarch64.jar"))
 patch_dir = target / "patched-webkit"

@@ -1,0 +1,6 @@
+index.html
+style.css
+app.js
+module.js
+fixture.json
+worker.js

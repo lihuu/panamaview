@@ -6,6 +6,10 @@
 实际代码、构建与运行日志、补丁条件及验收边界见
 [macOS PoC](../experiments/javafx-webview-native-image/README.md)。
 
+三条路线可以保留为按构建选择的实验，FFM 仍为主力；两种 WebView 复用相同业务、前端与
+现有 Bridge 的实现及命令见 [可选后端实验](../experiments/backend-comparison/README.md)。
+JavaFX 原生控件保留单独界面。仓库支持多路线不要求发行包同时携带所有后端。
+
 下一步调研的问题、证据要求与交付格式见
 [调研任务说明](javafx-webview-research-brief.md)，可直接交给调研 agent。
 

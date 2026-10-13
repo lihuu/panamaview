@@ -1,0 +1,210 @@
+[panamaview] web root: /var/folders/qb/kfst2zkx7fb1jj0q59yrgvgm0000gn/T/panamaview-web-14177634507574699639
+Oct 13, 2026 3:39:44 PM com.sun.javafx.application.PlatformImpl startup
+WARNING: Unsupported JavaFX configuration: classes were loaded from 'unnamed module @77227698'
+[javafx-host] assets served over loopback; core protocol unchanged
+[panamaview] page loaded: url=http://127.0.0.1:57420/index.html title=Shared backend comparison
+[panamaview] java → js  window.onJavaMessage({"backend":"javafx-webview","autotest":true})
+Warning: Error processing trace entry map(size=5, {(tracer,reflect),(function,findResourceAsStream),(caller_class,java.lang.Module),(result,true),(args,[com/sun/javafx/reflect/Trampoline.class])}): java.lang.IllegalArgumentException: List must have exactly 2 element(s)
+	at org.graalvm.nativeimage.configure/com.oracle.svm.configure.trace.AbstractProcessor.expectSize(AbstractProcessor.java:61)
+	at org.graalvm.nativeimage.configure/com.oracle.svm.configure.trace.ReflectionProcessor.processEntry(ReflectionProcessor.java:78)
+	at org.graalvm.nativeimage.configure/com.oracle.svm.configure.trace.TraceProcessor.processEntry(TraceProcessor.java:93)
+	at org.graalvm.nativeimage.agent.tracing/com.oracle.svm.agent.tracing.ConfigurationResultWriter.traceEntry(ConfigurationResultWriter.java:53)
+	at org.graalvm.nativeimage.agent.tracing/com.oracle.svm.agent.tracing.core.Tracer.traceCall(Tracer.java:126)
+	at org.graalvm.nativeimage.agent.tracing/com.oracle.svm.agent.BreakpointInterceptor.traceBreakpoint(BreakpointInterceptor.java:200)
+	at org.graalvm.nativeimage.agent.tracing/com.oracle.svm.agent.BreakpointInterceptor.traceReflectBreakpoint(BreakpointInterceptor.java:185)
+	at org.graalvm.nativeimage.agent.tracing/com.oracle.svm.agent.BreakpointInterceptor.handleResourceRegistration(BreakpointInterceptor.java:768)
+	at org.graalvm.nativeimage.agent.tracing/com.oracle.svm.agent.BreakpointInterceptor.findResource(BreakpointInterceptor.java:781)
+	at org.graalvm.nativeimage.agent.tracing/com.oracle.svm.agent.BreakpointInterceptor.onBreakpoint(BreakpointInterceptor.java:1378)
+	at org.graalvm.nativeimage.builder/com.oracle.svm.core.jni.headers.JNIFunctionPointerTypes$GetMethodIDFunctionPointer.invoke(JNIFunctionPointerTypes.java)
+	at org.graalvm.nativeimage.agent.tracing/com.oracle.svm.agent.BreakpointInterceptor.resolveBreakpointMethod(BreakpointInterceptor.java:1689)
+	at org.graalvm.nativeimage.agent.tracing/com.oracle.svm.agent.BreakpointInterceptor.installBreakpointIfClassLoader(BreakpointInterceptor.java:1424)
+	at org.graalvm.nativeimage.agent.tracing/com.oracle.svm.agent.BreakpointInterceptor.onClassPrepare(BreakpointInterceptor.java:1416)
+
+[panamaview] js → java  hello → "Hello World"   [VirtualThread[#68]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  sum → 7   [VirtualThread[#69]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"a":[1,2],"b":{"unicode":"中文"},"c":null}   [VirtualThread[#70]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  runtime → {"image":"jvm","ui":false,"backend":"javafx-webview","virtual":true}   [VirtualThread[#71]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  hello → "Hello fast"   [VirtualThread[#73]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  slow → "done"   [VirtualThread[#72]/runnable@ForkJoinPool-1-worker-1]
+[panamaview] js → java  slowUi → "done"   [Thread[#34,JavaFX Application Thread,5,main]]
+[panamaview] js → java  hello → "Hello blocked"   [VirtualThread[#76]/runnable@ForkJoinPool-1-worker-1]
+[panamaview] js → java  interrupts → 0   [VirtualThread[#77]/runnable@ForkJoinPool-1-worker-1]
+[panamaview] cancel   cancelled by the page  (id 10.0)
+[panamaview] abandoned interruptible → cancelled by the page
+[panamaview] js → java  interrupts → 1   [VirtualThread[#79]/runnable@ForkJoinPool-1-worker-1]
+[panamaview] abandoned deadline → no answer within 150 ms
+[panamaview] timeout  no answer within 150 ms  (id 12.0)
+[panamaview] js → java  echo → {"n":0}   [VirtualThread[#81]/runnable@ForkJoinPool-1-worker-1]
+[panamaview] js → java  echo → {"n":2}   [VirtualThread[#83]/runnable@ForkJoinPool-1-worker-3]
+[panamaview] js → java  echo → {"n":1}   [VirtualThread[#82]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":4}   [VirtualThread[#87]/runnable@ForkJoinPool-1-worker-3]
+[panamaview] js → java  echo → {"n":5}   [VirtualThread[#88]/runnable@ForkJoinPool-1-worker-5]
+[panamaview] js → java  echo → {"n":3}   [VirtualThread[#86]/runnable@ForkJoinPool-1-worker-3]
+[panamaview] js → java  echo → {"n":6}   [VirtualThread[#89]/runnable@ForkJoinPool-1-worker-1]
+[panamaview] js → java  echo → {"n":7}   [VirtualThread[#90]/runnable@ForkJoinPool-1-worker-3]
+[panamaview] js → java  echo → {"n":8}   [VirtualThread[#91]/runnable@ForkJoinPool-1-worker-3]
+[panamaview] js → java  echo → {"n":9}   [VirtualThread[#92]/runnable@ForkJoinPool-1-worker-3]
+[panamaview] js → java  echo → {"n":10}   [VirtualThread[#93]/runnable@ForkJoinPool-1-worker-3]
+[panamaview] js → java  echo → {"n":11}   [VirtualThread[#94]/runnable@ForkJoinPool-1-worker-3]
+[panamaview] js → java  echo → {"n":12}   [VirtualThread[#95]/runnable@ForkJoinPool-1-worker-1]
+[panamaview] js → java  echo → {"n":13}   [VirtualThread[#96]/runnable@ForkJoinPool-1-worker-3]
+[panamaview] js → java  echo → {"n":14}   [VirtualThread[#97]/runnable@ForkJoinPool-1-worker-3]
+[panamaview] js → java  echo → {"n":15}   [VirtualThread[#98]/runnable@ForkJoinPool-1-worker-1]
+[panamaview] js → java  echo → {"n":16}   [VirtualThread[#99]/runnable@ForkJoinPool-1-worker-3]
+[panamaview] js → java  echo → {"n":17}   [VirtualThread[#100]/runnable@ForkJoinPool-1-worker-5]
+[panamaview] js → java  echo → {"n":18}   [VirtualThread[#101]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":19}   [VirtualThread[#102]/runnable@ForkJoinPool-1-worker-5]
+[panamaview] js → java  echo → {"n":20}   [VirtualThread[#103]/runnable@ForkJoinPool-1-worker-5]
+[panamaview] js → java  echo → {"n":21}   [VirtualThread[#104]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":22}   [VirtualThread[#105]/runnable@ForkJoinPool-1-worker-5]
+[panamaview] js → java  echo → {"n":23}   [VirtualThread[#106]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":24}   [VirtualThread[#107]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":25}   [VirtualThread[#108]/runnable@ForkJoinPool-1-worker-5]
+[panamaview] js → java  echo → {"n":26}   [VirtualThread[#109]/runnable@ForkJoinPool-1-worker-5]
+[panamaview] js → java  echo → {"n":27}   [VirtualThread[#110]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":28}   [VirtualThread[#111]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":29}   [VirtualThread[#112]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":30}   [VirtualThread[#113]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":31}   [VirtualThread[#114]/runnable@ForkJoinPool-1-worker-5]
+[panamaview] js → java  echo → {"n":32}   [VirtualThread[#115]/runnable@ForkJoinPool-1-worker-5]
+[panamaview] js → java  echo → {"n":33}   [VirtualThread[#116]/runnable@ForkJoinPool-1-worker-3]
+[panamaview] js → java  echo → {"n":34}   [VirtualThread[#117]/runnable@ForkJoinPool-1-worker-3]
+[panamaview] js → java  echo → {"n":35}   [VirtualThread[#118]/runnable@ForkJoinPool-1-worker-3]
+[panamaview] js → java  echo → {"n":36}   [VirtualThread[#119]/runnable@ForkJoinPool-1-worker-5]
+[panamaview] js → java  echo → {"n":37}   [VirtualThread[#120]/runnable@ForkJoinPool-1-worker-3]
+[panamaview] js → java  echo → {"n":38}   [VirtualThread[#121]/runnable@ForkJoinPool-1-worker-5]
+[panamaview] js → java  echo → {"n":40}   [VirtualThread[#123]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":39}   [VirtualThread[#122]/runnable@ForkJoinPool-1-worker-3]
+[panamaview] js → java  echo → {"n":41}   [VirtualThread[#124]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":42}   [VirtualThread[#125]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":43}   [VirtualThread[#126]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":44}   [VirtualThread[#127]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":45}   [VirtualThread[#128]/runnable@ForkJoinPool-1-worker-1]
+[panamaview] js → java  echo → {"n":46}   [VirtualThread[#129]/runnable@ForkJoinPool-1-worker-3]
+[panamaview] js → java  echo → {"n":47}   [VirtualThread[#130]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":48}   [VirtualThread[#131]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":49}   [VirtualThread[#132]/runnable@ForkJoinPool-1-worker-1]
+[panamaview] js → java  echo → {"n":50}   [VirtualThread[#133]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":51}   [VirtualThread[#134]/runnable@ForkJoinPool-1-worker-1]
+[panamaview] js → java  echo → {"n":52}   [VirtualThread[#135]/runnable@ForkJoinPool-1-worker-3]
+[panamaview] js → java  echo → {"n":53}   [VirtualThread[#136]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":54}   [VirtualThread[#137]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":55}   [VirtualThread[#138]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":56}   [VirtualThread[#139]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":57}   [VirtualThread[#140]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":58}   [VirtualThread[#141]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":59}   [VirtualThread[#142]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":60}   [VirtualThread[#143]/runnable@ForkJoinPool-1-worker-1]
+[panamaview] js → java  echo → {"n":61}   [VirtualThread[#144]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":62}   [VirtualThread[#145]/runnable@ForkJoinPool-1-worker-3]
+[panamaview] js → java  echo → {"n":63}   [VirtualThread[#146]/runnable@ForkJoinPool-1-worker-3]
+[panamaview] js → java  echo → {"n":64}   [VirtualThread[#147]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":65}   [VirtualThread[#148]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":66}   [VirtualThread[#149]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":67}   [VirtualThread[#150]/runnable@ForkJoinPool-1-worker-1]
+[panamaview] js → java  echo → {"n":68}   [VirtualThread[#151]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":69}   [VirtualThread[#152]/runnable@ForkJoinPool-1-worker-1]
+[panamaview] js → java  echo → {"n":70}   [VirtualThread[#153]/runnable@ForkJoinPool-1-worker-1]
+[panamaview] js → java  echo → {"n":71}   [VirtualThread[#154]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":72}   [VirtualThread[#155]/runnable@ForkJoinPool-1-worker-1]
+[panamaview] js → java  echo → {"n":73}   [VirtualThread[#156]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":74}   [VirtualThread[#157]/runnable@ForkJoinPool-1-worker-3]
+[panamaview] js → java  echo → {"n":75}   [VirtualThread[#158]/runnable@ForkJoinPool-1-worker-1]
+[panamaview] js → java  echo → {"n":76}   [VirtualThread[#159]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":77}   [VirtualThread[#160]/runnable@ForkJoinPool-1-worker-5]
+[panamaview] js → java  echo → {"n":78}   [VirtualThread[#161]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":79}   [VirtualThread[#162]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":80}   [VirtualThread[#163]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":81}   [VirtualThread[#164]/runnable@ForkJoinPool-1-worker-1]
+[panamaview] js → java  echo → {"n":82}   [VirtualThread[#165]/runnable@ForkJoinPool-1-worker-1]
+[panamaview] js → java  echo → {"n":83}   [VirtualThread[#166]/runnable@ForkJoinPool-1-worker-5]
+[panamaview] js → java  echo → {"n":84}   [VirtualThread[#167]/runnable@ForkJoinPool-1-worker-1]
+[panamaview] js → java  echo → {"n":85}   [VirtualThread[#168]/runnable@ForkJoinPool-1-worker-1]
+[panamaview] js → java  echo → {"n":86}   [VirtualThread[#169]/runnable@ForkJoinPool-1-worker-5]
+[panamaview] js → java  echo → {"n":87}   [VirtualThread[#170]/runnable@ForkJoinPool-1-worker-5]
+[panamaview] js → java  echo → {"n":88}   [VirtualThread[#171]/runnable@ForkJoinPool-1-worker-5]
+[panamaview] js → java  echo → {"n":89}   [VirtualThread[#172]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":90}   [VirtualThread[#173]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":91}   [VirtualThread[#174]/runnable@ForkJoinPool-1-worker-5]
+[panamaview] js → java  echo → {"n":92}   [VirtualThread[#175]/runnable@ForkJoinPool-1-worker-1]
+[panamaview] js → java  echo → {"n":93}   [VirtualThread[#176]/runnable@ForkJoinPool-1-worker-1]
+[panamaview] js → java  echo → {"n":94}   [VirtualThread[#177]/runnable@ForkJoinPool-1-worker-1]
+[panamaview] js → java  echo → {"n":95}   [VirtualThread[#178]/runnable@ForkJoinPool-1-worker-1]
+[panamaview] js → java  echo → {"n":96}   [VirtualThread[#179]/runnable@ForkJoinPool-1-worker-5]
+[panamaview] js → java  echo → {"n":97}   [VirtualThread[#180]/runnable@ForkJoinPool-1-worker-1]
+[panamaview] js → java  echo → {"n":98}   [VirtualThread[#181]/runnable@ForkJoinPool-1-worker-2]
+[panamaview] js → java  echo → {"n":99}   [VirtualThread[#182]/runnable@ForkJoinPool-1-worker-1]
+[comparison] backend=javafx-webview passed=12 failed=0
+[comparison] checks=[{name=shared Java hello, ok=true}, {name=shared Java sum, ok=true}, {name=structured JSON, ok=true}, {name=virtual-thread handler, ok=true}, {name=slow handler does not block, ok=true}, {name=UI-thread blocking control, ok=true}, {name=cancellation interrupts Java, ok=true}, {name=Java deadline, ok=true}, {name=100 correlated replies, ok=true}, {name=ES module, ok=true}, {name=fetch local JSON, ok=true}, {name=Web Worker, ok=true}]
+[panamaview] js → java  report → "recorded"   [VirtualThread[#192]/runnable@ForkJoinPool-1-worker-2]
+[comparison] launcher-returned exit=0
+process_exit=0
+target/javafx/patched-webkit/libjfxwebkit.dylib: replacing existing signature
+Experimental patch: LC_LOAD_DYLIB → LC_LOAD_WEAK_DYLIB for @rpath/libjvm.dylib
+Original library SHA256: 919026be38e223dee5233f4951451d52f87859e6ece276df627db16f5d2248fb
+Patched library SHA256: 389dfeb0fa3419330ffbd476c49e4363b268e3ba6ad698f4bd3f965a0ba930c0
+Patched Maven artifact copy: target/javafx/patched-webkit/javafx-web-25.0.2-mac-aarch64.jar
+Warning: The option '-H:IncludeResources=web/.*' is experimental and must be enabled via '-H:+UnlockExperimentalVMOptions' in the future.
+Warning: Please re-evaluate whether any experimental option is required, and either remove or unlock it. The build output lists all active experimental options, including where they come from and possible alternatives. If you think an experimental option should be considered as stable, please file an issue.
+========================================================================================================================
+GraalVM Native Image: Generating 'javafx-comparison' (executable)...
+========================================================================================================================
+For detailed information and explanations on the build output, visit:
+https://github.com/oracle/graal/blob/master/docs/reference-manual/native-image/BuildOutput.md
+------------------------------------------------------------------------------------------------------------------------
+[1/8] Initializing...                                                                                    (4.6s @ 0.17GB)
+ Java version: 25.0.2+10, vendor version: GraalVM CE 25.0.2+10.1
+ Graal compiler: optimization level: 2, target machine: armv8.1-a
+ C compiler: cc (apple, arm64, 17.0.0)
+ Garbage collector: Serial GC (max heap size: 80% of RAM)
+ 1 user-specific feature(s):
+ - com.oracle.svm.thirdparty.gson.GsonFeature
+------------------------------------------------------------------------------------------------------------------------
+ 1 experimental option(s) unlocked:
+ - '-H:IncludeResources': Use a resource-config.json in your META-INF/native-image/<groupID>/<artifactID> directory instead. (origin(s): command line)
+------------------------------------------------------------------------------------------------------------------------
+Build resources:
+ - 3.82GB of memory (22.2% of system memory, set via '-Xmx4g')
+ - 12 thread(s) (100.0% of 12 available processor(s), determined at start)
+[2/8] Performing analysis...  [******]                                                                   (8.4s @ 1.45GB)
+   12,272 types,  20,234 fields, and  59,392 methods found reachable
+    3,947 types,   1,398 fields, and   6,800 methods registered for reflection
+      109 types,      87 fields, and     215 methods registered for JNI access
+       26 downcalls and 5 upcalls registered for foreign access
+        5 native libraries: -framework CoreServices, -framework Foundation, dl, pthread, z
+[3/8] Building universe...                                                                               (1.5s @ 1.69GB)
+[4/8] Parsing methods...      [*]                                                                        (0.8s @ 1.77GB)
+[5/8] Inlining methods...     [***]                                                                      (0.6s @ 1.95GB)
+[6/8] Compiling methods...    [***]                                                                      (9.1s @ 1.53GB)
+[7/8] Laying out methods...   [**]                                                                       (3.9s @ 2.02GB)
+[8/8] Creating image...       [**]                                                                       (3.2s @ 2.34GB)
+  28.78MB (17.44%) for code area:    37,272 compilation units
+ 134.61MB (81.60%) for image heap:  285,540 objects and 88 resources
+   1.57MB ( 0.95%) for other data
+ 164.96MB in total image size, 164.96MB in total file size
+------------------------------------------------------------------------------------------------------------------------
+Top 10 origins of code area:                                Top 10 object types in image heap:
+  13.31MB java.base                                          108.77MB byte[] for general heap data
+   5.17MB javafx-graphics-25.0.2-mac-aarch64.jar               7.85MB byte[] for code metadata
+   2.65MB java.xml                                             3.71MB byte[] for java.lang.String
+   1.66MB svm.jar (Native Image)                               2.62MB java.lang.String
+   1.42MB java.net.http                                        2.45MB com.oracle.svm.core.hub.DynamicHubCompanion
+   1.24MB java.desktop                                         1.71MB java.lang.Class
+ 762.42kB javafx-web-25.0.2-mac-aarch64.jar                  604.30kB byte[] for reflection metadata
+ 329.04kB javafx-controls-25.0.2-mac-aarch64.jar             525.37kB int[][]
+ 325.33kB java.rmi                                           509.95kB java.util.HashMap$Node
+ 266.10kB javafx-base-25.0.2-mac-aarch64.jar                 497.82kB java.lang.String[]
+   1.42MB for 24 more packages                                 5.36MB for 2656 more object types
+------------------------------------------------------------------------------------------------------------------------
+Recommendations:
+ FUTR: Use '--future-defaults=all' to prepare for future releases.
+ AWT:  Use the tracing agent to collect metadata for AWT.
+ HEAP: Set max heap for improved and more predictable memory usage.
+ CPU:  Enable more CPU features with '-march=native' for improved performance.
+------------------------------------------------------------------------------------------------------------------------
+                       2.5s (7.5% of total time) in 1132 GCs | Peak RSS: 3.33GB | CPU load: 6.73
+------------------------------------------------------------------------------------------------------------------------
+Build artifacts:
+ /Users/lihu/git/panamaview/experiments/backend-comparison/target/javafx/dist/javafx-comparison (executable)
+========================================================================================================================
+Finished generating 'javafx-comparison' in 33.3s.

@@ -705,7 +705,7 @@ evidence, so it is listed for a human to look at rather than rewritten.
   strings
 - Objects retained for Objective-C are never released; there is no ownership tracking, so a
   long-running app with many transient objects would leak
-- No cross-platform abstraction beyond `UiHost`, no JavaFX backend, no plugin system
+- No cross-platform abstraction beyond `UiHost`, no production JavaFX backend, no plugin system
 - No `.app`, code signing, notarisation or `.dmg`; no Windows installer either, and
   `WebView2Loader.dll` has to be fetched by hand until one exists
 - The Windows port has not been run from CI, and cannot be: WebView2 refuses to start in a
@@ -713,9 +713,11 @@ evidence, so it is listed for a human to look at rather than rewritten.
 
 ## Notes
 
-The [JavaFX WebView / Native Image research plan](docs/javafx-webview-native-image.md) records a
-future experiment. Its first gate is a working native WebView with a bidirectional JavaScript
-bridge; benchmarking follows only after that gate passes. No JavaFX dependency is introduced.
+The [JavaFX WebView / Native Image research plan](docs/javafx-webview-native-image.md) links the
+actual macOS PoCs and their limitations. The [optional backend experiment](experiments/backend-comparison/README.md)
+shares one application's business code, frontend and existing bridge between FFM and JavaFX
+WebView, with separate builds; JavaFX controls retain a separate UI PoC. Production modules
+keep their current dependencies. `experiments/backends.sh` selects the three experiments.
 
 `NOTES.md` records what was actually hard: the FFM rules that are not in the tutorials, the ABI
 cases, autorelease-pool discipline, the libdispatch details behind the threading fix, what

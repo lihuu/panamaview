@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>panamaview.experiments</groupId>
+  <artifactId>optional-webview-backends</artifactId>
+  <version>1.0-SNAPSHOT</version>
+  <properties>
+    <maven.compiler.release>25</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <panamaview.version>0.3.0</panamaview.version>
+    <backend>ffm</backend>
+    <backend.exclude>comparison/fx/**</backend.exclude>
+  </properties>
+  <dependencies>
+    <dependency>
+      <groupId>io.github.lihuu</groupId>
+      <artifactId>panamaview</artifactId>
+      <version>${panamaview.version}</version>
+    </dependency>
+  </dependencies>
+  <build>
+    <directory>target/${backend}</directory>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+        <configuration><excludes><exclude>${backend.exclude}</exclude></excludes></configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <version>3.8.1</version>
+      </plugin>
+    </plugins>
+  </build>
+  <profiles>
+    <profile>
+      <id>javafx</id>
+      <properties><backend>javafx</backend><backend.exclude>comparison/ffm/**</backend.exclude></properties>
+      <build><resources>
+        <resource><directory>src/main/resources</directory></resource>
+        <resource><directory>src/javafx/resources</directory></resource>
+      </resources></build>
+      <dependencies>
+        <dependency>
+          <groupId>org.openjfx</groupId><artifactId>javafx-web</artifactId>
+          <version>25.0.2</version><classifier>mac-aarch64</classifier>
+        </dependency>
+      </dependencies>
+    </profile>
+  </profiles>
+</project>

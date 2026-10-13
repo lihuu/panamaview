@@ -1,0 +1,63 @@
+Warning: The option '-H:IncludeResources=web/.*' is experimental and must be enabled via '-H:+UnlockExperimentalVMOptions' in the future.
+Warning: Please re-evaluate whether any experimental option is required, and either remove or unlock it. The build output lists all active experimental options, including where they come from and possible alternatives. If you think an experimental option should be considered as stable, please file an issue.
+========================================================================================================================
+GraalVM Native Image: Generating 'ffm-comparison' (executable)...
+========================================================================================================================
+For detailed information and explanations on the build output, visit:
+https://github.com/oracle/graal/blob/master/docs/reference-manual/native-image/BuildOutput.md
+------------------------------------------------------------------------------------------------------------------------
+[1/8] Initializing...                                                                                    (4.8s @ 0.12GB)
+ Java version: 25.0.2+10, vendor version: GraalVM CE 25.0.2+10.1
+ Graal compiler: optimization level: 2, target machine: armv8.1-a
+ C compiler: cc (apple, arm64, 17.0.0)
+ Garbage collector: Serial GC (max heap size: 80% of RAM)
+ 1 user-specific feature(s):
+ - com.oracle.svm.thirdparty.gson.GsonFeature
+------------------------------------------------------------------------------------------------------------------------
+ 1 experimental option(s) unlocked:
+ - '-H:IncludeResources': Use a resource-config.json in your META-INF/native-image/<groupID>/<artifactID> directory instead. (origin(s): command line)
+------------------------------------------------------------------------------------------------------------------------
+Build resources:
+ - 3.82GB of memory (22.2% of system memory, set via '-Xmx4g')
+ - 12 thread(s) (100.0% of 12 available processor(s), determined at start)
+[2/8] Performing analysis...  [*****]                                                                    (4.6s @ 0.56GB)
+    4,614 types,   5,304 fields, and  21,880 methods found reachable
+    1,505 types,      84 fields, and   1,105 methods registered for reflection
+       58 types,      58 fields, and      52 methods registered for JNI access
+       23 downcalls and 5 upcalls registered for foreign access
+        4 native libraries: -framework Foundation, dl, pthread, z
+[3/8] Building universe...                                                                               (0.8s @ 0.61GB)
+[4/8] Parsing methods...      [*]                                                                        (0.5s @ 0.66GB)
+[5/8] Inlining methods...     [****]                                                                     (0.5s @ 0.72GB)
+[6/8] Compiling methods...    [***]                                                                      (5.3s @ 0.76GB)
+[7/8] Laying out methods...   [*]                                                                        (1.3s @ 0.89GB)
+[8/8] Creating image...       [*]                                                                        (1.3s @ 0.51GB)
+   8.87MB (45.01%) for code area:    12,980 compilation units
+  10.49MB (53.21%) for image heap:  125,170 objects and 67 resources
+ 350.29kB ( 1.78%) for other data
+  19.71MB in total image size, 19.71MB in total file size
+------------------------------------------------------------------------------------------------------------------------
+Top 10 origins of code area:                                Top 10 object types in image heap:
+   6.72MB java.base                                            2.34MB byte[] for code metadata
+   1.26MB svm.jar (Native Image)                               1.62MB byte[] for java.lang.String
+ 303.81kB panamaview-0.3.0.jar                                 1.14MB java.lang.String
+ 106.00kB java.logging                                       922.80kB com.oracle.svm.core.hub.DynamicHubCompanion
+  78.34kB org.graalvm.nativeimage.base                       608.71kB java.lang.Class
+  60.82kB org.graalvm.nativeimage.foreign                    482.96kB byte[] for general heap data
+  47.58kB jdk.proxy2                                         337.82kB java.util.HashMap$Node
+  42.86kB org.graalvm.nativeimage.configure                  259.35kB java.lang.Object[]
+  41.42kB jdk.proxy1                                         232.75kB java.util.concurrent.ConcurrentHashMap$Node
+  28.29kB jdk.graal.compiler                                 214.25kB java.lang.String[]
+  99.46kB for 8 more packages                                  2.33MB for 1264 more object types
+------------------------------------------------------------------------------------------------------------------------
+Recommendations:
+ FUTR: Use '--future-defaults=all' to prepare for future releases.
+ HEAP: Set max heap for improved and more predictable memory usage.
+ CPU:  Enable more CPU features with '-march=native' for improved performance.
+------------------------------------------------------------------------------------------------------------------------
+                        1.2s (5.9% of total time) in 905 GCs | Peak RSS: 1.65GB | CPU load: 6.44
+------------------------------------------------------------------------------------------------------------------------
+Build artifacts:
+ /Users/lihu/git/panamaview/experiments/backend-comparison/target/ffm/dist/ffm-comparison (executable)
+========================================================================================================================
+Finished generating 'ffm-comparison' in 19.5s.
