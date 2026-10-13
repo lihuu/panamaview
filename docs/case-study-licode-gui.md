@@ -12,7 +12,7 @@ what it hits first is rarely what the design notes worried about.
 Concretely, it produced four things worth writing down:
 
 - an **integration shape** — what the Java side and the page side each look like when the app is
-  real, not a greeting (17 bindings, two hooks, one handshake);
+  real, not a greeting (17 bindings, two hooks, sixteen push types, one handshake);
 - a **division of labour** — which parts of a native build a consumer inherits and which it must
   declare itself, and there is an asymmetry there that stays invisible until an executable runs;
 - **numbers** for both run modes, and the analysis of why the native binary is the size it is;
@@ -46,6 +46,11 @@ Paths below are relative to the `java-pi` repository root, and were read at `ori
 `db35258c` (2026-10-13). At that commit, `licode-gui` is tracked on `java-pi`'s `origin/main` but
 is not present in that repository's working tree, so `git show origin/main:licode-gui/<path>`
 is how to read it without checking anything out.
+
+Every `file:line` on the framework side was read at `origin/main` = `67a41ce`. Line numbers are
+the part of a citation that rots first: if one of them lands on something unrelated, the claim
+is usually still true and only the anchor moved — re-grep for the symbol rather than assuming
+the behaviour changed.
 
 ---
 
@@ -89,7 +94,7 @@ window.onJavaMessage(payload)                    // an application message; the 
 `Bridge.java:308-320` for the first, `Bridge.java:243-245` for the second, wrapped by
 `WebApp.postToJs` (`WebApp.java:205-210`). `postToJs` is safe to call from any thread — it
 marshals through `host.onUiThread` before evaluating (`Bridge.java:322-325`), which is the only
-thread where `evaluateJavaScript` is legal (`UiHost.java:26`).
+thread where `evaluateJavaScript` is legal (`UiHost.java:25`).
 
 The two shapes exist because they answer different questions. `__pvResolve` belongs to a request
 that is already waiting; `onJavaMessage` carries work whose *shape* the framework cannot know,
@@ -232,7 +237,8 @@ Two hooks, split by which stream they follow — `useProjects` for which directo
 session, `useChat` for what was said in it (`App.jsx:12-24`). `App.jsx` itself holds no state and
 no protocol.
 
-The push types Java actually sends, and where they are consumed:
+The push types Java actually sends, and where they are consumed — **sixteen** of them, and the
+framework knows none of these names:
 
 | push `type` | sent by | consumed by |
 | --- | --- | --- |
@@ -241,8 +247,21 @@ The push types Java actually sends, and where they are consumed:
 | `session.reset` | `Workspace.java:227`, `:267` | `useChat.js:93-104` |
 | `history` | `ChatSession.java:283` | `useChat.js:88-92` |
 | `started`, `delta`, `reasoning`, `tool` | `ChatSession.java:490`, `:516`, `:451`, `:538` | `useChat.js:55-69` |
-| `done` / `cancelled`, `error`, `notice` | `ChatSession.java:619`, `:626`, `:632` | `useChat.js:73-81` |
-| `status` | `Workspace.java:480` | `useChat.js:82` |
+| `approval` | `Approvals.java:202-209` | `useChat.js:85-87` |
+| `done` / `cancelled`, `error` | `ChatSession.java:619`, `:626` | `useChat.js:73-81` |
+| `notice` | `ChatSession.java:632`, `Workspace.java:123` | `useChat.js:70-71` |
+| `projects`, `status` (re-sent) | `Workspace.java:475`, `:480` | `useProjects.js:31`, `useChat.js:82` |
+
+The vocabulary is not declared anywhere, which is the point: it is an agreement between two
+files, and the only way to enumerate it is to grep the Java side for `postToJs` and the page side
+for `payload.type`. Doing that is worth the two minutes before changing either end — `approval`
+is the one this list would have missed, because it is the only push that leaves from neither
+`Main` nor `ChatSession` but from `Approvals`, the class that owns the queue of tool calls the
+runtime is parked on (`Approvals.java:195-210`). It carries `pending`, `id`, `tool`, `summary`,
+`details` and `source`, is *replaced wholesale* on every push, and pushes `pending: 0` rather
+than a separate "no dialog" message — which is why the page can hold it as one piece of state
+instead of assembling "which request is on screen" from two messages that could arrive out of
+order (`useChat.js:36-44`, `:85-87`).
 
 ### The one client-side convention that is not obvious
 
