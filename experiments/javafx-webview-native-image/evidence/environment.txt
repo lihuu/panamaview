@@ -1,0 +1,35 @@
+$ /usr/bin/sw_vers
+ProductName:		macOS
+ProductVersion:		27.2
+BuildVersion:		26B5101f
+
+$ /usr/bin/uname -m
+arm64
+
+$ mvn -version
+Apache Maven 3.10.0 (c43a36b8d67be7e0805a411bc0898af1a51f5472)
+Maven home: /opt/homebrew/Cellar/maven/3.10.0/libexec
+Java version: 27, vendor: Homebrew, runtime: /opt/homebrew/Cellar/openjdk/27/libexec/openjdk.jdk/Contents/Home
+Default locale: en_US, platform encoding: UTF-8, time zone: Asia/Shanghai
+OS name: "mac os x", version: "27.2", arch: "aarch64", family: "mac"
+
+$ clang --version
+Apple clang version 17.0.0 (clang-1700.6.3.2)
+Target: arm64-apple-darwin27.2.0
+Thread model: posix
+InstalledDir: /Library/Developer/CommandLineTools/usr/bin
+
+$ /Users/lihu/Library/Java/JavaVirtualMachines/graalvm-ce-25.0.2/Contents/Home/bin/native-image --version
+native-image 25.0.2 2026-01-20
+GraalVM Runtime Environment GraalVM CE 25.0.2+10.1 (build 25.0.2+10-jvmci-b01)
+Substrate VM GraalVM CE 25.0.2+10.1 (build 25.0.2+10, serial gc)
+
+$ otool -L /Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/dist/javafx-webview-poc
+/Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/dist/javafx-webview-poc:
+	/System/Library/Frameworks/CoreServices.framework/Versions/A/CoreServices (compatibility version 1.0.0, current version 1226.0.0)
+	/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1356.0.0)
+	/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation (compatibility version 300.0.0, current version 4201.0.0)
+	/usr/lib/libz.1.dylib (compatibility version 1.0.0, current version 1.2.12)
+	/System/Library/Frameworks/CFNetwork.framework/Versions/A/CFNetwork (compatibility version 1.0.0, current version 3860.255.31)
+	/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 150.0.0, current version 4201.0.0)
+	/usr/lib/libobjc.A.dylib (compatibility version 1.0.0, current version 228.0.0)

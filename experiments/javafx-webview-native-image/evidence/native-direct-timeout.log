@@ -1,0 +1,4 @@
+Oct 13, 2026 11:30:05 AM com.sun.javafx.application.PlatformImpl startup
+WARNING: Unsupported JavaFX configuration: classes were loaded from 'unnamed module @6b8c59b0'
+
+[runner] FAIL process did not terminate within deadline

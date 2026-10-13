@@ -1,0 +1,72 @@
+target/patched-webkit/libjfxwebkit.dylib: replacing existing signature
+Experimental patch: LC_LOAD_DYLIB → LC_LOAD_WEAK_DYLIB for @rpath/libjvm.dylib
+Original library SHA256: 919026be38e223dee5233f4951451d52f87859e6ece276df627db16f5d2248fb
+Patched library SHA256: 389dfeb0fa3419330ffbd476c49e4363b268e3ba6ad698f4bd3f965a0ba930c0
+Patched Maven artifact copy: target/patched-webkit/javafx-web-25.0.2-mac-aarch64.jar
+Warning: The option '-H:IncludeResources=web/.*' is experimental and must be enabled via '-H:+UnlockExperimentalVMOptions' in the future.
+Warning: Please re-evaluate whether any experimental option is required, and either remove or unlock it. The build output lists all active experimental options, including where they come from and possible alternatives. If you think an experimental option should be considered as stable, please file an issue.
+========================================================================================================================
+GraalVM Native Image: Generating 'javafx-webview-poc' (executable)...
+========================================================================================================================
+For detailed information and explanations on the build output, visit:
+https://github.com/oracle/graal/blob/master/docs/reference-manual/native-image/BuildOutput.md
+------------------------------------------------------------------------------------------------------------------------
+[1/8] Initializing...                                                                                    (5.0s @ 0.12GB)
+ Java version: 25.0.2+10, vendor version: GraalVM CE 25.0.2+10.1
+ Graal compiler: optimization level: 2, target machine: armv8.1-a
+ C compiler: cc (apple, arm64, 17.0.0)
+ Garbage collector: Serial GC (max heap size: 80% of RAM)
+ 1 user-specific feature(s):
+ - com.oracle.svm.thirdparty.gson.GsonFeature
+------------------------------------------------------------------------------------------------------------------------
+ 1 experimental option(s) unlocked:
+ - '-H:IncludeResources': Use a resource-config.json in your META-INF/native-image/<groupID>/<artifactID> directory instead. (origin(s): command line)
+------------------------------------------------------------------------------------------------------------------------
+Build resources:
+ - 3.82GB of memory (22.2% of system memory, set via '-Xmx4g')
+ - 12 thread(s) (100.0% of 12 available processor(s), determined at start)
+[2/8] Performing analysis...  [*******]                                                                  (7.0s @ 1.52GB)
+   11,916 types,  19,541 fields, and  57,613 methods found reachable
+    3,868 types,   1,386 fields, and   6,741 methods registered for reflection
+      109 types,      86 fields, and     216 methods registered for JNI access
+        7 downcalls and 0 upcalls registered for foreign access
+        5 native libraries: -framework CoreServices, -framework Foundation, dl, pthread, z
+[3/8] Building universe...                                                                               (1.3s @ 1.64GB)
+[4/8] Parsing methods...      [*]                                                                        (0.7s @ 1.75GB)
+[5/8] Inlining methods...     [***]                                                                      (0.6s @ 1.94GB)
+[6/8] Compiling methods...    [***]                                                                      (8.0s @ 1.62GB)
+[7/8] Laying out methods...   [**]                                                                       (3.3s @ 1.90GB)
+[8/8] Creating image...       [**]                                                                       (3.0s @ 2.29GB)
+  27.66MB (16.91%) for code area:    36,073 compilation units
+ 134.35MB (82.13%) for image heap:  279,617 objects and 83 resources
+   1.57MB ( 0.96%) for other data
+ 163.57MB in total image size, 163.57MB in total file size
+------------------------------------------------------------------------------------------------------------------------
+Top 10 origins of code area:                                Top 10 object types in image heap:
+  12.59MB java.base                                          108.77MB byte[] for general heap data
+   5.22MB javafx-graphics-25.0.2-mac-aarch64.jar               7.53MB byte[] for code metadata
+   2.65MB java.xml                                             3.62MB byte[] for java.lang.String
+   1.65MB svm.jar (Native Image)                               2.56MB java.lang.String
+   1.42MB java.net.http                                        2.38MB com.oracle.svm.core.hub.DynamicHubCompanion
+   1.24MB java.desktop                                         1.67MB java.lang.Class
+ 752.18kB javafx-web-25.0.2-mac-aarch64.jar                  776.58kB heap alignment
+ 329.03kB javafx-controls-25.0.2-mac-aarch64.jar             596.58kB byte[] for reflection metadata
+ 325.32kB java.rmi                                           525.37kB int[][]
+ 263.39kB javafx-base-25.0.2-mac-aarch64.jar                 506.88kB java.util.HashMap$Node
+ 997.15kB for 20 more packages                                 5.41MB for 2578 more object types
+------------------------------------------------------------------------------------------------------------------------
+Recommendations:
+ FUTR: Use '--future-defaults=all' to prepare for future releases.
+ AWT:  Use the tracing agent to collect metadata for AWT.
+ HEAP: Set max heap for improved and more predictable memory usage.
+ CPU:  Enable more CPU features with '-march=native' for improved performance.
+------------------------------------------------------------------------------------------------------------------------
+                       2.2s (7.4% of total time) in 1010 GCs | Peak RSS: 3.23GB | CPU load: 6.83
+------------------------------------------------------------------------------------------------------------------------
+Build artifacts:
+ /Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/dist/javafx-webview-poc (executable)
+========================================================================================================================
+Finished generating 'javafx-webview-poc' in 29.8s.
+real 32.78
+user 202.50
+sys 5.59

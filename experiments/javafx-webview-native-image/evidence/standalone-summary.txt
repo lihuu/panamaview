@@ -1,0 +1,8 @@
+package=/Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/isolated-package-qoblu7rm
+executable_bytes=163571712
+environment=PATH:/usr/bin:/bin;TMPDIR:isolated/tmp
+exit=0
+libjfxwebkit mapped=yes
+libjvm mapped=no
+installed JDK mapped=no
+scope=environment/filesystem relocation on a host that still has JDKs installed; not a clean-machine test

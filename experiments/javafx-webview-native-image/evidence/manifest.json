@@ -1,0 +1,11 @@
+{
+  "native_executable_sha256": "51bb0cc82fb3962f443783a4c08e812e1f2a4018818930b53080e51a13d0afec",
+  "native_executable_bytes": 163571712,
+  "javafx": "25.0.2+4",
+  "graalvm": "CE 25.0.2+10.1 / JDK25.0.2+10",
+  "os": "macOS27.2 / 26B5101f / arm64",
+  "native_bootstrap": "47-line experimental CoreFoundation/FFM launcher",
+  "webkit_original_sha256": "919026be38e223dee5233f4951451d52f87859e6ece276df627db16f5d2248fb",
+  "webkit_patched_sha256": "389dfeb0fa3419330ffbd476c49e4363b268e3ba6ad698f4bd3f965a0ba930c0",
+  "acceptance": "Native WebView + bidirectional bridge + cleanup + process exit + relocated environment run passed; physically JDK-free machine untested"
+}

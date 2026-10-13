@@ -1,0 +1,451 @@
+[poc] mac-native-bootstrap CFRunLoop on initial thread
+Oct 13, 2026 11:35:52 AM com.sun.javafx.application.PlatformImpl startup
+WARNING: Unsupported JavaFX configuration: classes were loaded from 'unnamed module @11c04a91'
+[poc] environment java=25.0.2 javafx=25.0.2+4 image=runtime os=Mac OS X/aarch64
+[poc] assets=/var/folders/qb/kfst2zkx7fb1jj0q59yrgvgm0000gn/T/javafx-webview-poc-12093815015794378999
+Loading library jfxwebkit from resource failed: java.lang.UnsatisfiedLinkError: Can't load library: /Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/native-cache-bootstrap/libjfxwebkit.dylib
+java.lang.UnsatisfiedLinkError: Can't load library: /Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/native-cache-bootstrap/libjfxwebkit.dylib
+    at org.graalvm.nativeimage.builder/com.oracle.svm.core.jdk.NativeLibraries.loadLibraryAbsolute(NativeLibraries.java:105)
+    at java.base@25.0.2/java.lang.ClassLoader.loadLibrary(ClassLoader.java:143)
+    at java.base@25.0.2/java.lang.Runtime.load0(Runtime.java:767)
+    at java.base@25.0.2/java.lang.System.load(System.java:1646)
+    at com.sun.glass.utils.NativeLibLoader.installLibraryFromResource(NativeLibLoader.java:212)
+    at com.sun.glass.utils.NativeLibLoader.loadLibraryFromResource(NativeLibLoader.java:192)
+    at com.sun.glass.utils.NativeLibLoader.loadLibraryInternal(NativeLibLoader.java:134)
+    at com.sun.glass.utils.NativeLibLoader.loadLibrary(NativeLibLoader.java:55)
+    at com.sun.webkit.WebPage.<clinit>(WebPage.java:130)
+    at javafx.scene.web.WebEngine.<init>(WebEngine.java:852)
+    at javafx.scene.web.WebEngine.<init>(WebEngine.java:837)
+    at javafx.scene.web.WebView.<init>(WebView.java:275)
+    at poc.WebViewPoc.start(WebViewPoc.java:64)
+    at com.sun.javafx.application.LauncherImpl.lambda$launchApplication1$4(LauncherImpl.java:845)
+    at com.sun.javafx.application.PlatformImpl.lambda$runAndWait$0(PlatformImpl.java:449)
+    at com.sun.javafx.application.PlatformImpl.lambda$runLater$0(PlatformImpl.java:424)
+    at com.sun.glass.ui.InvokeLaterDispatcher$Future.run(InvokeLaterDispatcher.java:95)
+    at org.graalvm.nativeimage.foreign/com.oracle.svm.core.foreign.ForeignFunctionsRuntime.linkToNative(ForeignFunctionsRuntime.java:280)
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.linkToNative(MethodHandle.java:149)
+    at org.graalvm.nativeimage.builder/com.oracle.svm.core.methodhandles.MethodHandleIntrinsicImpl.execute(MethodHandleIntrinsicImpl.java:183)
+    at org.graalvm.nativeimage.builder/com.oracle.svm.core.methodhandles.Util_java_lang_invoke_MethodHandle.invokeInternal(Target_java_lang_invoke_MethodHandle.java:187)
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:103)
+    at java.base@25.0.2/java.lang.invoke.LambdaForm$NamedFunction.invokeWithArguments(LambdaForm.java:96)
+    at java.base@25.0.2/java.lang.invoke.LambdaForm.interpretName(LambdaForm.java:914)
+    at java.base@25.0.2/java.lang.invoke.LambdaForm.interpretWithArguments(LambdaForm.java:891)
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:110)
+    at org.graalvm.nativeimage.builder/com.oracle.svm.core.methodhandles.MethodHandleIntrinsicImpl.execute(MethodHandleIntrinsicImpl.java:179)
+    at org.graalvm.nativeimage.builder/com.oracle.svm.core.methodhandles.Util_java_lang_invoke_MethodHandle.invokeInternal(Target_java_lang_invoke_MethodHandle.java:187)
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:103)
+    at java.base@25.0.2/java.lang.invoke.LambdaForm$NamedFunction.invokeWithArguments(LambdaForm.java:96)
+    at java.base@25.0.2/java.lang.invoke.LambdaForm.interpretName(LambdaForm.java:914)
+    at java.base@25.0.2/java.lang.invoke.LambdaForm.interpretWithArguments(LambdaForm.java:891)
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:110)
+    at org.graalvm.nativeimage.builder/com.oracle.svm.core.methodhandles.MethodHandleIntrinsicImpl.execute(MethodHandleIntrinsicImpl.java:179)
+    at org.graalvm.nativeimage.builder/com.oracle.svm.core.methodhandles.Util_java_lang_invoke_MethodHandle.invokeInternal(Target_java_lang_invoke_MethodHandle.java:187)
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:103)
+    at java.base@25.0.2/java.lang.invoke.LambdaForm$NamedFunction.invokeWithArguments(LambdaForm.java:96)
+    at java.base@25.0.2/java.lang.invoke.LambdaForm.interpretName(LambdaForm.java:914)
+    at java.base@25.0.2/java.lang.invoke.LambdaForm.interpretWithArguments(LambdaForm.java:891)
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:110)
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:0)
+    at java.base@25.0.2/java.lang.invoke.Invokers$Holder.invokeExact_MT(Invokers$Holder)
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeWithArguments(MethodHandle.java:735)
+    at java.base@25.0.2/jdk.internal.foreign.abi.DowncallLinker.invokeInterpBindings(DowncallLinker.java:185)
+    at org.graalvm.nativeimage.builder/com.oracle.svm.core.methodhandles.Util_java_lang_invoke_MethodHandle.invokeInternal(Target_java_lang_invoke_MethodHandle.java:222)
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:103)
+    at org.graalvm.nativeimage.builder/com.oracle.svm.core.methodhandles.MethodHandleIntrinsicImpl.execute(MethodHandleIntrinsicImpl.java:179)
+    at org.graalvm.nativeimage.builder/com.oracle.svm.core.methodhandles.Util_java_lang_invoke_MethodHandle.invokeInternal(Target_java_lang_invoke_MethodHandle.java:187)
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:103)
+    at java.base@25.0.2/java.lang.invoke.LambdaForm$NamedFunction.invokeWithArguments(LambdaForm.java:96)
+    at java.base@25.0.2/java.lang.invoke.LambdaForm.interpretName(LambdaForm.java:914)
+    at java.base@25.0.2/java.lang.invoke.LambdaForm.interpretWithArguments(LambdaForm.java:891)
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:110)
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:0)
+    at poc.MacNativeBootstrap.run(MacNativeBootstrap.java:39)
+    at poc.Main.main(Main.java:12)
+    at java.base@25.0.2/java.lang.invoke.LambdaForm$DMH/sa346b79c.invokeStaticInit(LambdaForm$DMH)
+Exception in Application start method
+[poc] PASS assets-removed=true
+[poc] stop closeRequested=false exit=1
+Exception in thread "JavaFX Application Thread" java.lang.NoSuchMethodError: com.sun.glass.ui.Application.notifyWillHide()V
+    at org.graalvm.nativeimage.builder/com.oracle.svm.core.jni.functions.JNIFunctions$Support.getMethodID(JNIFunctions.java:1855)
+    at org.graalvm.nativeimage.builder/com.oracle.svm.core.jni.functions.JNIFunctions$Support.getMethodID(JNIFunctions.java:1840)
+    at org.graalvm.nativeimage.builder/com.oracle.svm.core.jni.functions.JNIFunctions.GetMethodID(JNIFunctions.java:437)
+    at org.graalvm.nativeimage.foreign/com.oracle.svm.core.foreign.ForeignFunctionsRuntime.linkToNative(ForeignFunctionsRuntime.java:280)
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.linkToNative(MethodHandle.java:149)
+    at org.graalvm.nativeimage.builder/com.oracle.svm.core.methodhandles.MethodHandleIntrinsicImpl.execute(MethodHandleIntrinsicImpl.java:183)
+    at org.graalvm.nativeimage.builder/com.oracle.svm.core.methodhandles.Util_java_lang_invoke_MethodHandle.invokeInternal(Target_java_lang_invoke_MethodHandle.java:187)
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:103)
+    at java.base@25.0.2/java.lang.invoke.LambdaForm$NamedFunction.invokeWithArguments(LambdaForm.java:96)
+    at java.base@25.0.2/java.lang.invoke.LambdaForm.interpretName(LambdaForm.java:914)
+    at java.base@25.0.2/java.lang.invoke.LambdaForm.interpretWithArguments(LambdaForm.java:891)
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:110)
+    at org.graalvm.nativeimage.builder/com.oracle.svm.core.methodhandles.MethodHandleIntrinsicImpl.execute(MethodHandleIntrinsicImpl.java:179)
+    at org.graalvm.nativeimage.builder/com.oracle.svm.core.methodhandles.Util_java_lang_invoke_MethodHandle.invokeInternal(Target_java_lang_invoke_MethodHandle.java:187)
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:103)
+    at java.base@25.0.2/java.lang.invoke.LambdaForm$NamedFunction.invokeWithArguments(LambdaForm.java:96)
+    at java.base@25.0.2/java.lang.invoke.LambdaForm.interpretName(LambdaForm.java:914)
+    at java.base@25.0.2/java.lang.invoke.LambdaForm.interpretWithArguments(LambdaForm.java:891)
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:110)
+    at org.graalvm.nativeimage.builder/com.oracle.svm.core.methodhandles.MethodHandleIntrinsicImpl.execute(MethodHandleIntrinsicImpl.java:179)
+    at org.graalvm.nativeimage.builder/com.oracle.svm.core.methodhandles.Util_java_lang_invoke_MethodHandle.invokeInternal(Target_java_lang_invoke_MethodHandle.java:187)
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:103)
+    at java.base@25.0.2/java.lang.invoke.LambdaForm$NamedFunction.invokeWithArguments(LambdaForm.java:96)
+    at java.base@25.0.2/java.lang.invoke.LambdaForm.interpretName(LambdaForm.java:914)
+    at java.base@25.0.2/java.lang.invoke.LambdaForm.interpretWithArguments(LambdaForm.java:891)
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:110)
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:0)
+    at java.base@25.0.2/java.lang.invoke.Invokers$Holder.invokeExact_MT(Invokers$Holder)
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeWithArguments(MethodHandle.java:735)
+    at java.base@25.0.2/jdk.internal.foreign.abi.DowncallLinker.invokeInterpBindings(DowncallLinker.java:185)
+    at org.graalvm.nativeimage.builder/com.oracle.svm.core.methodhandles.Util_java_lang_invoke_MethodHandle.invokeInternal(Target_java_lang_invoke_MethodHandle.java:222)
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:103)
+    at org.graalvm.nativeimage.builder/com.oracle.svm.core.methodhandles.MethodHandleIntrinsicImpl.execute(MethodHandleIntrinsicImpl.java:179)
+    at org.graalvm.nativeimage.builder/com.oracle.svm.core.methodhandles.Util_java_lang_invoke_MethodHandle.invokeInternal(Target_java_lang_invoke_MethodHandle.java:187)
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:103)
+    at java.base@25.0.2/java.lang.invoke.LambdaForm$NamedFunction.invokeWithArguments(LambdaForm.java:96)
+    at java.base@25.0.2/java.lang.invoke.LambdaForm.interpretName(LambdaForm.java:914)
+    at java.base@25.0.2/java.lang.invoke.LambdaForm.interpretWithArguments(LambdaForm.java:891)
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:110)
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:0)
+    at poc.MacNativeBootstrap.run(MacNativeBootstrap.java:39)
+    at poc.Main.main(Main.java:12)
+    at java.base@25.0.2/java.lang.invoke.LambdaForm$DMH/sa346b79c.invokeStaticInit(LambdaForm$DMH)
+2026-10-13 11:35:54.212 javafx-webview-poc[58295:7432566] GlassHelper error: _ApplicationNotifyWillHideMethod == NULL
+
+[ [ SegfaultHandler caught a segfault in thread 0x00000Exception in thread "poc-java-launcher" 0010ec3e5c0 ] ]
+siginfo: si_signo: 10, si_code: 1java.lang.RuntimeException: Exception in Application start method
+, si_addr: 0x0000007f88000030 (heapBase + 48)
+
+General purpose register values:
+  R0  0x000000010ec3e5c0 is a thread
+  R1  0x8000000000000001    at com.sun.javafx.application.LauncherImpl.launchApplication1(LauncherImpl.java:899)
+    at com.sun.javafx.application.LauncherImpl.lambda$launchApplication$0(LauncherImpl.java:202)
+    at java.base@25.0.2/java.lang.Thread.runWith(Thread.java:1487)
+    at java.base@25.0.2/java.lang.Thread.run(Thread.java:1474)
+    at org.graalvm.nativeimage.builder/com.oracle.svm.core.thread.PlatformThreads.threadStartRoutine(PlatformThreads.java:832)
+    at org.graalvm.nativeimage.builder/com.oracle.svm.core.thread.PlatformThreads.threadStartRoutine(PlatformThreads.java:808)
+is an unknown value
+  R2  0x0000000000000000
+  R3  0x0000007c88c4f930 is an unknown value
+  R4  0x00000Caused by: java.lang.UnsatisfiedLinkError: Can't load library: jfxwebkit | java.library.path = [.]
+    at org.graalvm.nativeimage.builder/com.oracle.svm.core.jdk.NativeLibraries.loadLibraryRelative(NativeLibraries.java:141)
+    at java.base@25.0.2/java.lang.ClassLoader.loadLibrary(ClassLoader.java:135)
+0   at java.base@25.0.2/java.lang.Runtime.loadLibrary0(Runtime.java:822)
+000 at java.base@25.0.2/java.lang.System.loadLibrary(System.java:1685)
+0000    at com.sun.glass.utils.NativeLibLoader.loadLibraryInternal(NativeLibLoader.java:162)
+393     at com.sun.glass.utils.NativeLibLoader.loadLibrary(NativeLibLoader.java:55)
+is an unknown value
+    at com.sun.webkit.WebPage.<clinit>(WebPage.java:130)
+R5  0x00    at javafx.scene.web.WebEngine.<init>(WebEngine.java:852)
+0   at javafx.scene.web.WebEngine.<init>(WebEngine.java:837)
+    at javafx.scene.web.WebView.<init>(WebView.java:275)
+00  at poc.WebViewPoc.start(WebViewPoc.java:64)
+0000    at com.sun.javafx.application.LauncherImpl.lambda$launchApplication1$4(LauncherImpl.java:845)
+0000    at com.sun.javafx.application.PlatformImpl.lambda$runAndWait$0(PlatformImpl.java:449)
+    at com.sun.javafx.application.PlatformImpl.lambda$runLater$0(PlatformImpl.java:424)
+0cc     at com.sun.glass.ui.InvokeLaterDispatcher$Future.run(InvokeLaterDispatcher.java:95)
+is an unknown value
+    at org.graalvm.nativeimage.foreign/com.oracle.svm.core.foreign.ForeignFunctionsRuntime.linkToNative(ForeignFunctionsRuntime.java:280)
+ R6  0x0000000  at java.base@25.0.2/java.lang.invoke.MethodHandle.linkToNative(MethodHandle.java:149)
+0   at org.graalvm.nativeimage.builder/com.oracle.svm.core.methodhandles.MethodHandleIntrinsicImpl.execute(MethodHandleIntrinsicImpl.java:183)
+0000    at org.graalvm.nativeimage.builder/com.oracle.svm.core.methodhandles.Util_java_lang_invoke_MethodHandle.invokeInternal(Target_java_lang_invoke_MethodHandle.java:187)
+0032    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:103)
+ is an unknown value
+  R7  0xffffffffb00007ff    at java.base@25.0.2/java.lang.invoke.LambdaForm$NamedFunction.invokeWithArguments(LambdaForm.java:96)
+ is an unknown value
+    at java.base@25.0.2/java.lang.invoke.LambdaForm.interpretName(LambdaForm.java:914)
+R8      at java.base@25.0.2/java.lang.invoke.LambdaForm.interpretWithArguments(LambdaForm.java:891)
+0x14f8bb5d6d5f00d0 is an unknown value
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:110)
+R9  0x  at org.graalvm.nativeimage.builder/com.oracle.svm.core.methodhandles.MethodHandleIntrinsicImpl.execute(MethodHandleIntrinsicImpl.java:179)
+000 at org.graalvm.nativeimage.builder/com.oracle.svm.core.methodhandles.Util_java_lang_invoke_MethodHandle.invokeInternal(Target_java_lang_invoke_MethodHandle.java:187)
+000 at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:103)
+7f88000000  at java.base@25.0.2/java.lang.invoke.LambdaForm$NamedFunction.invokeWithArguments(LambdaForm.java:96)
+is the heap base
+  R10   at java.base@25.0.2/java.lang.invoke.LambdaForm.interpretName(LambdaForm.java:914)
+0x00    at java.base@25.0.2/java.lang.invoke.LambdaForm.interpretWithArguments(LambdaForm.java:891)
+0000000 at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:110)
+000 at org.graalvm.nativeimage.builder/com.oracle.svm.core.methodhandles.MethodHandleIntrinsicImpl.execute(MethodHandleIntrinsicImpl.java:179)
+0000
+    at org.graalvm.nativeimage.builder/com.oracle.svm.core.methodhandles.Util_java_lang_invoke_MethodHandle.invokeInternal(Target_java_lang_invoke_MethodHandle.java:187)
+R11 0x0 at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:103)
+00  at java.base@25.0.2/java.lang.invoke.LambdaForm$NamedFunction.invokeWithArguments(LambdaForm.java:96)
+000 at java.base@25.0.2/java.lang.invoke.LambdaForm.interpretName(LambdaForm.java:914)
+000 at java.base@25.0.2/java.lang.invoke.LambdaForm.interpretWithArguments(LambdaForm.java:891)
+0000000
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:110)
+  R12 0x    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:0)
+00  at java.base@25.0.2/java.lang.invoke.Invokers$Holder.invokeExact_MT(Invokers$Holder)
+22a00000417393 is an unknown value  at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeWithArguments(MethodHandle.java:735)
+
+    at java.base@25.0.2/jdk.internal.foreign.abi.DowncallLinker.invokeInterpBindings(DowncallLinker.java:185)
+R13 0x0 at org.graalvm.nativeimage.builder/com.oracle.svm.core.methodhandles.Util_java_lang_invoke_MethodHandle.invokeInternal(Target_java_lang_invoke_MethodHandle.java:222)
+0   at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:103)
+22900000416b8e is an unknown value
+  R14   at org.graalvm.nativeimage.builder/com.oracle.svm.core.methodhandles.MethodHandleIntrinsicImpl.execute(MethodHandleIntrinsicImpl.java:179)
+0x00    at org.graalvm.nativeimage.builder/com.oracle.svm.core.methodhandles.Util_java_lang_invoke_MethodHandle.invokeInternal(Target_java_lang_invoke_MethodHandle.java:187)
+000 at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:103)
+00  at java.base@25.0.2/java.lang.invoke.LambdaForm$NamedFunction.invokeWithArguments(LambdaForm.java:96)
+00  at java.base@25.0.2/java.lang.invoke.LambdaForm.interpretName(LambdaForm.java:914)
+0017000 is an unknown value at java.base@25.0.2/java.lang.invoke.LambdaForm.interpretWithArguments(LambdaForm.java:891)
+
+    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:110)
+ R15    at java.base@25.0.2/java.lang.invoke.MethodHandle.invokeBasic(MethodHandle.java:0)
+0x0000000   at poc.MacNativeBootstrap.run(MacNativeBootstrap.java:39)
+0000000 at poc.Main.main(Main.java:12)
+1d is an unknown value  at java.base@25.0.2/java.lang.invoke.LambdaForm$DMH/sa346b79c.invokeStaticInit(LambdaForm$DMH)
+
+  R16 0x0000000189156154 is an unknown value
+  R17 0x00000001eaea1778 is an unknown value
+  R18 0x0000000000000000
+  R19 0x8000000000000001 is an unknown value
+  R20 0x000000010ec3e5c0 is a thread
+  R21 0x0000007c888c4060 is an unknown value
+  R22 0x000000010496b670 points into AOT compiled code com.oracle.svm.core.jni.JNIJavaCallTrampolineHolder.varargsJavaCallTrampoline(JNIJavaCallTrampolineHolder.java)
+  R23 0x0000007c8893c300 is an unknown value
+  R24 0x0000000000000000
+  R25 0x0000000000041400 is an unknown value
+  R26 0x0000001f0000001c is an unknown value
+  R27 0x000000016b5a35a8 points into the stack for thread 0x000000010ec3e5c0
+  R28 0x0000000000000000
+  R29 0x000000016b5a34f0 points into the stack for thread 0x000000010ec3e5c0
+  R30 0x0000000115465fa0 is an unknown value
+  SP  0x000000016b5a30a0 points into the stack for thread 0x000000010ec3e5c0
+  PC  0x000000010496b678 points into AOT compiled code com.oracle.svm.core.jni.JNIJavaCallTrampolineHolder.varargsJavaCallTrampoline(JNIJavaCallTrampolineHolder.java)
+
+Printing instructions (ip=0x000000010496b678):
+  0x000000010496b578: 0x1f 0x20 0x03 0xd5 0xf9 0x33 0x02 0x94 0x1f 0x20 0x03 0xd5 0xf7 0x33 0x02 0x94
+  0x000000010496b588: 0x1f 0x20 0x03 0xd5 0xf5 0x33 0x02 0x94 0x1f 0x20 0x03 0xd5 0xf3 0x33 0x02 0x94
+  0x000000010496b598: 0x1f 0x20 0x03 0xd5 0xf1 0x33 0x02 0x94 0x1f 0x20 0x03 0xd5 0xcc 0xcc 0xcc 0xcc
+  0x000000010496b5a8: 0xcc 0xcc 0xcc 0xcc 0xcc 0xcc 0xcc 0xcc 0xff 0xc3 0x00 0xd1 0xfd 0x7b 0x02 0xa9
+  0x000000010496b5b8: 0xe1 0x03 0x00 0x2a 0x80 0x43 0x40 0xf9 0xe0 0x00 0x00 0xb4 0x60 0x03 0x00 0x8b
+  0x000000010496b5c8: 0xfe 0x7d 0xff 0x97 0x1f 0x20 0x03 0xd5 0xfd 0x7b 0x42 0xa9 0xff 0xc3 0x00 0x91
+  0x000000010496b5d8: 0xc0 0x03 0x5f 0xd6 0xe1 0x2a 0x02 0x94 0x1f 0x20 0x03 0xd5 0xcc 0xcc 0xcc 0xcc
+  0x000000010496b5e8: 0xcc 0xcc 0xcc 0xcc 0xcc 0xcc 0xcc 0xcc 0xff 0xc3 0x00 0xd1 0xfd 0x7b 0x02 0xa9
+  0x000000010496b5f8: 0x80 0x47 0x40 0xf9 0x9f 0x47 0x00 0xf9 0x80 0x00 0x00 0xb5 0xfd 0x7b 0x42 0xa9
+  0x000000010496b608: 0xff 0xc3 0x00 0x91 0xc0 0x03 0x5f 0xd6 0xe1 0xc3 0x00 0x91 0x62 0x03 0x00 0x8b
+  0x000000010496b618: 0xe0 0x03 0x02 0xaa 0xc9 0x17 0x02 0x94 0x1f 0x20 0x03 0xd5 0xcc 0xcc 0xcc 0xcc
+  0x000000010496b628: 0xcc 0xcc 0xcc 0xcc 0xcc 0xcc 0xcc 0xcc 0x09 0x70 0x40 0xf9 0x29 0x01 0x02 0x8b
+  0x000000010496b638: 0x29 0x1d 0x40 0xf9 0x20 0x01 0x1f 0xd6 0x09 0x70 0x40 0xf9 0x29 0x01 0x03 0x8b
+  0x000000010496b648: 0x29 0x29 0x40 0xf9 0x20 0x01 0x1f 0xd6 0x09 0x70 0x40 0xf9 0x29 0x01 0x02 0x8b
+  0x000000010496b658: 0x29 0x21 0x40 0xf9 0x20 0x01 0x1f 0xd6 0x09 0x70 0x40 0xf9 0x29 0x01 0x03 0x8b
+  0x000000010496b668: 0x29 0x2d 0x40 0xf9 0x20 0x01 0x1f 0xd6 0x09 0x70 0x40 0xf9 0x29 0x01 0x02 0x8b
+> 0x000000010496b678: 0x29 0x19 0x40 0xf9 0x20 0x01 0x1f 0xd6 0x09 0x70 0x40 0xf9 0x29 0x01 0x03 0x8b
+  0x000000010496b688: 0x29 0x25 0x40 0xf9 0x20 0x01 0x1f 0xd6 0xff 0xc3 0x04 0xd1 0xfd 0x7b 0x12 0xa9
+  0x000000010496b698: 0xfc 0x6f 0x11 0xa9 0xe3 0x87 0x00 0xf9 0x00 0x07 0x00 0xb4 0xfc 0x03 0x00 0xaa
+  0x000000010496b6a8: 0x04 0x70 0x40 0xf9 0xfb 0x03 0x04 0xaa 0x84 0x23 0x41 0xb9 0x64 0x09 0x00 0x35
+  0x000000010496b6b8: 0xe4 0x07 0x00 0x32 0xe5 0x03 0x00 0x32 0x86 0x53 0x00 0x91 0xe7 0x03 0x04 0x2a
+  0x000000010496b6c8: 0xc5 0xfc 0xe7 0x88 0xff 0x00 0x04 0x6b 0xe4 0x17 0x9f 0x1a 0x64 0x08 0x00 0x34
+  0x000000010496b6d8: 0xee 0x3f 0x07 0xad 0xec 0x37 0x06 0xad 0xea 0x2f 0x05 0xad 0xe8 0x27 0x04 0xad
+  0x000000010496b6e8: 0xf9 0x6b 0x07 0xa9 0xf7 0x63 0x06 0xa9 0xf5 0x5b 0x05 0xa9 0xf3 0x53 0x04 0xa9
+  0x000000010496b6f8: 0xe0 0x87 0x02 0xa9 0xe0 0x03 0x02 0xaa 0xe2 0x1f 0x00 0xf9 0xef 0x7a 0x00 0x94
+  0x000000010496b708: 0x1f 0x20 0x03 0xd5 0x1f 0x00 0x1b 0xeb 0x00 0x09 0x00 0x54 0xe3 0x87 0x40 0xf9
+  0x000000010496b718: 0x60 0x00 0x40 0xfd 0x84 0x47 0x40 0xf9 0x9f 0x47 0x00 0xf9 0x1e 0x14 0x40 0xf9
+  0x000000010496b728: 0xe0 0x07 0x43 0xa9 0xe2 0x03 0x1f 0x2a 0xe4 0x13 0x00 0xf9 0xc0 0x03 0x3f 0xd6
+  0x000000010496b738: 0x1f 0x20 0x03 0xd5 0xe4 0x13 0x40 0xf9 0x84 0x47 0x00 0xf9 0xf3 0x07 0x00 0x32
+  0x000000010496b748: 0x89 0x53 0x00 0x91 0x33 0xfd 0x9f 0x88 0xf3 0x53 0x44 0xa9 0xf5 0x5b 0x45 0xa9
+  0x000000010496b758: 0xf7 0x63 0x46 0xa9 0xf9 0x6b 0x47 0xa9 0xfc 0x6f 0x51 0xa9 0xe8 0x27 0x44 0xad
+  0x000000010496b768: 0xea 0x2f 0x45 0xad 0xec 0x37 0x46 0xad 0xee 0x3f 0x47 0xad 0xfd 0x7b 0x52 0xa9
+
+Top of stack (sp=0x000000016b5a30a0):
+  0x000000016b5a3080: 0x000000010ec3e5c0 0x8000000000000001 0x000000016b5a34f0 0x0000000115465f90
+> 0x000000016b5a30a0: 0x0000000000000000 0x000000016b5a30a0 0x0000002000000000 0x0000000000320000
+  0x000000016b5a30c0: 0x00000001ebc35828 0x0000000000000000 0x000000016b5a31a0 0x000000018d3bafcc
+  0x000000016b5a30e0: 0x0000007c89004cb0 0x14f8bb5d6d5f00d0 0x00000001eb10bec8 0x0000000000000000
+  0x000000016b5a3100: 0x0000000000000000 0x0000000000000010 0x000000016b5a3150 0x00000001f68cf8f0
+  0x000000016b5a3120: 0x00000000c2000000 0x000000018d3c3130 0x00000001eb0da590 0x000000016b5a3148
+  0x000000016b5a3140: 0x00000001ebc35828 0x0000000000000000 0x000000016b5a3148 0x0000002020000000
+  0x000000016b5a3160: 0x0000000000000000 0x14f8bb5d6d5f00d0 0x0000000000000000 0x0000000000000010
+  0x000000016b5a3180: 0x000000016b5a31c0 0x000000018d390bac 0x000000016b5a31c0 0x000000018d38eaac
+  0x000000016b5a31a0: 0x0000000000000000 0x0000000000000000 0x0000000000000001 0x0000000000000010
+  0x000000016b5a31c0: 0x000000016b5a31e0 0x000000018d3b3bc8 0x0000000000000001 0x000000016b5a32e8
+  0x000000016b5a31e0: 0x000000016b5a32d0 0x000000018d3b4630 0x00000001f68cf8f0 0x00000000c2000000
+  0x000000016b5a3200: 0x000000018d545820 0x00000001eb0de7d0 0x000000010ec42290 0x000000016b5a3268
+  0x000000016b5a3220: 0x000000016b5a3248 0x0000007c890080c0 0x0000007c890080c0 0x0000000000000000
+  0x000000016b5a3240: 0x0000000000000000 0x0000000000000000 0x000000016b5a3248 0x0000002020000000
+  0x000000016b5a3260: 0x00000001eb10be00 0x0000000000000000 0x000000016b5a3268 0x0000003052000000
+  0x000000016b5a3280: 0x000000018d545804 0x000000018d545814 0x000000010ec42340 0x14f8bb5d6d5f00d0
+
+VM thread locals for the failing thread 0x000000010ec3e5c0:
+  0: JNIThreadLocalEnvironment.jniFunctions = (bytes) 0x0000007f8890a090
+  8: StackOverflowCheckImpl.stackBoundaryTL = (Word) 0x0000000000000001 (1)
+  16: SafepointCheckCounter.value = (int) 0x7fffffff (2147483647)
+  20: StatusSupport.status = (int) 0x00000001 (1)
+  24: ThreadLocalAllocation.regularTLAB = (bytes)
+    0x000000010ec3e5d8: 0x0000007f90494b40 0x0000007f90496be8
+    0x000000010ec3e5e8: 0x0000007f90496498 0x0000007f903f4000
+  56: PlatformThreads.currentThread = (Object) 0x0000007f88f19cb0
+    is an object of type java.lang.Thread
+  64: JavaFrameAnchors.lastAnchor = (Word) 0x000000016b5a5c98 (6096051352)
+  72: JavaThreads.currentVThreadId = (long) 0x0000000000000003 (3)
+  80: TlabSupport.allocatedBytesAvg = (bytes)
+    0x000000010ec3e610: 0x0000000000000000 0x0000000000000000
+    0x000000010ec3e620: 0x4041800000000000 0x0000000000000000
+  112: ExceptionUnwind.currentException = (Object) 0x0000000000000000
+  120: IdentityHashCodeSupport.hashCodeGeneratorTL = (Object) 0x0000007f903475d8
+    is an object of type java.util.SplittableRandom
+  128: JNIObjectHandles.handles = (Object) 0x0000007f901810b0
+    is an object of type com.oracle.svm.core.handles.ThreadLocalHandles
+  136: JNIThreadLocalPendingException.pendingException = (Object) 0x0000000000000000
+  144: JNIThreadLocalPrimitiveArrayViews.referencedArraysListHead = (Object) 0x0000000000000000
+  152: JNIThreadOwnedMonitors.ownedMonitors = (Object) 0x0000000000000000
+  160: NoAllocationVerifier.openVerifiers = (Object) 0x0000000000000000
+  168: RecurringCallbackTimer.exception = (Object) 0x0000000000000000
+  176: SubstrateDiagnostics.threadOnlyAttachedForCrashHandler = (bytes) 0x0000000000000000
+  184: ThreadLocalAllocation.allocatedAlignedBytes = (Word) 0x00000000000a8788 (690056)
+  192: ThreadLocalAllocation.allocatedUnalignedBytes = (Word) 0x0000000000020010 (131088)
+  200: TlabSupport.desiredSize = (Word) 0x0000000000002000 (8192)
+  208: TlabSupport.refillWasteLimit = (Word) 0x0000000000000080 (128)
+  216: TlabSupport.tlabAllocatedAlignedBytesBeforeLastGC = (Word) 0x0000000000000000 (0)
+  224: VMThreads.IsolateTL = (Word) 0x0000007f88000000 (547742547968)
+  232: VMThreads.OSThreadHandleTL = (Word) 0x00000001f6874880 (8431028352)
+  240: VMThreads.OSThreadIdTL = (Word) 0x0000000000000103 (259)
+  248: VMThreads.StackBase = (Word) 0x000000016b5a8000 (6096060416)
+  256: VMThreads.StackEnd = (Word) 0x000000016adac000 (6087688192)
+  264: VMThreads.StartedByCurrentIsolate = (bytes) 0x0000000000000000
+  272: VMThreads.nextTL = (Word) 0x0000000000000000 (0)
+  280: VMThreads.unalignedIsolateThreadMemoryTL = (Word) 0x000000010ec3e5a0 (4542686624)
+  288: ActionOnTransitionToJavaSupport.actionTL = (int) 0x00000000 (0)
+  292: ImplicitExceptions.implicitExceptionsAreFatal = (int) 0x00000000 (0)
+  296: StackOverflowCheckImpl.yellowZoneStateTL = (int) 0x7efefefe (2130640638)
+  300: StatusSupport.safepointBehaviorTL = (int) 0x00000001 (1)
+  304: ThreadSuspendSupport.suspended = (int) 0x00000000 (0)
+  308: TlabSupport.gcWaste = (int) 0x00000000 (0)
+  312: TlabSupport.numberOfRefills = (int) 0x00000053 (83)
+  316: TlabSupport.refillWaste = (int) 0x000008b8 (2232)
+  320: TlabSupport.slowAllocations = (int) 0x0000000b (11)
+
+Java frame anchors for the failing thread 0x000000010ec3e5c0:
+  Anchor 0x000000016b5a5c98 LastJavaSP 0x000000016b5a5c80 LastJavaIP 0x00000001049170d4
+
+Stacktrace for the failing thread 0x000000010ec3e5c0 (A=AOT compiled, J=JIT compiled, D=deoptimized, i=inlined, C=native):
+  A  SP 0x000000016b5a30a0 IP 0x000000010496b678 size=16    com.oracle.svm.core.jni.JNIJavaCallTrampolineHolder.varargsJavaCallTrampoline(JNIJavaCallTrampolineHolder.java)
+  SP 0x000000016b5a30b0 IP 0x000000016b5a30a0 size=?       IP is not within Java code. Aborting stack trace printing.
+
+  Starting the stack walk in a possible caller (sp + 9280):
+  A  SP 0x000000016b5a54e0 IP 0x0000000105da7c2c size=64    org.graalvm.collections.EconomicMapImpl.findLinear(EconomicMapImpl.java:262)
+  A  SP 0x000000016b5a5520 IP 0x0000000105da71d0 size=48    org.graalvm.collections.EconomicMapImpl.find(EconomicMapImpl.java:255)
+  SP 0x000000016b5a5550 IP 0x00000001fe2cbd48 size=?       IP is not within Java code. Aborting stack trace printing.
+
+Threads:
+  0x000000010ec69b00 STATUS_IN_NATIVE (ALLOW_SAFEPOINT) "InvokeLaterDispatcher" - 0x0000007f90313090, daemon, stack(0x000000016b980000,0x000000016ba03000), OS thread 22555 (0x000000016ba03000)
+  0x000000010ec3f500 STATUS_IN_NATIVE (ALLOW_SAFEPOINT) "Signal Dispatcher" - 0x0000007f90181f10, daemon, stack(0x000000016b638000,0x000000016b6bb000), OS thread 6403 (0x000000016b6bb000)
+  0x000000010ec3e7c0 STATUS_IN_NATIVE (ALLOW_SAFEPOINT) "Reference Handler" - 0x0000007f88f191e8, daemon, stack(0x000000016b5ac000,0x000000016b62f000), OS thread 2563 (0x000000016b62f000)
+  0x000000010ec3e5c0 STATUS_IN_JAVA (PREVENT_VM_FROM_REACHING_SAFEPOINT) "JavaFX Application Thread" - 0x0000007f88f19cb0, stack(0x000000016adac000,0x000000016b5a8000), OS thread 259 (0x00000001f6874880)
+
+No VMOperation in progress
+
+The 30 most recent VM operation status changes:
+
+VM mutexes:
+  mutex "RealLog.backTracePrinterMutex" is unlocked.
+  mutex "freeList" is unlocked.
+  mutex "mainVMOperationControlWorkQueue" is unlocked.
+  mutex "referencePendingList" is unlocked.
+  mutex "thread" is unlocked.
+
+Build time information:
+  Version: GraalVM CE 25.0.2+10.1 (serial gc), JDK 25.0.2+10
+  Platform: darwin/aarch64
+  Page size: 65536
+  Supports isolates: true
+  Container support: false
+  Object reference size: 8
+  CPU features used for AOT compiled code: FP, ASIMD, CRC32, LSE
+
+Runtime information:
+  Isolate id: 0
+  Heap base: 0x0000007f88000000
+  CGlobalData base: 0x00000001062e4000
+  Containerized: false
+  CPU cores (OS): 12
+  Memory (OS): 16384M
+  Page size: 16384
+  VM uptime: 1.642s
+  Current timestamp: 1791862554214
+  AOT compiled code: 0x000000010485c000 - 0x00000001062baa9f
+
+Command line:
+
+Heap settings and statistics:
+  Reserved hub pointer bits: 0b111
+  Aligned chunk size: 524288
+  Large array threshold: 131072
+  Incremental collections: 0
+  Complete collections: 0
+
+Heap usage:
+  Eden: 3.18M (0.00M in 0 aligned chunks, 0.56M in 2 unaligned chunks)
+  Old: 0.00M (0.00M in 0 aligned chunks, 0.00M in 0 unaligned chunks)
+
+GC policy:
+  Name: adaptive
+  Max eden size: 4564451328
+  Max survivor size: 1526726656
+  Max young size: 4581228544
+  Max old size: 9162457088
+  Max heap size: 13743685632
+
+Image heap boundaries:
+  ReadOnly: 0x0000007f88080838 - 0x0000007f8890a080
+  ReadOnly Relocatables: 0x0000007f8890a080 - 0x0000007f88a7a5a0
+  Writeable Patched: 0x0000000000000000 - 0x0000000000000000
+  Writable: 0x0000007f88a7a5a0 - 0x0000007f89315718
+  Writable Huge: 0x0000007f893804d0 - 0x0000007f894119c8
+  ReadOnly Huge: 0x0000007f89444e38 - 0x0000007f90131f90
+
+Heap chunks: E=eden, S=survivor, O=old, F=free; A=aligned chunk, U=unaligned chunk; T=to space
+  |0x0000007f88080000|0x0000007f88080838, 0x0000007f88100000, 0x0000007f88100000|100%|  I|A| |0
+  |0x0000007f88100000|0x0000007f88100838, 0x0000007f88180000, 0x0000007f88180000|100%|  I|A| |0
+  |0x0000007f88180000|0x0000007f88180838, 0x0000007f88200000, 0x0000007f88200000|100%|  I|A| |0
+  |0x0000007f88200000|0x0000007f88200838, 0x0000007f88280000, 0x0000007f88280000|100%|  I|A| |0
+  |0x0000007f88280000|0x0000007f88280838, 0x0000007f88300000, 0x0000007f88300000|100%|  I|A| |0
+  |0x0000007f88300000|0x0000007f88300838, 0x0000007f88380000, 0x0000007f88380000|100%|  I|A| |0
+  |0x0000007f88380000|0x0000007f88380838, 0x0000007f88400000, 0x0000007f88400000|100%|  I|A| |0
+  |0x0000007f88400000|0x0000007f88400838, 0x0000007f88480000, 0x0000007f88480000|100%|  I|A| |0
+  |0x0000007f88480000|0x0000007f88480838, 0x0000007f88500000, 0x0000007f88500000|100%|  I|A| |0
+  |0x0000007f88500000|0x0000007f88500838, 0x0000007f88580000, 0x0000007f88580000|100%|  I|A| |0
+  |0x0000007f88580000|0x0000007f88580838, 0x0000007f885ffff8, 0x0000007f88600000| 99%|  I|A| |0
+  |0x0000007f88600000|0x0000007f88600838, 0x0000007f8867fff8, 0x0000007f88680000| 99%|  I|A| |0
+  |0x0000007f88680000|0x0000007f88680838, 0x0000007f886ffff8, 0x0000007f88700000| 99%|  I|A| |0
+  |0x0000007f88700000|0x0000007f88700838, 0x0000007f8877fff8, 0x0000007f88780000| 99%|  I|A| |0
+  |0x0000007f88780000|0x0000007f88780838, 0x0000007f887ffff8, 0x0000007f88800000| 99%|  I|A| |0
+  |0x0000007f88800000|0x0000007f88800838, 0x0000007f8887fff8, 0x0000007f88880000| 99%|  I|A| |0
+  |0x0000007f88880000|0x0000007f88880838, 0x0000007f88900000, 0x0000007f88900000|100%|  I|A| |0
+  |0x0000007f88900000|0x0000007f88900838, 0x0000007f8897fff0, 0x0000007f88980000| 99%|  I|A| |0
+  |0x0000007f88980000|0x0000007f88980838, 0x0000007f88a00000, 0x0000007f88a00000|100%|  I|A| |0
+  |0x0000007f88a00000|0x0000007f88a00838, 0x0000007f88a80000, 0x0000007f88a80000|100%|  I|A| |0
+  |0x0000007f88a80000|0x0000007f88a80838, 0x0000007f88b00000, 0x0000007f88b00000|100%|  I|A| |0
+  |0x0000007f88b00000|0x0000007f88b00838, 0x0000007f88b80000, 0x0000007f88b80000|100%|  I|A| |0
+  |0x0000007f88b80000|0x0000007f88b80838, 0x0000007f88c00000, 0x0000007f88c00000|100%|  I|A| |0
+  |0x0000007f88c00000|0x0000007f88c00838, 0x0000007f88c80000, 0x0000007f88c80000|100%|  I|A| |0
+  |0x0000007f88c80000|0x0000007f88c80838, 0x0000007f88d00000, 0x0000007f88d00000|100%|  I|A| |0
+  |0x0000007f88d00000|0x0000007f88d00838, 0x0000007f88d80000, 0x0000007f88d80000|100%|  I|A| |0
+  |0x0000007f88d80000|0x0000007f88d80838, 0x0000007f88e00000, 0x0000007f88e00000|100%|  I|A| |0
+  |0x0000007f88e00000|0x0000007f88e00838, 0x0000007f88e80000, 0x0000007f88e80000|100%|  I|A| |0
+  |0x0000007f88e80000|0x0000007f88e80838, 0x0000007f88f00000, 0x0000007f88f00000|100%|  I|A| |0
+  |0x0000007f88f00000|0x0000007f88f00838, 0x0000007f88f80000, 0x0000007f88f80000|100%|  I|A| |0
+  |0x0000007f88f80000|0x0000007f88f80838, 0x0000007f89000000, 0x0000007f89000000|100%|  I|A| |0
+  |0x0000007f89000000|0x0000007f89000838, 0x0000007f89080000, 0x0000007f89080000|100%|  I|A| |0
+  |0x0000007f89080000|0x0000007f89080838, 0x0000007f89100000, 0x0000007f89100000|100%|  I|A| |0
+  |0x0000007f89100000|0x0000007f89100838, 0x0000007f89180000, 0x0000007f89180000|100%|  I|A| |0
+  |0x0000007f89180000|0x0000007f89180838, 0x0000007f89200000, 0x0000007f89200000|100%|  I|A| |0
+  |0x0000007f89200000|0x0000007f89200838, 0x0000007f89280000, 0x0000007f89280000|100%|  I|A| |0
+  |0x0000007f89280000|0x0000007f89280838, 0x0000007f89300000, 0x0000007f89300000|100%|  I|A| |0
+  |0x0000007f89300000|0x0000007f89300838, 0x0000007f89315718, 0x0000007f89380000| 16%|  I|A| |0
+  |0x0000007f89380000|0x0000007f893804d0, 0x0000007f894119c8, 0x0000007f894119c8|100%|  I|U| |0
+  |0x0000007f894119c8|0x0000007f89444e38, 0x0000007f8facaae8, 0x0000007f8facaae8|100%|  I|U| |0
+  |0x0000007f8facaae8|0x0000007f8facbdc8, 0x0000007f8fd1fc68, 0x0000007f8fd1fc68|100%|  I|U| |0
+  |0x0000007f8fd1fc68|0x0000007f8fd21d30, 0x0000007f90131f90, 0x0000007f90131f90|100%|  I|U| |0
+  |0x0000007f90480000|0x0000007f90480838, 0x0000007f904a4e18, 0x0000007f90500000| 28%|  E|A| |0
+  |0x0000007f90300000|0x0000007f90300838, 0x0000007f9037fe08, 0x0000007f90380000| 99%|  E|A| |0
+  |0x0000007f90280000|0x0000007f90280838, 0x0000007f90300000, 0x0000007f90300000|100%|  E|A| |0
+  |0x0000007f90200000|0x0000007f90200838, 0x0000007f90280000, 0x0000007f90280000|100%|  E|A| |0
+  |0x0000007f90180000|0x0000007f90180838, 0x0000007f901ffbe0, 0x0000007f90200000| 99%|  E|A| |0
+  |0x0000007f903f4000|0x0000007f903f4148, 0x0000007f90414158, 0x0000007f90414158|100%|  E|U| |0
+  |0x0000007f90140000|0x0000007f90140148, 0x0000007f90160158, 0x0000007f90160158|100%|  E|U| |0
+  |0x0000007f90380000|0x0000007f903803c8, 0x0000007f903f03d8, 0x0000007f903f03d8|100%|  E|U| |0
+
+Segfault detected, aborting process. Use '-XX:-InstallSegfaultHandler' to disable the segfault handler at run time and create a core dump instead. Rebuild with '-R:-InstallSegfaultHandler' to disable the handler permanently at build time.
+
+Whitespace-normalized for review; original capture: native-bootstrap-failure.log.gz
+Raw SHA256: 8c8c9928b8f1a055049cceaf64f8717cb9e4c69458154c4e9067979f24204c7e

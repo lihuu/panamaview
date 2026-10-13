@@ -1,6 +1,10 @@
 # 技术探索：JavaFX WebView 与 GraalVM Native Image
 
-状态：已完成首轮资料调研，尚未启动 PoC；不代表 JavaFX WebView 的 Native Image 兼容性已得到验证。
+状态：已执行独立 macOS 原生 PoC。本机窗口、页面、双向 Bridge、清理及隔离运行已通过，
+但需要启动适配与原生库补丁；全新未安装 JDK 的机器和长期稳定性尚未验证。
+
+实际代码、构建与运行日志、补丁条件及验收边界见
+[macOS PoC](../experiments/javafx-webview-native-image/README.md)。
 
 下一步调研的问题、证据要求与交付格式见
 [调研任务说明](javafx-webview-research-brief.md)，可直接交给调研 agent。
@@ -194,8 +198,8 @@ Benchmark 脚本、测试页面、环境信息和原始结果一并保存，使�
 
 1. 继续完善现有 FFM + WKWebView 实现。
 2. 暂不引入 JavaFX 依赖，不改变当前技术路线。
-3. 后续建立独立 JavaFX WebView Native Image PoC。
-4. PoC 成功后再建立统一 Benchmark，并评估工程维护成本。
+3. 已建立独立 macOS JavaFX WebView Native Image PoC，按实际运行证据评估适配条件。
+4. 完成剩余分发验证、明确适配成本和预算后，再决定统一 Benchmark 的范围。
 5. 根据实测结果决定是否调整技术路线。
 
 **以 Native Image 为优先约束，以跨平台维护成本为重要考量，以可重复的 Benchmark

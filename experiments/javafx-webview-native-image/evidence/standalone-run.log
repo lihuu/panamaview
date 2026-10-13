@@ -1,0 +1,19 @@
+[poc] mac-native-bootstrap CFRunLoop on initial thread
+Oct 13, 2026 11:54:32 AM com.sun.javafx.application.PlatformImpl startup
+WARNING: Unsupported JavaFX configuration: classes were loaded from 'unnamed module @4ac9534'
+[poc] environment java=25.0.2 javafx=25.0.2+4 image=runtime os=Mac OS X/aarch64
+[poc] assets=/Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/isolated-package-qoblu7rm/tmp/javafx-webview-poc-1952432908322713055
+[poc] PASS stage-showing=true
+[poc] PASS local-html=LOCAL_HTML_OK
+[poc] PASS external-script=loaded
+[poc] PASS external-css=rgb(18, 32, 47)
+[poc] PASS java-to-javascript=js:java-nonce-42
+[poc] javascript-to-java message=js-nonce-73
+[poc] PASS javascript-to-java-return=java:js-nonce-73
+[poc] PASS java-callback-count=1
+[poc] PASS rendered-page-state=java:js-nonce-73
+[poc] PASS snapshot=/Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/standalone.ppm pixels=780x480
+[poc] close-request
+[poc] PASS assets-removed=true
+[poc] stop closeRequested=true exit=0
+[poc] launch-returned exit=0

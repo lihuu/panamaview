@@ -1,0 +1,3 @@
+JVM and isolated Native Image PPM pixel captures are byte-identical.
+SHA256=5668bcfb421a5b1a3d00afa426738160c4cf218b737a35372e1ad8562110d099
+Dimensions=780x480 RGB

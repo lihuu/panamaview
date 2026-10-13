@@ -1,0 +1,44 @@
+Can't examine target process's malloc zone WebKit Malloc_0x12f6127c8, so memory analysis will be incomplete or incorrect.
+Reason: failed to resolve canonical path for /Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/isolated-package-qoblu7rm/runtime-cache/libjfxwebkit.dylib in dyld shared cache.
+
+Process:         javafx-webview-poc [60803]
+Path:            /Users/USER/*/javafx-webview-poc
+Load Address:    0x1023c0000
+Identifier:      javafx-webview-poc
+Version:         0
+Code Type:       ARM64
+Platform:        macOS
+Parent Process:  Python [60802]
+Target Type:     live task
+
+Date/Time:       2026-10-13 11:54:34.629 +0800
+Launch Time:     2026-10-13 11:54:31.204 +0800
+OS Version:      macOS 27.2 (26B5101f)
+Report Version:  7
+Analysis Tool:   /usr/bin/vmmap
+
+Physical footprint:         141.4M
+Physical footprint (peak):  141.5M
+Idle exit:                  untracked
+Reason: failed to resolve canonical path for /Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/isolated-package-qoblu7rm/runtime-cache/libjfxwebkit.dylib in dyld shared cache.
+__TEXT                      112c7c000-112c84000    [   32K    32K     0K     0K] r-x/rwx SM=COW          /Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/isolated-package-qoblu7rm/runtime-cache/libprism_es2.dylib
+__DATA_CONST                112c84000-112c88000    [   16K    16K    16K     0K] r--/rwx SM=COW          /Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/isolated-package-qoblu7rm/runtime-cache/libprism_es2.dylib
+__LINKEDIT                  112c8c000-112c94000    [   32K    16K     0K     0K] r--/rwx SM=COW          /Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/isolated-package-qoblu7rm/runtime-cache/libprism_es2.dylib
+__TEXT                      114b3c000-114b84000    [  288K   272K     0K     0K] r-x/rwx SM=COW          /Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/isolated-package-qoblu7rm/runtime-cache/libglass.dylib
+__DATA_CONST                114b84000-114b88000    [   16K    16K    16K     0K] r--/rwx SM=COW          /Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/isolated-package-qoblu7rm/runtime-cache/libglass.dylib
+__LINKEDIT                  114b98000-114bb0000    [   96K    48K     0K     0K] r--/rwx SM=COW          /Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/isolated-package-qoblu7rm/runtime-cache/libglass.dylib
+__TEXT                      1236c8000-1236d0000    [   32K    32K     0K     0K] r-x/rwx SM=COW          /Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/isolated-package-qoblu7rm/runtime-cache/libjavafx_font.dylib
+__DATA_CONST                1236d0000-1236d4000    [   16K    16K    16K     0K] r--/rwx SM=COW          /Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/isolated-package-qoblu7rm/runtime-cache/libjavafx_font.dylib
+__LINKEDIT                  1236d8000-1236e4000    [   48K    16K     0K     0K] r--/rwx SM=COW          /Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/isolated-package-qoblu7rm/runtime-cache/libjavafx_font.dylib
+__TEXT                      125c70000-12bebc000    [ 98.3M  28.2M     0K     0K] r-x/rwx SM=COW          /Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/isolated-package-qoblu7rm/runtime-cache/libjfxwebkit.dylib
+__DATA_CONST                12bebc000-12c168000    [ 2736K  2736K  2736K     0K] r--/rwx SM=COW          /Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/isolated-package-qoblu7rm/runtime-cache/libjfxwebkit.dylib
+__LINKEDIT                  12c1cc000-12c294000    [  800K   128K     0K     0K] r--/rwx SM=COW          /Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/isolated-package-qoblu7rm/runtime-cache/libjfxwebkit.dylib
+__DATA                      112c88000-112c8c000    [   16K    16K    16K     0K] rw-/rwx SM=COW          /Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/isolated-package-qoblu7rm/runtime-cache/libprism_es2.dylib
+__DATA                      114b88000-114b94000    [   48K    48K    48K     0K] rw-/rwx SM=COW          /Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/isolated-package-qoblu7rm/runtime-cache/libglass.dylib
+__DATA                      114b94000-114b98000    [   16K    16K    16K     0K] rw-/rwx SM=PRV          /Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/isolated-package-qoblu7rm/runtime-cache/libglass.dylib
+__DATA                      1236d4000-1236d8000    [   16K    16K    16K     0K] rw-/rwx SM=COW          /Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/isolated-package-qoblu7rm/runtime-cache/libjavafx_font.dylib
+__DATA                      12c168000-12c194000    [  176K   128K   128K     0K] rw-/rwx SM=COW          /Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/isolated-package-qoblu7rm/runtime-cache/libjfxwebkit.dylib
+__DATA                      12c194000-12c1cc000    [  224K   224K   224K     0K] rw-/rwx SM=PRV          /Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/isolated-package-qoblu7rm/runtime-cache/libjfxwebkit.dylib
+
+Full raw capture: standalone-loaded-libraries.txt.gz
+Raw SHA256: 9bbd7648a38129fbbf925c6783ca75c40e01d5c5dcdc1f2c0dee641f36928664

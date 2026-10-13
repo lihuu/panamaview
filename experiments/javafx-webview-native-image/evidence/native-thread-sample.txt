@@ -1,0 +1,103 @@
+Analysis of sampling javafx-webview-poc (pid 57911) every 1 millisecond
+Process:         javafx-webview-poc [57911]
+Path:            /Users/USER/*/javafx-webview-poc
+Load Address:    0x1028dc000
+Identifier:      javafx-webview-poc
+Version:         0
+Code Type:       ARM64
+Platform:        macOS
+Parent Process:  Python [57909]
+Target Type:     live task
+
+Date/Time:       2026-10-13 11:32:04.093 +0800
+Launch Time:     2026-10-13 11:32:04.032 +0800
+OS Version:      macOS 27.2 (26B5101f)
+Report Version:  7
+Analysis Tool:   /usr/bin/sample
+
+Physical footprint:         10.5M
+Physical footprint (peak):  10.5M
+Idle exit:                  untracked
+----
+
+Call graph:
+    2318 Thread_7428710   DispatchQueue_1: com.apple.main-thread  (serial)
+    + 2318 ???  (in javafx-webview-poc)  load address 0x1028dc000 + 0x15a934  [0x102a36934]
+    +   2318 _pthread_cond_wait  (in libsystem_pthread.dylib) + 980  [0x1892cbf0c]
+    +     2318 __psynch_cvwait  (in libsystem_kernel.dylib) + 8  [0x18928a420]
+    2318 Thread_7428722: ference Handler
+    + 2318 thread_start  (in libsystem_pthread.dylib) + 8  [0x1892c6c28]
+    +   2318 ???  (in javafx-webview-poc)  load address 0x1028dc000 + 0x15a02c  [0x102a3602c]
+    +     2318 _pthread_cond_wait  (in libsystem_pthread.dylib) + 980  [0x1892cbf0c]
+    +       2318 __psynch_cvwait  (in libsystem_kernel.dylib) + 8  [0x18928a420]
+    2318 Thread_7428723: gnal Dispatcher
+    + 2318 thread_start  (in libsystem_pthread.dylib) + 8  [0x1892c6c28]
+    +   2318 ???  (in javafx-webview-poc)  load address 0x1028dc000 + 0x155014  [0x102a31014]
+    +     2318 ???  (in javafx-webview-poc)  load address 0x1028dc000 + 0x1a0c1e8  [0x1042e81e8]
+    +       2318 sem_wait  (in libsystem_kernel.dylib) + 8  [0x189295c20]
+    2318 Thread_7428724: JavaFX-Launcher
+    + 2318 thread_start  (in libsystem_pthread.dylib) + 8  [0x1892c6c28]
+    +   1439 ???  (in javafx-webview-poc)  load address 0x1028dc000 + 0x295bc8  [0x102b71bc8]
+    +   ! 1434 Java_com_sun_glass_ui_mac_MacApplication__1runLoop  (in libglass.dylib) + 196  [0x11336bd98]
+    +   ! : 1434 usleep  (in libsystem_c.dylib) + 68  [0x1892f1cc0]
+    +   ! :   1434 nanosleep  (in libsystem_c.dylib) + 220  [0x1892f1da8]
+    +   ! :     1434 __semwait_signal  (in libsystem_kernel.dylib) + 8,16  [0x18928a228,0x18928a230]
+    +   ! 5 Java_com_sun_glass_ui_mac_MacApplication__1runLoop  (in libglass.dylib) + 204  [0x11336bda0]
+    +   !   3 ???  (in libglass.dylib)  load address 0x113360000 + 0xb39c  [0x11336b39c]
+    +   !   2 objc_msgSend  (in libobjcMsgSend.dylib) + 0,80  [0x190d48800,0x190d48850]
+    +   722 ???  (in javafx-webview-poc)  load address 0x1028dc000 + 0x15a934  [0x102a36934]
+    +   ! 722 _pthread_cond_wait  (in libsystem_pthread.dylib) + 980  [0x1892cbf0c]
+    +   !   722 __psynch_cvwait  (in libsystem_kernel.dylib) + 8  [0x18928a420]
+    +   154 ???  (in javafx-webview-poc)  load address 0x1028dc000 + 0x1568ac  [0x102a328ac]
+    +   ! 154 dyld4::APIs::dlopen(char const*, int)  (in dyld) + 120  [0x1891e6ce0]
+    +   !   154 dyld4::APIs::dlopen_from(char const*, int, void*)  (in dyld) + 596  [0x1891e6fd8]
+    +   !     154 dyld4::APIs::dlopen_from(char const*, int, void*)::$_0::operator()() const  (in dyld) + 272  [0x1891f2348]
+    +   !       154 dyld4::RuntimeLocks::withLoadersWriteLockAndProtectedStack<dyld4::APIs::dlopen_from(char const*, int, void*)::$_0::operator()() const::'lambda'()>(dyld4::APIs::dlopen_from(char const*, int, void*)::$_0::operator()() const::'lambda'())::'lambda'()::operator()() const  (in dyld) + 184  [0x1891f2e34]
+    +   !         151 dyld4::APIs::dlopen_from(char const*, int, void*)::$_0::operator()() const::'lambda'()::operator()() const  (in dyld) + 312  [0x1891f2fcc]
+    +   !         : 151 dyld4::Loader::getLoader(Diagnostics&, dyld4::RuntimeState&, char const*, dyld4::Loader::LoadOptions const&, bool)  (in dyld) + 1036  [0x18921fff4]
+    +   !         :   151 dyld4::Loader::forEachPath(Diagnostics&, dyld4::RuntimeState&, char const*, dyld4::Loader::LoadOptions const&, void (char const*, dyld4::ProcessConfig::PathOverrides::Type, bool&) block_pointer)  (in dyld) + 332  [0x18921f6d8]
+    +   !         :     151 dyld4::ProcessConfig::PathOverrides::forEachPathVariant(CString, mach_o::Platform, bool, bool, bool&, void (char const*, dyld4::ProcessConfig::PathOverrides::Type, bool&) block_pointer) const  (in dyld) + 1700  [0x189202fa0]
+    +   !         :       151 dyld4::Loader::forEachResolvedAtPathVar(dyld4::RuntimeState&, char const*, dyld4::Loader::LoadOptions const&, dyld4::ProcessConfig::PathOverrides::Type, bool&, void (char const*, dyld4::ProcessConfig::PathOverrides::Type, bool&) block_pointer)  (in dyld) + 788  [0x18921fba8]
+    +   !         :         151 invocation function for block in dyld4::Loader::getLoader(Diagnostics&, dyld4::RuntimeState&, char const*, dyld4::Loader::LoadOptions const&, bool)  (in dyld) + 3048  [0x189220fd0]
+    +   !         :           151 dyld4::Loader::makeDiskLoader(Diagnostics&, dyld4::RuntimeState&, char const*, dyld4::Loader::LoadOptions const&, bool, unsigned int)  (in dyld) + 188  [0x18921f42c]
+    +   !         :             149 dyld4::JustInTimeLoader::makeJustInTimeLoaderDisk(Diagnostics&, dyld4::RuntimeState&, char const*, dyld4::Loader::LoadOptions const&, bool, unsigned int)  (in dyld) + 1532  [0x18921de38]
+    +   !         :             | 149 dyld4::JustInTimeLoader::withRegions(mach_o::UnsafeHeader const*, void (std::span<dyld4::Loader::Region const, 18446744073709551615ul>) block_pointer)  (in dyld) + 304  [0x18921d4ec]
+    +   !         :             |   149 invocation function for block in dyld4::JustInTimeLoader::makeJustInTimeLoaderDisk(Diagnostics&, dyld4::RuntimeState&, char const*, dyld4::Loader::LoadOptions const&, bool, unsigned int)  (in dyld) + 84  [0x18921debc]
+    +   !         :             |     149 dyld4::Loader::mapSegments(Diagnostics&, dyld4::RuntimeState&, char const*, int, unsigned long long, dyld4::Loader::CodeSignatureInFile const&, bool, std::span<dyld4::Loader::Region const, 18446744073709551615ul>, bool, bool, dyld4::Loader::FileValidationInfo const&)  (in dyld) + 308  [0x189221b20]
+    +   !         :             |       149 dyld4::SyscallDelegate::fcntl(int, int, void*) const  (in dyld) + 32  [0x1891f7890]
+    +   !         :             |         149 fcntl  (in dyld) + 88  [0x1891ce368]
+    +   !         :             |           149 __fcntl  (in dyld) + 8  [0x1891ce4c8]
+    +   !         :             2 dyld4::JustInTimeLoader::makeJustInTimeLoaderDisk(Diagnostics&, dyld4::RuntimeState&, char const*, dyld4::Loader::LoadOptions const&, bool, unsigned int)  (in dyld) + 1272  [0x18921dd34]
+    +   !         :               2 dyld4::SyscallDelegate::registerSignature(Diagnostics&, char const*, char const*, int, unsigned long long, unsigned int, unsigned int) const  (in dyld) + 168  [0x1891f79b0]
+    +   !         :                 2 fcntl  (in dyld) + 88  [0x1891ce368]
+    +   !         :                   2 __fcntl  (in dyld) + 8  [0x1891ce4c8]
+    +   !         2 dyld4::APIs::dlopen_from(char const*, int, void*)::$_0::operator()() const::'lambda'()::operator()() const  (in dyld) + 2716  [0x1891f3930]
+    +   !         : 2 dyld4::RuntimeState::notifyDebuggerLoad(std::span<dyld4::Loader const*, 18446744073709551615ul> const&)  (in dyld) + 552  [0x18920bc14]
+    +   !         :   2 dyld4::ExternallyViewableState::addImages(lsl::Allocator&, lsl::Allocator&, std::span<dyld4::ExternallyViewableState::ImageInfo, 18446744073709551615ul> const&)  (in dyld) + 1060  [0x189216cdc]
+    +   !         :     2 dyld4::ExternallyViewableState::triggerNotifications(dyld_image_mode, unsigned int, dyld_image_info const*)  (in dyld) + 304  [0x18921663c]
+    +   !         :       2 dyld4::RemoteNotificationResponder::blockOnSynchronousEvent(unsigned int)  (in dyld) + 48  [0x1892398fc]
+    +   !         :         2 dyld4::RemoteNotificationResponder::sendMessage(int, unsigned int, mach_msg_header_t*)  (in dyld) + 244  [0x189239550]
+    +   !         :           2 mach_msg_overwrite  (in dyld) + 244  [0x189245d34]
+    +   !         :             2 mach_msg2_internal  (in dyld) + 76  [0x189245b8c]
+    +   !         :               2 mach_msg2_trap  (in dyld) + 8  [0x1891cb714]
+    +   !         1 dyld4::APIs::dlopen_from(char const*, int, void*)::$_0::operator()() const::'lambda'()::operator()() const  (in dyld) + 772  [0x1891f3198]
+    +   !           1 dyld4::JustInTimeLoader::loadDependents(Diagnostics&, dyld4::RuntimeState&, dyld4::Loader::LoadOptions const&)  (in dyld) + 256  [0x18921b274]
+    +   !             1 mach_o::Header::forEachLinkedDylib(void (mach_o::Header::DylibInfo const&, bool, bool&) block_pointer) const  (in dyld) + 196  [0x189253f30]
+    +   !               1 mach_o::Header::forEachLoadCommand(void (mach_o::Header::LoadCommandInfo const&, bool&) block_pointer, mach_o::Error*) const  (in dyld) + 228  [0x1892523f0]
+    +   !                 1 invocation function for block in mach_o::Header::forEachLinkedDylib(void (mach_o::Header::DylibInfo const&, bool, bool&) block_pointer) const  (in dyld) + 112  [0x1892574e4]
+    +   !                   1 invocation function for block in dyld4::JustInTimeLoader::loadDependents(Diagnostics&, dyld4::RuntimeState&, dyld4::Loader::LoadOptions const&)  (in dyld) + 296  [0x18921b570]
+    +   !                     1 dyld4::PrebuiltLoader::matchesPath(dyld4::RuntimeState const&, char const*) const  (in dyld) + 92  [0x18922a434]
+    +   !                       1 _platform_strcmp_noMTE  (in dyld) + 0  [0x1891cccc4]
+    +   1 ???  (in javafx-webview-poc)  load address 0x1028dc000 + 0x159b14  [0x102a35b14]
+    +   ! 1 dyld4::APIs::dlsym(void*, char const*)  (in dyld) + 692  [0x1891e7a48]
+    +   !   1 dyld4::RuntimeLocks::withLoadersReadLock(void () block_pointer)  (in dyld) + 84  [0x189204e38]
+    +   !     1 invocation function for block in dyld4::APIs::dlsym(void*, char const*)  (in dyld) + 308  [0x1891e848c]
+    +   !       1 dyld4::Loader::hasExportedSymbol(Diagnostics&, dyld4::RuntimeState&, char const*, dyld4::Loader::ExportedSymbolMode, dyld4::Loader::ResolverMode, dyld4::Loader::ResolvedSymbol*, bool, dyld3::Array<dyld4::Loader const*>*) const  (in dyld) + 644  [0x189225cd4]
+    +   !         1 mach_o::ExportsTrie::hasExportedSymbol(CString, mach_o::Symbol&, bool) const  (in dyld) + 48  [0x18924e67c]
+    +   !           1 mach_o::GenericTrie::find(CString, bool) const  (in dyld) + 368  [0x18924e0a4]
+    +   1 ???  (in javafx-webview-poc)  load address 0x1028dc000 + 0x33764  [0x10290f764]
+    +   1 ???  (in javafx-webview-poc)  load address 0x1028dc000 + 0x12f5f14  [0x103bd1f14]
+    2317 Thread_7428728
+
+Full raw capture: native-thread-sample.txt.gz
+Raw SHA256: faef2a3486ff81b257e4a2628df558e99387ef934c45903fe9668ad6c90987b3

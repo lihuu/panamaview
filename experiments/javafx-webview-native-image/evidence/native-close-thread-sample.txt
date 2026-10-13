@@ -1,0 +1,103 @@
+Analysis of sampling javafx-webview-poc (pid 59388) every 1 millisecond
+Process:         javafx-webview-poc [59388]
+Path:            /Users/USER/*/javafx-webview-poc
+Load Address:    0x1024a8000
+Identifier:      javafx-webview-poc
+Version:         0
+Code Type:       ARM64
+Platform:        macOS
+Parent Process:  Python [59386]
+Target Type:     live task
+
+Date/Time:       2026-10-13 11:47:08.076 +0800
+Launch Time:     2026-10-13 11:47:02.997 +0800
+OS Version:      macOS 27.2 (26B5101f)
+Report Version:  7
+Analysis Tool:   /usr/bin/sample
+
+Physical footprint:         100.3M
+Physical footprint (peak):  147.1M
+Idle exit:                  untracked
+----
+
+Call graph:
+    2400 Thread_7443185   DispatchQueue_1: com.apple.main-thread  (serial)
+    + 2400 ???  (in javafx-webview-poc)  load address 0x1024a8000 + 0xbf0f0  [0x1025670f0]
+    +   2400 CFRunLoopRun  (in CoreFoundation) + 64  [0x18d47e5b4]
+    +     2400 _CFRunLoopRunSpecificWithOptions  (in CoreFoundation) + 536  [0x18d4df934]
+    +       2400 __CFRunLoopRun  (in CoreFoundation) + 1172  [0x18d40834c]
+    +         2400 __CFRunLoopServiceMachPort  (in CoreFoundation) + 160  [0x18d409a3c]
+    +           2400 mach_msg  (in libsystem_kernel.dylib) + 24  [0x189286fa0]
+    +             2400 mach_msg_overwrite  (in libsystem_kernel.dylib) + 480  [0x18928f710]
+    +               2400 mach_msg2_internal  (in libsystem_kernel.dylib) + 76  [0x1892994d0]
+    +                 2400 mach_msg2_trap  (in libsystem_kernel.dylib) + 8  [0x189286c14]
+    2400 Thread_7443191: ference Handler
+    + 2400 thread_start  (in libsystem_pthread.dylib) + 8  [0x1892c6c28]
+    +   2400 ???  (in javafx-webview-poc)  load address 0x1024a8000 + 0x15e13c  [0x10260613c]
+    +     2400 _pthread_cond_wait  (in libsystem_pthread.dylib) + 980  [0x1892cbf0c]
+    +       2400 __psynch_cvwait  (in libsystem_kernel.dylib) + 8  [0x18928a420]
+    2400 Thread_7443192: gnal Dispatcher
+    + 2400 thread_start  (in libsystem_pthread.dylib) + 8  [0x1892c6c28]
+    +   2400 ???  (in javafx-webview-poc)  load address 0x1024a8000 + 0x159104  [0x102601104]
+    +     2400 ???  (in javafx-webview-poc)  load address 0x1024a8000 + 0x1a632a8  [0x103f0b2a8]
+    +       2400 sem_wait  (in libsystem_kernel.dylib) + 8  [0x189295c20]
+    2400 Thread_7443195
+    + 2400 start_wqthread  (in libsystem_pthread.dylib) + 8  [0x1892c6c1c]
+    +   2400 _pthread_wqthread  (in libsystem_pthread.dylib) + 368  [0x1892c7ee8]
+    +     2400 __workq_kernreturn  (in libsystem_kernel.dylib) + 8  [0x189288978]
+    2400 Thread_7443233: LaterDispatcher
+    + 2400 thread_start  (in libsystem_pthread.dylib) + 8  [0x1892c6c28]
+    +   2400 ???  (in javafx-webview-poc)  load address 0x1024a8000 + 0x15ea44  [0x102606a44]
+    +     2400 _pthread_cond_wait  (in libsystem_pthread.dylib) + 980  [0x1892cbf0c]
+    +       2400 __psynch_cvwait  (in libsystem_kernel.dylib) + 8  [0x18928a420]
+    2400 Thread_7443244: com.apple.NSEventThread
+    + 2400 thread_start  (in libsystem_pthread.dylib) + 8  [0x1892c6c28]
+    +   2400 _pthread_start  (in libsystem_pthread.dylib) + 116  [0x1892cba3c]
+    +     2400 _NSEventThread  (in AppKit) + 152  [0x18f719248]
+    +       2400 _CFRunLoopRunSpecificWithOptions  (in CoreFoundation) + 536  [0x18d4df934]
+    +         2400 __CFRunLoopRun  (in CoreFoundation) + 1172  [0x18d40834c]
+    +           2400 __CFRunLoopServiceMachPort  (in CoreFoundation) + 160  [0x18d409a3c]
+    +             2400 mach_msg  (in libsystem_kernel.dylib) + 24  [0x189286fa0]
+    +               2400 mach_msg_overwrite  (in libsystem_kernel.dylib) + 480  [0x18928f710]
+    +                 2400 mach_msg2_internal  (in libsystem_kernel.dylib) + 76  [0x1892994d0]
+    +                   2400 mach_msg2_trap  (in libsystem_kernel.dylib) + 8  [0x189286c14]
+    2400 Thread_7443290: JavaScriptCore libpas scavenger
+    + 2400 thread_start  (in libsystem_pthread.dylib) + 8  [0x1892c6c28]
+    +   2400 _pthread_start  (in libsystem_pthread.dylib) + 116  [0x1892cba3c]
+    +     2173 ???  (in libjfxwebkit.dylib)  load address 0x125d2c000 + 0x335f6ac  [0x12908b6ac]
+    +     ! 2173 _pthread_cond_wait  (in libsystem_pthread.dylib) + 980  [0x1892cbf0c]
+    +     !   2173 __psynch_cvwait  (in libsystem_kernel.dylib) + 8  [0x18928a420]
+    +     226 ???  (in libjfxwebkit.dylib)  load address 0x125d2c000 + 0x335f5f8  [0x12908b5f8]
+    +     ! 226 _pthread_cond_wait  (in libsystem_pthread.dylib) + 980  [0x1892cbf0c]
+    +     !   226 __psynch_cvwait  (in libsystem_kernel.dylib) + 8,16  [0x18928a420,0x18928a428]
+    +     1 ???  (in libjfxwebkit.dylib)  load address 0x125d2c000 + 0x335f470  [0x12908b470]
+    +       1 ???  (in libjfxwebkit.dylib)  load address 0x125d2c000 + 0x3373f64  [0x12909ff64]
+    +         1 ???  (in libjfxwebkit.dylib)  load address 0x125d2c000 + 0x3375788  [0x1290a1788]
+    2400 Thread_7443298: m Font Disposer
+    + 2400 thread_start  (in libsystem_pthread.dylib) + 8  [0x1892c6c28]
+    +   2400 ???  (in javafx-webview-poc)  load address 0x1024a8000 + 0x15ea44  [0x102606a44]
+    +     2400 _pthread_cond_wait  (in libsystem_pthread.dylib) + 980  [0x1892cbf0c]
+    +       2400 __psynch_cvwait  (in libsystem_kernel.dylib) + 8  [0x18928a420]
+    2400 Thread_7443299: Disposer
+    + 2400 thread_start  (in libsystem_pthread.dylib) + 8  [0x1892c6c28]
+    +   2400 ???  (in javafx-webview-poc)  load address 0x1024a8000 + 0x15ea44  [0x102606a44]
+    +     2400 _pthread_cond_wait  (in libsystem_pthread.dylib) + 980  [0x1892cbf0c]
+    +       2400 __psynch_cvwait  (in libsystem_kernel.dylib) + 8  [0x18928a420]
+    2400 Thread_7443309: SelectorManager
+    + 2400 thread_start  (in libsystem_pthread.dylib) + 8  [0x1892c6c28]
+    +   2400 ???  (in javafx-webview-poc)  load address 0x1024a8000 + 0x15ba080  [0x103a62080]
+    +     2400 ???  (in javafx-webview-poc)  load address 0x1024a8000 + 0x1a64ebc  [0x103f0cebc]
+    +       2400 kevent  (in libsystem_kernel.dylib) + 8  [0x18928ce2c]
+    2400 Thread_7443310: URL-Loader-1
+    + 2400 thread_start  (in libsystem_pthread.dylib) + 8  [0x1892c6c28]
+    +   2400 ???  (in javafx-webview-poc)  load address 0x1024a8000 + 0x15e9b0  [0x1026069b0]
+    +     2400 _pthread_cond_wait  (in libsystem_pthread.dylib) + 980  [0x1892cbf0c]
+    +       2400 __psynch_cvwait  (in libsystem_kernel.dylib) + 8  [0x18928a420]
+    2400 Thread_7443322
+    + 2400 start_wqthread  (in libsystem_pthread.dylib) + 8  [0x1892c6c1c]
+    +   2400 _pthread_wqthread  (in libsystem_pthread.dylib) + 368  [0x1892c7ee8]
+    +     2400 __workq_kernreturn  (in libsystem_kernel.dylib) + 8  [0x189288978]
+    2400 Thread_7443323
+
+Full raw capture: native-close-thread-sample.txt.gz
+Raw SHA256: 0ae63d9f1e9b946f55b9596384e147c27aff43042fbc0f0f2990b34fd166f01a

@@ -1,0 +1,34 @@
+Oct 13, 2026 11:50:53 AM com.sun.javafx.application.PlatformImpl startup
+WARNING: Unsupported JavaFX configuration: classes were loaded from 'unnamed module @35a743e4'
+[poc] environment java=25.0.2 javafx=25.0.2+4 image=jvm os=Mac OS X/aarch64
+[poc] assets=/var/folders/qb/kfst2zkx7fb1jj0q59yrgvgm0000gn/T/javafx-webview-poc-5890535744348865034
+[poc] PASS stage-showing=true
+[poc] PASS local-html=LOCAL_HTML_OK
+[poc] PASS external-script=loaded
+[poc] PASS external-css=rgb(18, 32, 47)
+[poc] PASS java-to-javascript=js:java-nonce-42
+Warning: Error processing trace entry map(size=5, {(tracer,reflect),(function,findResourceAsStream),(caller_class,java.lang.Module),(result,true),(args,[com/sun/javafx/reflect/Trampoline.class])}): java.lang.IllegalArgumentException: List must have exactly 2 element(s)
+	at org.graalvm.nativeimage.configure/com.oracle.svm.configure.trace.AbstractProcessor.expectSize(AbstractProcessor.java:61)
+	at org.graalvm.nativeimage.configure/com.oracle.svm.configure.trace.ReflectionProcessor.processEntry(ReflectionProcessor.java:78)
+	at org.graalvm.nativeimage.configure/com.oracle.svm.configure.trace.TraceProcessor.processEntry(TraceProcessor.java:93)
+	at org.graalvm.nativeimage.agent.tracing/com.oracle.svm.agent.tracing.ConfigurationResultWriter.traceEntry(ConfigurationResultWriter.java:53)
+	at org.graalvm.nativeimage.agent.tracing/com.oracle.svm.agent.tracing.core.Tracer.traceCall(Tracer.java:126)
+	at org.graalvm.nativeimage.agent.tracing/com.oracle.svm.agent.BreakpointInterceptor.traceBreakpoint(BreakpointInterceptor.java:200)
+	at org.graalvm.nativeimage.agent.tracing/com.oracle.svm.agent.BreakpointInterceptor.traceReflectBreakpoint(BreakpointInterceptor.java:185)
+	at org.graalvm.nativeimage.agent.tracing/com.oracle.svm.agent.BreakpointInterceptor.handleResourceRegistration(BreakpointInterceptor.java:768)
+	at org.graalvm.nativeimage.agent.tracing/com.oracle.svm.agent.BreakpointInterceptor.findResource(BreakpointInterceptor.java:781)
+	at org.graalvm.nativeimage.agent.tracing/com.oracle.svm.agent.BreakpointInterceptor.onBreakpoint(BreakpointInterceptor.java:1378)
+	at org.graalvm.nativeimage.builder/com.oracle.svm.core.jni.headers.JNIFunctionPointerTypes$GetMethodIDFunctionPointer.invoke(JNIFunctionPointerTypes.java)
+	at org.graalvm.nativeimage.agent.tracing/com.oracle.svm.agent.BreakpointInterceptor.resolveBreakpointMethod(BreakpointInterceptor.java:1689)
+	at org.graalvm.nativeimage.agent.tracing/com.oracle.svm.agent.BreakpointInterceptor.installBreakpointIfClassLoader(BreakpointInterceptor.java:1424)
+	at org.graalvm.nativeimage.agent.tracing/com.oracle.svm.agent.BreakpointInterceptor.onClassPrepare(BreakpointInterceptor.java:1416)
+
+[poc] javascript-to-java message=js-nonce-73
+[poc] PASS javascript-to-java-return=java:js-nonce-73
+[poc] PASS java-callback-count=1
+[poc] PASS rendered-page-state=java:js-nonce-73
+[poc] PASS snapshot=/Users/lihu/git/panamaview/experiments/javafx-webview-native-image/target/jvm.ppm pixels=780x480
+[poc] close-request
+[poc] PASS assets-removed=true
+[poc] stop closeRequested=true exit=0
+[poc] launch-returned exit=0

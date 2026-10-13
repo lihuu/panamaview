@@ -1,5 +1,11 @@
 # JavaFX WebView + GraalVM Native Image 调研结论
 
+**后续实测更新：** 本文是先前资料调研的历史结论。随后已在 macOS arm64 上用标准
+GraalVM/JDK 25.0.2 与 JavaFX 25.0.2 实际构建并运行 WebView 和双向 Bridge，正常关闭与
+隔离启动通过；同时发现必须处理首线程启动、JNI metadata 和 WebKit 的库加载依赖。
+因此本文的“JDK25 未验证”和 Gluon 候选路线不代表当前全部运行证据，详见
+[macOS 原生 PoC](../experiments/javafx-webview-native-image/README.md)。
+
 调研日期：2026-10-13（Asia/Shanghai）  
 范围：`javafx.web` 的真实 WebKit WebView；macOS arm64 优先，其次 Windows x64。  
 状态：文献与源码调研；没有建立或运行 PoC，也没有做 Benchmark。
