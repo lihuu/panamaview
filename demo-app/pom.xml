@@ -17,7 +17,7 @@
   <description>The bridge self-test in a real window. An ordinary consumer of the framework.</description>
 
   <properties>
-    <main.class>panamaview.demo.Main</main.class>
+    <main.class>io.github.lihuu.panamaview.demo.Main</main.class>
   </properties>
 
   <!--

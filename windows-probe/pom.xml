@@ -25,7 +25,7 @@
     without a window. An ordinary consumer of the framework.</description>
 
   <properties>
-    <main.class>panamaview.probe.WindowsProbe</main.class>
+    <main.class>io.github.lihuu.panamaview.probe.WindowsProbe</main.class>
   </properties>
 
   <!--

@@ -101,8 +101,8 @@ When your project is generated:
 ```java
 package com.example;
 
-import panamaview.WebApp;
-import panamaview.macos.MacOsHost; // or panamaview.windows.WindowsHost
+import io.github.lihuu.panamaview.WebApp;
+import io.github.lihuu.panamaview.macos.MacOsHost; // or io.github.lihuu.panamaview.windows.WindowsHost
 
 public final class Main {
     public static void main(String[] args) throws Exception {

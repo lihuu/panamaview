@@ -1,8 +1,8 @@
 package com.example;
 
-import panamaview.Resources;
-import panamaview.UiHost;
-import panamaview.WebApp;
+import io.github.lihuu.panamaview.Resources;
+import io.github.lihuu.panamaview.UiHost;
+import io.github.lihuu.panamaview.WebApp;
 
 import java.net.URI;
 import java.nio.file.Files;
@@ -77,10 +77,10 @@ public final class Main {
     private static UiHost host() {
         String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
         if (os.contains("win")) {
-            return new panamaview.windows.WindowsHost();
+            return new io.github.lihuu.panamaview.windows.WindowsHost();
         }
         if (os.contains("mac")) {
-            return new panamaview.macos.MacOsHost();
+            return new io.github.lihuu.panamaview.macos.MacOsHost();
         }
         throw new IllegalStateException("panamaview has no window implementation for "
                 + System.getProperty("os.name")

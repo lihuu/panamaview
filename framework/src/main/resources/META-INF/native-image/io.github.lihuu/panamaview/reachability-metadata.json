@@ -21,7 +21,7 @@
     "of the hand-added entries live here instead. Order of the list below: msgSend signatures",
     "first, then the two by-value NSRect call shapes, then the three unused helper signatures,",
     "then the libobjc / dlopen / pthread entry points.",
-    "The UI-thread hop (panamaview.macos.UiThread) adds one more downcall shape -- void(void*,void*,void*) for dispatch_async_f, already listed above -- and one direct upcall, drain. _dispatch_main_q is a data symbol, so it needs no downcall entry.",
+    "The UI-thread hop (io.github.lihuu.panamaview.macos.UiThread) adds one more downcall shape -- void(void*,void*,void*) for dispatch_async_f, already listed above -- and one direct upcall, drain. _dispatch_main_q is a data symbol, so it needs no downcall entry.",
     "handleDidStartNavigation is the page-unload hook: it lets the bridge abandon every in-flight request when the document that made them goes away.",
     "resources lists only the framework's own asset, the client bridge. It must NOT list anything else: a consumer's native build applies this file transitively, so any page named here would be embedded into every consumer's binary. The demo app in demo-app/ passes -H:IncludeResources='web/.*' on its own command line instead, which is exactly how a consumer embeds its own assets.",
     "AssetSchemeHandler serves the app's assets over a private URL scheme instead of file://, because an opaque file:// origin refuses ES modules, fetch and Workers. It adds one downcall shape -- NSHTTPURLResponse's initWithURL:statusCode:HTTPVersion:headerFields: takes four objects and an NSInteger -- and two upcalls for the WKURLSchemeHandler protocol.",
@@ -29,7 +29,7 @@
   ],
   "reflection": [
     {
-      "type": "panamaview.macos.ObjCDispatch",
+      "type": "io.github.lihuu.panamaview.macos.ObjCDispatch",
       "methods": [
         {
           "name": "handleDidFailNavigation",
@@ -79,7 +79,7 @@
       ]
     },
     {
-      "type": "panamaview.macos.WebView",
+      "type": "io.github.lihuu.panamaview.macos.WebView",
       "methods": [
         {
           "name": "handleSnapshot",
@@ -92,7 +92,7 @@
       ]
     },
     {
-      "type": "panamaview.macos.UiThread",
+      "type": "io.github.lihuu.panamaview.macos.UiThread",
       "methods": [
         {
           "name": "drain",
@@ -135,7 +135,7 @@
       ]
     },
     {
-      "type": "panamaview.macos.AssetSchemeHandler",
+      "type": "io.github.lihuu.panamaview.macos.AssetSchemeHandler",
       "methods": [
         {
           "name": "startTask",
@@ -166,7 +166,7 @@
   "foreign": {
     "directUpcalls": [
       {
-        "class": "panamaview.macos.WebView",
+        "class": "io.github.lihuu.panamaview.macos.WebView",
         "method": "handleSnapshot",
         "returnType": "void",
         "parameterTypes": [
@@ -176,7 +176,7 @@
         ]
       },
       {
-        "class": "panamaview.macos.ObjCDispatch",
+        "class": "io.github.lihuu.panamaview.macos.ObjCDispatch",
         "method": "shouldTerminateAfterLastWindowClosed",
         "returnType": "jbyte",
         "parameterTypes": [
@@ -186,7 +186,7 @@
         ]
       },
       {
-        "class": "panamaview.macos.ObjCDispatch",
+        "class": "io.github.lihuu.panamaview.macos.ObjCDispatch",
         "method": "handleDidFailNavigation",
         "returnType": "void",
         "parameterTypes": [
@@ -198,7 +198,7 @@
         ]
       },
       {
-        "class": "panamaview.macos.ObjCDispatch",
+        "class": "io.github.lihuu.panamaview.macos.ObjCDispatch",
         "method": "handleDidFinishNavigation",
         "returnType": "void",
         "parameterTypes": [
@@ -209,7 +209,7 @@
         ]
       },
       {
-        "class": "panamaview.macos.ObjCDispatch",
+        "class": "io.github.lihuu.panamaview.macos.ObjCDispatch",
         "method": "handleScriptMessage",
         "returnType": "void",
         "parameterTypes": [
@@ -220,7 +220,7 @@
         ]
       },
       {
-        "class": "panamaview.macos.UiThread",
+        "class": "io.github.lihuu.panamaview.macos.UiThread",
         "method": "drain",
         "returnType": "void",
         "parameterTypes": [
@@ -228,7 +228,7 @@
         ]
       },
       {
-        "class": "panamaview.macos.ObjCDispatch",
+        "class": "io.github.lihuu.panamaview.macos.ObjCDispatch",
         "method": "handleDidStartNavigation",
         "returnType": "void",
         "parameterTypes": [
@@ -239,7 +239,7 @@
         ]
       },
       {
-        "class": "panamaview.macos.AssetSchemeHandler",
+        "class": "io.github.lihuu.panamaview.macos.AssetSchemeHandler",
         "method": "startTask",
         "returnType": "void",
         "parameterTypes": [
@@ -250,7 +250,7 @@
         ]
       },
       {
-        "class": "panamaview.macos.AssetSchemeHandler",
+        "class": "io.github.lihuu.panamaview.macos.AssetSchemeHandler",
         "method": "stopTask",
         "returnType": "void",
         "parameterTypes": [

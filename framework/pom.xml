@@ -34,7 +34,7 @@
 
         Why it is worth a build step. When the framework moved out of the repository root into this
         module, any branch written before that move still adds its sources under `src/main/java/` at
-        the root — `src/main/java/panamaview/windows/`, for instance. Merging such a branch produces
+        the root — `src/main/java/io/github/lihuu/panamaview/windows/`, for instance. Merging such a branch produces
         **no conflict at all**: base had no file at either path, the branch adds one path, this
         module adds another, and git merges two unrelated additions silently. Maven then compiles
         this module only, so those sources are never compiled and never noticed. The build exits 0.
