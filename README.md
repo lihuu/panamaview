@@ -244,6 +244,7 @@ docs/                  Deep-dive architecture and maintenance documentation
 
 ## 📖 Deep Dives & Further Reading
 
+- [Migrating to 1.0 (package rename)](docs/migrating-to-1.0.md)
 - [Where your page runs (Asset Serving & WebKit Internals)](docs/page-environment.md)
 - [Verification & Benchmarks](docs/verification.md)
 - [Publishing to Maven Central & Private Repositories](docs/publishing.md)
