@@ -14,7 +14,7 @@
   <parent>
     <groupId>io.github.lihuu</groupId>
     <artifactId>panamaview-parent</artifactId>
-    <version>0.3.0</version>
+    <version>1.0.0</version>
   </parent>
 
   <artifactId>panamaview-windows-probe</artifactId>
