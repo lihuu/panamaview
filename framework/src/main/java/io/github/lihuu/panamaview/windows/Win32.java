@@ -12,6 +12,7 @@ import java.lang.invoke.VarHandle;
 import java.nio.charset.StandardCharsets;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
+import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static java.lang.foreign.ValueLayout.JAVA_SHORT;
@@ -140,12 +141,39 @@ final class Win32 {
     private static final MethodHandle DISPATCH_MESSAGE =
             bind(LOOKUPS.USER32, "DispatchMessageW", FunctionDescriptor.of(JAVA_LONG, ADDRESS));
 
+    private static final MethodHandle OPEN_CLIPBOARD =
+            bind(LOOKUPS.USER32, "OpenClipboard", FunctionDescriptor.of(JAVA_INT, ADDRESS));
+    private static final MethodHandle CLOSE_CLIPBOARD =
+            bind(LOOKUPS.USER32, "CloseClipboard", FunctionDescriptor.of(JAVA_INT));
+    private static final MethodHandle EMPTY_CLIPBOARD =
+            bind(LOOKUPS.USER32, "EmptyClipboard", FunctionDescriptor.of(JAVA_INT));
+    private static final MethodHandle GET_CLIPBOARD_DATA =
+            bind(LOOKUPS.USER32, "GetClipboardData", FunctionDescriptor.of(ADDRESS, JAVA_INT));
+    private static final MethodHandle SET_CLIPBOARD_DATA =
+            bind(LOOKUPS.USER32, "SetClipboardData", FunctionDescriptor.of(ADDRESS, JAVA_INT, ADDRESS));
+    private static final MethodHandle CLIPBOARD_SEQUENCE =
+            bind(LOOKUPS.USER32, "GetClipboardSequenceNumber", FunctionDescriptor.of(JAVA_INT));
+    // A global block is what the clipboard can own: it must be movable, because Windows moves the
+    // memory itself when the pasteboard's contents change hands between processes.
+    private static final MethodHandle GLOBAL_ALLOC =
+            bind(LOOKUPS.KERNEL32, "GlobalAlloc", FunctionDescriptor.of(ADDRESS, JAVA_INT, JAVA_LONG));
+    private static final MethodHandle GLOBAL_LOCK =
+            bind(LOOKUPS.KERNEL32, "GlobalLock", FunctionDescriptor.of(ADDRESS, ADDRESS));
+    private static final MethodHandle GLOBAL_UNLOCK =
+            bind(LOOKUPS.KERNEL32, "GlobalUnlock", FunctionDescriptor.of(JAVA_INT, ADDRESS));
+    private static final MethodHandle GLOBAL_FREE =
+            bind(LOOKUPS.KERNEL32, "GlobalFree", FunctionDescriptor.of(ADDRESS, ADDRESS));
+
     private static final int CS_HREDRAW_VREDRAW = 0x0003;
     private static final int WS_OVERLAPPEDWINDOW = 0x00CF0000;
     private static final int CW_USEDEFAULT = 0x80000000;
     private static final int SW_SHOW = 5;
     private static final long COLOR_WINDOW_PLUS_ONE = 6;
     private static final long IDC_ARROW = 32512;
+
+    /** CF_UNICODETEXT — what a text field pastes from. */
+    private static final int CF_UNICODETEXT = 13;
+    private static final int GMEM_MOVEABLE = 0x0002;
 
     static long currentThreadId() {
         try {
@@ -300,6 +328,137 @@ final class Win32 {
         } catch (Throwable t) {
             throw new IllegalStateException(t);
         }
+    }
+
+    // ------------------------------------------------------------------ clipboard
+
+    /**
+     * The clipboard's text, or {@code null} when it holds none.
+     *
+     * <p>{@code CF_UNICODETEXT} is the format a text field pastes from, and it is what the other
+     * platforms call plain text. The handle the clipboard hands back belongs to it, so the only
+     * thing left to do is lock, copy and unlock — never free.
+     */
+    static String readClipboard() {
+        try {
+            if (!openClipboard()) {
+                throw new IllegalStateException("cannot open the clipboard");
+            }
+            try {
+                MemorySegment handle = (MemorySegment) GET_CLIPBOARD_DATA.invoke(CF_UNICODETEXT);
+                if (handle == null || handle.address() == 0) {
+                    return null;
+                }
+                MemorySegment pointer = (MemorySegment) GLOBAL_LOCK.invoke(handle);
+                if (pointer == null || pointer.address() == 0) {
+                    return null;
+                }
+                try {
+                    // UTF-16, NUL-terminated, length unknown: walk it. Reading code unit by code
+                    // unit keeps surrogate pairs as the two chars they are.
+                    MemorySegment chars = pointer.reinterpret(Long.MAX_VALUE);
+                    StringBuilder text = new StringBuilder();
+                    for (long offset = 0; ; offset += 2) {
+                        short unit = chars.get(JAVA_SHORT, offset);
+                        if (unit == 0) {
+                            return text.toString();
+                        }
+                        text.append((char) unit);
+                    }
+                } finally {
+                    GLOBAL_UNLOCK.invoke(handle);
+                }
+            } finally {
+                CLOSE_CLIPBOARD.invoke();
+            }
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException("cannot read the clipboard", t);
+        }
+    }
+
+    /** Replaces the clipboard with {@code text}. */
+    static void writeClipboard(String text) {
+        try {
+            byte[] utf16 = text.getBytes(StandardCharsets.UTF_16LE);
+            int size = utf16.length + 2;      // the terminating NUL is part of the string
+            MemorySegment handle = (MemorySegment) GLOBAL_ALLOC.invoke(GMEM_MOVEABLE, (long) size);
+            if (handle == null || handle.address() == 0) {
+                throw new IllegalStateException("GlobalAlloc failed for " + size + " bytes");
+            }
+            boolean handedOver = false;
+            try {
+                MemorySegment pointer = (MemorySegment) GLOBAL_LOCK.invoke(handle);
+                if (pointer == null || pointer.address() == 0) {
+                    throw new IllegalStateException("GlobalLock failed");
+                }
+                try {
+                    MemorySegment memory = pointer.reinterpret(size);
+                    MemorySegment.copy(utf16, 0, memory, JAVA_BYTE, 0, utf16.length);
+                    memory.set(JAVA_SHORT, utf16.length, (short) 0);
+                } finally {
+                    GLOBAL_UNLOCK.invoke(handle);
+                }
+
+                if (!openClipboard()) {
+                    throw new IllegalStateException("cannot open the clipboard");
+                }
+                try {
+                    EMPTY_CLIPBOARD.invoke();
+                    MemorySegment owned = (MemorySegment) SET_CLIPBOARD_DATA.invoke(CF_UNICODETEXT, handle);
+                    if (owned == null || owned.address() == 0) {
+                        throw new IllegalStateException("SetClipboardData refused the text");
+                    }
+                    // From here the clipboard owns the block; freeing it would be a double free.
+                    handedOver = true;
+                } finally {
+                    CLOSE_CLIPBOARD.invoke();
+                }
+            } finally {
+                if (!handedOver) {
+                    GLOBAL_FREE.invoke(handle);
+                }
+            }
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException("cannot write the clipboard", t);
+        }
+    }
+
+    /** The clipboard's sequence number — a write by anyone, anywhere, increments it. */
+    static long clipboardChangeCount() {
+        try {
+            return Integer.toUnsignedLong((int) CLIPBOARD_SEQUENCE.invoke());
+        } catch (Throwable t) {
+            throw new IllegalStateException("cannot read the clipboard sequence number", t);
+        }
+    }
+
+    /**
+     * Opens the clipboard, waiting out whichever process is holding it.
+     *
+     * <p>Only one window station owns the clipboard at a time and every app on the machine is a
+     * candidate holder, so a single attempt is how a copy silently fails.
+     */
+    private static boolean openClipboard() {
+        for (int attempt = 0; attempt < 10; attempt++) {
+            try {
+                if ((int) OPEN_CLIPBOARD.invoke(MemorySegment.NULL) != 0) {
+                    return true;
+                }
+            } catch (Throwable t) {
+                throw new IllegalStateException("OpenClipboard failed", t);
+            }
+            try {
+                Thread.sleep(20);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+        return false;
     }
 
     /** {@code MAKEINTRESOURCEW}: small constants ride in the pointer itself. */
