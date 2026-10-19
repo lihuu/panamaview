@@ -5,7 +5,10 @@ import panamaview.macos.MacOsHost;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * The macOS entry point: the composition root, and the one place allowed to know both the
@@ -40,9 +43,45 @@ public final class Main {
                         number(params, "width", 1000),
                         number(params, "height", 700)))
                 .bindUi("snapshot", params -> host.snapshot(
-                        String.valueOf(params.getOrDefault("path", "/tmp/panamaview.png"))));
+                        String.valueOf(params.getOrDefault("path", "/tmp/panamaview.png"))))
+                // Both of these run on a virtual thread, like every ordinary binding, and both
+                // answer with facts the page cannot know on its own: whether this process is a
+                // .app at all, and what the user decided when the system asked.
+                .bind("notificationInfo", params -> notificationInfo(host))
+                .bind("notify", params -> notify(host, params));
 
         app.web().run();
+    }
+
+    /** What the page needs to know before offering the affordance. */
+    private static Map<String, Object> notificationInfo(MacOsHost host) {
+        Map<String, Object> info = new LinkedHashMap<>();
+        info.put("available", host.canNotify());
+        info.put("bundleIdentifier", host.bundleIdentifier());
+        return info;
+    }
+
+    /**
+     * Asks the system, waits for the answer on a virtual thread, and posts if the user agreed.
+     *
+     * <p>The wait is the interesting part: the permission callback arrives on the UI thread, so
+     * this handler blocks a virtual thread rather than the window.
+     */
+    private static Map<String, Object> notify(MacOsHost host, Map<String, Object> params) throws Exception {
+        String title = String.valueOf(params.getOrDefault("title", "panamaview"));
+        String body = String.valueOf(params.getOrDefault("body", "Hello from the Java side"));
+
+        CompletableFuture<Boolean> answer = new CompletableFuture<>();
+        host.requestNotificationPermission(answer::complete);
+        boolean granted = answer.get(30, TimeUnit.SECONDS);
+
+        if (granted) {
+            host.notify(title, body);
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("granted", granted);
+        result.put("posted", granted);
+        return result;
     }
 
     /** Stages the assets and confirms the pieces a page cannot work without are there. */

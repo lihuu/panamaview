@@ -117,7 +117,8 @@ final class ObjC {
         return LINKER.downcallHandle(address, fd);
     }
 
-    private static SymbolLookup loadLibrary(String path) {
+    /** Loads a framework so its classes exist for {@code objc_getClass}. Package-private for the lazily loaded ones. */
+    static SymbolLookup loadLibrary(String path) {
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment handle = (MemorySegment) DLOPEN.invoke(arena.allocateFrom(path), RTLD_NOW | RTLD_GLOBAL);
             if (isNull(handle)) {
@@ -440,6 +441,15 @@ final class ObjC {
     public static MemorySegment sendObjectLong(MemorySegment receiver, MemorySegment sel,
                                                MemorySegment object, long value) {
         return (MemorySegment) call(ID_OBJ_LONG, receiver, sel, object, value);
+    }
+
+    /**
+     * A void message with an {@code NSInteger} and an object —
+     * {@code requestAuthorizationWithOptions:completionHandler:} is exactly that shape.
+     */
+    public static void sendVoidLongObject(MemorySegment receiver, MemorySegment sel,
+                                          long value, MemorySegment object) {
+        call(FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_LONG, ADDRESS), receiver, sel, value, object);
     }
 
     /** {@code representationUsingType:properties:} — an NSUInteger plus an object. */
