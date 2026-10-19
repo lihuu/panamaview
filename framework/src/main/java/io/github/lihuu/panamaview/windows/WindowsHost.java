@@ -241,6 +241,34 @@ public final class WindowsHost implements UiHost {
         return Win32.windowRectangle(pumpArena, hwnd);
     }
 
+    /**
+     * The clipboard's text, or {@code null} when it holds none.
+     *
+     * <p>The program's side of the clipboard, as on macOS: ⌘C/⌘V in the page never reach this,
+     * because the web view handles them itself. What does reach it is a handler behind a copy
+     * button, a read at start-up, or a page copying something it fetched asynchronously — where
+     * the browser has stopped treating the click as a fresh gesture.
+     */
+    public String readClipboard() {
+        return Win32.readClipboard();
+    }
+
+    /** Replaces the clipboard with {@code text}. */
+    public void writeClipboard(String text) {
+        Win32.writeClipboard(text);
+    }
+
+    /**
+     * The clipboard's sequence number.
+     *
+     * <p>Windows increments it for every write, from any process, which is the same contract as
+     * {@code NSPasteboard.changeCount} on macOS: compare two reads to notice a change without
+     * reading the contents.
+     */
+    public long clipboardChangeCount() {
+        return Win32.clipboardChangeCount();
+    }
+
     // ---------------------------------------------------------------- paths
 
     /**
