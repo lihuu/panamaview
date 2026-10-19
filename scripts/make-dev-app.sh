@@ -1,0 +1,120 @@
+#!/bin/sh
+# Wrap a panamaview app in a minimal .app — the form the system notification centre insists on.
+#
+# Why this exists:
+#   UNUserNotificationCenter identifies the process by its LaunchServices bundle proxy. A process
+#   started as `java -cp …` has none, and asking for the notification centre from one does not
+#   throw: it aborts the process. The framework therefore refuses to ask unless the main bundle is
+#   an .app (MacOsHost.canNotify()), and this script is how you get one during development —
+#   without turning packaging into a prerequisite for writing the app.
+#
+# How the JVM gets a bundle identity, given that `exec java` from a script loses it:
+#   The bundle is derived from the path of the running executable, so the executable itself has to
+#   live inside Contents/MacOS. This copies the JDK launcher there (and points Contents/lib at the
+#   JDK's lib), which is enough: the launcher resolves its JVM home from its own location. A
+#   symlink does NOT work — CoreFoundation resolves it back to the JDK.
+#
+#   The catch: macOS launches CFBundleExecutable with no arguments, so the app cannot be
+#   double-clicked usefully. Use the generated launch.sh, which goes through LaunchServices
+#   (`open -a`) and passes the real arguments.
+#
+# Usage:
+#   ./scripts/make-dev-app.sh                       # the demo, JVM mode
+#   NAME="My App" BUNDLE_ID=com.example.myapp MAIN_CLASS=com.example.Main \
+#       APP_CLASSPATH="target/classes:lib/*" ./scripts/make-dev-app.sh
+#
+# Environment:
+#   NAME            app and bundle name            (default: "Panamaview Demo")
+#   BUNDLE_ID       CFBundleIdentifier             (default: io.github.lihuu.panamaview.demo)
+#   MAIN_CLASS      Java main class                (default: io.github.lihuu.panamaview.demo.Main)
+#   APP_CLASSPATH   classpath to run               (default: build the demo with Maven)
+#   JAVA_OPTS       options before the classpath   (default: AppKit + FFM flags)
+#   OUT             output directory               (default: target/dev-app)
+#   JAVA_HOME       JDK to copy the launcher from  (default: /usr/libexec/java_home)
+#
+# If notifications come back "not allowed": an unanswered permission prompt is recorded as a
+# denial, and that identity will not prompt again. Either enable the app in System Settings >
+# Notifications, or give it a fresh one — the bundle id is the identity:
+#   BUNDLE_ID=io.github.lihuu.panamaview.demo2 ./scripts/make-dev-app.sh
+#
+# Development only: the app is ad-hoc signed and never leaves this machine.
+set -eu
+cd "$(dirname "$0")/.."
+
+NAME="${NAME:-Panamaview Demo}"
+BUNDLE_ID="${BUNDLE_ID:-io.github.lihuu.panamaview.demo}"
+MAIN_CLASS="${MAIN_CLASS:-io.github.lihuu.panamaview.demo.Main}"
+JAVA_OPTS="${JAVA_OPTS:--XstartOnFirstThread --enable-native-access=ALL-UNNAMED}"
+OUT="${OUT:-target/dev-app}"
+
+if [ -z "${APP_CLASSPATH:-}" ]; then
+    echo "building the demo and its dependency classpath…"
+    mvn -q -B -DskipTests -pl demo-app -am install
+    ( cd demo-app && mvn -q dependency:build-classpath -Dmdep.outputFile=target/classpath.txt )
+    APP_CLASSPATH="$(pwd)/demo-app/target/classes:$(cat demo-app/target/classpath.txt)"
+fi
+
+JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home)}"
+JAVA_BIN="$JAVA_HOME/bin/java"
+if [ ! -x "$JAVA_BIN" ]; then
+    echo "no java launcher at $JAVA_BIN — set JAVA_HOME" >&2
+    exit 1
+fi
+
+APP="$OUT/$NAME.app"
+rm -rf "$APP"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+
+# CFBundleExecutable is `java` on purpose: CoreFoundation only accepts the bundle's own
+# Info.plist when that key names the executable that is actually running. When it does not match,
+# the identifier silently falls back to the JDK's, and the notification centre refuses the app.
+cat > "$APP/Contents/Info.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleExecutable</key><string>java</string>
+  <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
+  <key>CFBundleName</key><string>$NAME</string>
+  <key>CFBundleDisplayName</key><string>$NAME</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+  <key>CFBundleShortVersionString</key><string>0.1</string>
+  <key>CFBundleVersion</key><string>1</string>
+  <key>LSMinimumSystemVersion</key><string>11.0</string>
+  <key>NSHighResolutionCapable</key><true/>
+</dict>
+</plist>
+PLIST
+
+cp "$JAVA_BIN" "$APP/Contents/MacOS/java"
+ln -s "$JAVA_HOME/lib" "$APP/Contents/lib"
+
+# Ad-hoc signature, and registration with LaunchServices: the notification centre looks the app
+# up there, so an app it has never seen is an app it cannot identify.
+codesign --force --deep --sign - "$APP" >/dev/null 2>&1
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+if [ -x "$LSREGISTER" ]; then
+    "$LSREGISTER" -f "$APP"
+fi
+
+mkdir -p "$OUT"
+APP_ABS="$(pwd)/$APP"
+LAUNCH="$OUT/launch.sh"
+cat > "$LAUNCH" <<LAUNCHER
+#!/bin/sh
+# Generated by scripts/make-dev-app.sh. Goes through LaunchServices so the app is launched — and
+# registered — as an app, which is what the notification centre needs to identify it.
+set -eu
+exec open -a "$APP_ABS" --stdout /tmp/panamaview-dev.log --stderr /tmp/panamaview-dev.err --args \\
+    $JAVA_OPTS -cp "$APP_CLASSPATH" $MAIN_CLASS
+LAUNCHER
+chmod +x "$LAUNCH"
+
+echo
+echo "app:    $APP_ABS"
+echo "launch: $LAUNCH"
+echo "logs:   /tmp/panamaview-dev.log and /tmp/panamaview-dev.err"
+echo
+echo "Double-clicking the .app will not work: macOS launches the bundle executable with no"
+echo "arguments, and a Java app needs its command line. Use launch.sh."

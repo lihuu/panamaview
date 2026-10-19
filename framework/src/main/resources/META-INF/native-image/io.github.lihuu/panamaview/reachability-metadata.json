@@ -25,7 +25,8 @@
     "handleDidStartNavigation is the page-unload hook: it lets the bridge abandon every in-flight request when the document that made them goes away.",
     "resources lists only the framework's own asset, the client bridge. It must NOT list anything else: a consumer's native build applies this file transitively, so any page named here would be embedded into every consumer's binary. The demo app in demo-app/ passes -H:IncludeResources='web/.*' on its own command line instead, which is exactly how a consumer embeds its own assets.",
     "AssetSchemeHandler serves the app's assets over a private URL scheme instead of file://, because an opaque file:// origin refuses ES modules, fetch and Workers. It adds one downcall shape -- NSHTTPURLResponse's initWithURL:statusCode:HTTPVersion:headerFields: takes four objects and an NSInteger -- and two upcalls for the WKURLSchemeHandler protocol.",
-    "dataWithBytes:length: needs an object followed by an NSInteger -- the reverse of representationUsingType:properties:, so it is a separate registered shape."
+    "dataWithBytes:length: needs an object followed by an NSInteger -- the reverse of representationUsingType:properties:, so it is a separate registered shape.",
+    "Notifications adds UNUserNotificationCenter: two block callbacks (handleAuthorization, handlePost) and one downcall shape -- requestAuthorizationWithOptions:completionHandler: takes an NSUInteger followed by a block."
   ],
   "reflection": [
     {
@@ -156,6 +157,26 @@
           ]
         }
       ]
+    },
+    {
+      "type": "io.github.lihuu.panamaview.macos.Notifications",
+      "methods": [
+        {
+          "name": "handleAuthorization",
+          "parameterTypes": [
+            "java.lang.foreign.MemorySegment",
+            "byte",
+            "java.lang.foreign.MemorySegment"
+          ]
+        },
+        {
+          "name": "handlePost",
+          "parameterTypes": [
+            "java.lang.foreign.MemorySegment",
+            "java.lang.foreign.MemorySegment"
+          ]
+        }
+      ]
     }
   ],
   "resources": [
@@ -256,6 +277,25 @@
         "parameterTypes": [
           "void*",
           "void*",
+          "void*",
+          "void*"
+        ]
+      },
+      {
+        "class": "io.github.lihuu.panamaview.macos.Notifications",
+        "method": "handleAuthorization",
+        "returnType": "void",
+        "parameterTypes": [
+          "void*",
+          "jbyte",
+          "void*"
+        ]
+      },
+      {
+        "class": "io.github.lihuu.panamaview.macos.Notifications",
+        "method": "handlePost",
+        "returnType": "void",
+        "parameterTypes": [
           "void*",
           "void*"
         ]
@@ -477,6 +517,15 @@
           "void*",
           "void*",
           "jlong"
+        ]
+      },
+      {
+        "returnType": "void",
+        "parameterTypes": [
+          "void*",
+          "void*",
+          "jlong",
+          "void*"
         ]
       }
     ]

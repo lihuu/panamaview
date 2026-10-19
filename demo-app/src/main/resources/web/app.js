@@ -294,4 +294,36 @@
       log(`error    snapshot: ${error.message}`);
     }
   });
+
+  // ------------------------------------------------------ system notifications
+  //
+  // The page never touches the Web Notification API. WebKit's permission for it lives behind a
+  // private WKUIDelegate SPI, and delivery would still be made under the app's identity — so the
+  // page asks Java, and Java asks the system.
+
+  (async () => {
+    try {
+      const info = await java.invoke("notificationInfo", {});
+      $("notify").disabled = !info.available;
+      $("notify-state").textContent = info.available
+        ? `bundle ${info.bundleIdentifier}`
+        : "this process is not a .app — run scripts/make-dev-app.sh";
+    } catch (error) {
+      $("notify").disabled = true;
+      $("notify-state").textContent = `unavailable — ${error.message}`;
+    }
+  })();
+
+  $("notify").addEventListener("click", async () => {
+    $("notify-state").textContent = "asking the system…";
+    try {
+      const result = await java.invoke("notify", {
+        title: "panamaview",
+        body: "Hello from the Java side",
+      });
+      $("notify-state").textContent = result.granted ? "posted" : "permission denied";
+    } catch (error) {
+      $("notify-state").textContent = `failed — ${error.message}`;
+    }
+  });
 })();

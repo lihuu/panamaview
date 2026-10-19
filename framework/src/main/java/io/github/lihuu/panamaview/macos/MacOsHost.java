@@ -206,4 +206,52 @@ public final class MacOsHost implements UiHost {
         webView.snapshotToPng(path);
         return path;
     }
+
+    // ---------------------------------------------------------- system notifications
+
+    /**
+     * The application's bundle identifier, or {@code null} when this process is not running from
+     * a {@code .app}.
+     *
+     * <p>Worth reporting rather than hiding: it is the value that decides whether the system
+     * notification centre can identify the app, and the answer depends on how the app was
+     * packaged, not on anything the code did. Null also means "do not ask the notification
+     * centre anything" — see {@link Notifications}.
+     */
+    public String bundleIdentifier() {
+        return Notifications.bundleIdentifier();
+    }
+
+    /**
+     * True when this process can address the notification centre.
+     *
+     * <p>False means this process is not running from an application bundle (a bare
+     * {@code java -cp} launch, for instance). Notifications are then unavailable, and asking
+     * anyway would abort the process rather than return an error — see {@link Notifications}.
+     * The honest move for an app is to hide or explain the affordance.
+     */
+    public boolean canNotify() {
+        return Notifications.canNotify();
+    }
+
+    /**
+     * Asks the system for permission to notify, and answers on the UI thread.
+     *
+     * <p>The answer is remembered per app: once the user has decided, this returns that decision
+     * without a prompt. Ask from a user gesture, not at start-up — the prompt needs a reason the
+     * user can see.
+     */
+    public void requestNotificationPermission(java.util.function.Consumer<Boolean> onResult) {
+        Notifications.requestAuthorization(onResult);
+    }
+
+    /**
+     * Posts a notification immediately.
+     *
+     * @throws IllegalStateException when the process has no bundle identifier; check
+     *                               {@link #canNotify()} first if the answer is unknown
+     */
+    public void notify(String title, String body) {
+        Notifications.post(title, body);
+    }
 }

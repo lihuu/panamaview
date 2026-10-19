@@ -238,7 +238,7 @@ final class Win32 {
      * <p>{@code CreateWindowExW} takes the position as two ordinary arguments, so placement needs
      * no second call and no window-manager negotiation: the window is simply born there. The
      * coordinates are virtual-screen pixels measured from the top-left of the primary monitor —
-     * the same numbers, in the same pass-through spirit, as {@link panamaview.WindowSpec.Origin}.
+     * the same numbers, in the same pass-through spirit, as {@link io.github.lihuu.panamaview.WindowSpec.Origin}.
      */
     static MemorySegment createWindow(Arena arena, String title, int width, int height,
                                       int x, int y, Procedure procedure) {

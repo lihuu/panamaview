@@ -131,7 +131,7 @@ final class Cocoa {
      *
      * <p>The point is the frame's origin in AppKit's screen coordinates, measured from the
      * bottom-left of the primary display. Callers get that coordinate space and not a
-     * translated one — see {@link panamaview.WindowSpec.Origin}.
+     * translated one — see {@link io.github.lihuu.panamaview.WindowSpec.Origin}.
      */
     public static void setFrameOrigin(ObjC.Scope scope, MemorySegment window, double x, double y) {
         ObjC.sendVoidPoint(window, ObjC.selector("setFrameOrigin:"), scope.point(x, y));
