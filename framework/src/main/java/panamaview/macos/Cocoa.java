@@ -34,22 +34,63 @@ final class Cocoa {
     }
 
     /**
-     * A one-item menu bar containing "Quit". Without a main menu, ⌘Q does nothing —
-     * the menu bar is the only thing that gives the app keyboard-level control.
+     * The menu bar: an application menu containing "Quit", and an Edit menu.
+     *
+     * <p>Without a main menu, ⌘Q does nothing — the menu bar is the only thing that gives the
+     * app keyboard-level control. The Edit menu exists for the same reason one level down:
+     * AppKit dispatches keyboard shortcuts through <em>menu item key equivalents</em>, so ⌘C,
+     * ⌘V, ⌘X and ⌘A only reach the focused view if a menu item carries both the key
+     * equivalent and the responder action ({@code copy:}, {@code paste:}, {@code cut:},
+     * {@code selectAll:}). With no Edit menu those actions are unreachable from the keyboard,
+     * and a {@code WKWebView}'s text fields silently stop responding to them.
+     *
+     * <p>Every item is added with a nil target on purpose: with no target, AppKit walks the
+     * responder chain, so the web view's content view — the first responder while typing —
+     * handles the action natively and text editing keeps working exactly as it does in Safari.
      */
     public static void installMenuBar(ObjC.Scope scope, MemorySegment app, String appName) {
         MemorySegment mainMenu = newMenu(scope, "");
+
         MemorySegment appMenuItem = ObjC.newObject("NSMenuItem");
         ObjC.sendVoid(mainMenu, ObjC.selector("addItem:"), appMenuItem);
 
         MemorySegment appMenu = newMenu(scope, appName);
         ObjC.sendVoid(appMenuItem, ObjC.selector("setSubmenu:"), appMenu);
-        ObjC.send(appMenu, ObjC.selector("addItemWithTitle:action:keyEquivalent:"),
-                ObjC.nsString(scope, "Quit " + appName),
-                ObjC.selector("terminate:"),
-                ObjC.nsString(scope, "q"));
+        addItem(scope, appMenu, "Quit " + appName, "terminate:", "q");
+
+        MemorySegment editMenuItem = ObjC.newObject("NSMenuItem");
+        ObjC.sendVoid(editMenuItem, ObjC.selector("setTitle:"), ObjC.nsString(scope, "Edit"));
+        ObjC.sendVoid(mainMenu, ObjC.selector("addItem:"), editMenuItem);
+
+        MemorySegment editMenu = newMenu(scope, "Edit");
+        ObjC.sendVoid(editMenuItem, ObjC.selector("setSubmenu:"), editMenu);
+        addItem(scope, editMenu, "Undo", "undo:", "z");
+        // An uppercase key equivalent implies Shift, so this is ⌘⇧Z.
+        addItem(scope, editMenu, "Redo", "redo:", "Z");
+        addSeparator(editMenu);
+        addItem(scope, editMenu, "Cut", "cut:", "x");
+        addItem(scope, editMenu, "Copy", "copy:", "c");
+        addItem(scope, editMenu, "Paste", "paste:", "v");
+        addSeparator(editMenu);
+        addItem(scope, editMenu, "Select All", "selectAll:", "a");
 
         ObjC.sendVoid(app, ObjC.selector("setMainMenu:"), mainMenu);
+    }
+
+    /** One menu item. The target stays nil, which means "whoever is first responder". */
+    private static void addItem(ObjC.Scope scope, MemorySegment menu,
+                                String title, String action, String keyEquivalent) {
+        ObjC.send(menu, ObjC.selector("addItemWithTitle:action:keyEquivalent:"),
+                ObjC.nsString(scope, title),
+                ObjC.selector(action),
+                ObjC.nsString(scope, keyEquivalent));
+    }
+
+    private static void addSeparator(MemorySegment menu) {
+        // A separator is a class-method singleton, [+NSMenuItem separatorItem].
+        MemorySegment separator = ObjC.send(ObjC.classNamed("NSMenuItem"),
+                ObjC.selector("separatorItem"));
+        ObjC.sendVoid(menu, ObjC.selector("addItem:"), separator);
     }
 
     private static MemorySegment newMenu(ObjC.Scope scope, String title) {
