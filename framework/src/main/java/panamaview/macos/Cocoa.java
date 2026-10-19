@@ -126,8 +126,36 @@ final class Cocoa {
         ObjC.sendVoidSize(window, ObjC.selector("setContentSize:"), scope.size(width, height));
     }
 
-    public static void show(MemorySegment window) {
+    /**
+     * Puts the window back where the user last left it, and asks AppKit to keep saving it there.
+     *
+     * <p>This is the platform's own persistence, not a side file: {@code setFrameAutosaveName:}
+     * makes the window write its frame — origin <em>and</em> size — into the process' user
+     * defaults whenever it moves or is resized, and {@code setFrameUsingName:} reads it back
+     * here. The name is the only thing the framework has to choose; within one defaults domain
+     * it is the whole key, so two windows get two memories.
+     *
+     * <p>The return value is not a detail. A window that has never been moved has nothing saved,
+     * and then the caller's size plus {@link #center} still decide — first launch looks exactly
+     * as it did before this existed. A window that <em>has</em> been moved must not be centred,
+     * or the restore is undone one line later.
+     *
+     * @return true when a saved frame was restored
+     */
+    public static boolean restoreFrame(ObjC.Scope scope, MemorySegment window, String autosaveName) {
+        MemorySegment name = ObjC.nsString(scope, autosaveName);
+        boolean restored = ObjC.sendBool(window, ObjC.selector("setFrameUsingName:"), name);
+        // Registers for saving from now on; when nothing was restored, the first move creates
+        // the entry.
+        ObjC.sendBool(window, ObjC.selector("setFrameAutosaveName:"), name);
+        return restored;
+    }
+
+    public static void center(MemorySegment window) {
         ObjC.sendVoid(window, ObjC.selector("center"));
+    }
+
+    public static void show(MemorySegment window) {
         ObjC.sendVoid(window, ObjC.selector("makeKeyAndOrderFront:"), MemorySegment.NULL);
     }
 
