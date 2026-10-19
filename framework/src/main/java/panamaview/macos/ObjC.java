@@ -257,6 +257,8 @@ final class ObjC {
     private static final FunctionDescriptor VOID2 = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, ADDRESS, ADDRESS);
     private static final FunctionDescriptor VOID3 = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, ADDRESS, ADDRESS, ADDRESS);
     private static final FunctionDescriptor BOOL1 = FunctionDescriptor.of(JAVA_BYTE, ADDRESS, ADDRESS, JAVA_BYTE);
+    /** {@code BOOL} out, one object in — {@code setFrameUsingName:}, {@code setFrameAutosaveName:}. */
+    private static final FunctionDescriptor BOOL_OBJ = FunctionDescriptor.of(JAVA_BYTE, ADDRESS, ADDRESS, ADDRESS);
     /** receiver + selector + object + NSInteger + object + object — {@code NSHTTPURLResponse}'s designated init. */
     private static final FunctionDescriptor ID_OBJ_LONG_OBJ_OBJ =
             FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS);
@@ -326,6 +328,17 @@ final class ObjC {
 
     public static boolean sendBool(MemorySegment receiver, MemorySegment sel, boolean arg) {
         return ((Byte) call(BOOL1, receiver, sel, (byte) (arg ? 1 : 0))) != 0;
+    }
+
+    /**
+     * A {@code BOOL}-returning message with one object argument.
+     *
+     * <p>The return value is the whole point of both callers: {@code setFrameUsingName:} answers
+     * <em>whether a saved frame was found</em>, which is how the window knows whether centring it
+     * would be a first launch or would undo the user's choice.
+     */
+    public static boolean sendBool(MemorySegment receiver, MemorySegment sel, MemorySegment object) {
+        return ((Byte) call(BOOL_OBJ, receiver, sel, object)) != 0;
     }
 
     public static void sendVoidBool(MemorySegment receiver, MemorySegment sel, boolean arg) {
