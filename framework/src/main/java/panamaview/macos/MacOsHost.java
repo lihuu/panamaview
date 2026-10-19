@@ -52,13 +52,18 @@ public final class MacOsHost implements UiHost {
             Cocoa.setDelegate(application, dispatch);
 
             window = Cocoa.createWindow(scope, spec.title(), spec.width(), spec.height());
-            // Before the window is shown: a saved frame wins, and then centring would immediately
-            // undo it. Centring is what a first launch does, which is why the restore result
-            // decides.
-            boolean frameRestored = Cocoa.restoreFrame(scope, window, frameAutosaveName(spec));
             webView = WebView.create(scope, spec.width(), spec.height(), dispatch, assets(spec.page()));
             Cocoa.setContentView(window, webView.handle());
-            if (!frameRestored) {
+
+            if (spec.origin() != null) {
+                // An explicit position is a decision, not a preference: it is applied on every
+                // launch, so there is no frame to restore and none worth saving. Note that this
+                // also skips registering the autosave name — a placed window can still be
+                // dragged, but where it lands is deliberately not remembered.
+                Cocoa.setFrameOrigin(scope, window, spec.origin().x(), spec.origin().y());
+            } else if (!Cocoa.restoreFrame(scope, window, frameAutosaveName(spec))) {
+                // A saved frame wins, and then centring would immediately undo it. Centring is
+                // what a first launch does, which is why the restore result decides.
                 Cocoa.center(window);
             }
             Cocoa.show(window);
