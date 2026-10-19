@@ -32,6 +32,11 @@
 #   OUT             output directory               (default: target/dev-app)
 #   JAVA_HOME       JDK to copy the launcher from  (default: /usr/libexec/java_home)
 #
+# If notifications come back "not allowed": an unanswered permission prompt is recorded as a
+# denial, and that identity will not prompt again. Either enable the app in System Settings >
+# Notifications, or give it a fresh one — the bundle id is the identity:
+#   BUNDLE_ID=io.github.lihuu.panamaview.demo2 ./scripts/make-dev-app.sh
+#
 # Development only: the app is ad-hoc signed and never leaves this machine.
 set -eu
 cd "$(dirname "$0")/.."
