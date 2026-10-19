@@ -373,7 +373,7 @@ no other choice. The platform extras (`geometry`, `resize`, `snapshot`) are regi
 ### Getting onto the UI thread (the platform-specific part)
 
 This is where platforms diverge, which is why it lives in the platform package
-(`panamaview.macos.UiThread`) rather than in the bridge. On macOS it is libdispatch, and
+(`io.github.lihuu.panamaview.macos.UiThread`) rather than in the bridge. On macOS it is libdispatch, and
 two details cost real time to establish — both were checked with throwaway C programs
 rather than assumed:
 
@@ -514,12 +514,12 @@ native types leak into the application", and the first version did leak — `Web
 So the line is drawn at exactly one seam, derived from the working macOS implementation:
 
 ```
-panamaview            portable — JDK types only, no foreign, no ObjC
+io.github.lihuu.panamaview        portable — JDK types only, no foreign, no ObjC
   WebApp  App  Bridge  Json  Resources  UiHost  WindowSpec
-                    │
-                    │  UiHost: String / Runnable / primitives / Path
-                    │
-panamaview.macos      the only implementation that exists
+                                  │
+                                  │  UiHost: String / Runnable / primitives / Path
+                                  │
+io.github.lihuu.panamaview.macos  the only implementation that exists
   MacOsHost  ObjC  Cocoa  WebView  WebView  ObjCDispatch  NativeBlock  UiThread
 ```
 
@@ -534,7 +534,7 @@ needs to resize, that is when a method earns its place.
 
 ### How strongly this is enforced
 
-Package-private, not modules. Inside `panamaview.macos` only `MacOsHost` is public; `ObjC`,
+Package-private, not modules. Inside `io.github.lihuu.panamaview.macos` only `MacOsHost` is public; `ObjC`,
 `Cocoa`, `WebView`, `ObjCDispatch`, `NativeBlock` and `UiThread` are all `final class` with no
 modifier, so they are unreachable from the application — by convention rather than by the compiler,
 since everything is still one Maven module. The composition root that pairs a host with an app is
@@ -544,7 +544,7 @@ the one thing that has to know both, and that is the app's job, not the platform
 That is enough for now because the portable half has been checked to be genuinely free of
 native types: the core package's imports are JDK-only, and no `MemorySegment`, `Arena`,
 `Linker` or `ObjC.` reference appears in it as code. When a second platform is real, moving
-`panamaview.macos` into its own Maven module turns the convention into a build-time
+`io.github.lihuu.panamaview.macos` into its own Maven module turns the convention into a build-time
 guarantee — the application's classpath would simply not contain the native code.
 
 ## 13. What a consumer inherits, and what they must declare

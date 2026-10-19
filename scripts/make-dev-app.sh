@@ -26,7 +26,7 @@
 # Environment:
 #   NAME            app and bundle name            (default: "Panamaview Demo")
 #   BUNDLE_ID       CFBundleIdentifier             (default: io.github.lihuu.panamaview.demo)
-#   MAIN_CLASS      Java main class                (default: panamaview.demo.Main)
+#   MAIN_CLASS      Java main class                (default: io.github.lihuu.panamaview.demo.Main)
 #   APP_CLASSPATH   classpath to run               (default: build the demo with Maven)
 #   JAVA_OPTS       options before the classpath   (default: AppKit + FFM flags)
 #   OUT             output directory               (default: target/dev-app)
@@ -43,7 +43,7 @@ cd "$(dirname "$0")/.."
 
 NAME="${NAME:-Panamaview Demo}"
 BUNDLE_ID="${BUNDLE_ID:-io.github.lihuu.panamaview.demo}"
-MAIN_CLASS="${MAIN_CLASS:-panamaview.demo.Main}"
+MAIN_CLASS="${MAIN_CLASS:-io.github.lihuu.panamaview.demo.Main}"
 JAVA_OPTS="${JAVA_OPTS:--XstartOnFirstThread --enable-native-access=ALL-UNNAMED}"
 OUT="${OUT:-target/dev-app}"
 

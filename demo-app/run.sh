@@ -24,4 +24,4 @@ exec "$JAVA" \
     --enable-native-access=ALL-UNNAMED \
     ${JAVA_OPTS:-} \
     -cp "target/classes:$(cat target/classpath.txt)" \
-    panamaview.demo.Main "$@"
+    io.github.lihuu.panamaview.demo.Main "$@"

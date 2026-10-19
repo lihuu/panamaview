@@ -10,5 +10,5 @@ rem software rendering is plenty for a demo.
 set "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--disable-gpu"
 rem "call" is not decoration: mvn.cmd is a batch file, and a plain invocation hands
 rem control to it and never comes back - the exit code below would be a lie.
-call mvn compile exec:exec -Dmain.class=panamaview.probe.WindowsDemo
+call mvn compile exec:exec -Dmain.class=io.github.lihuu.panamaview.probe.WindowsDemo
 echo demo exit code %ERRORLEVEL%

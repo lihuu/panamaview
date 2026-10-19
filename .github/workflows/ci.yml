@@ -87,7 +87,7 @@ jobs:
           cat "$contents"
 
           fail=0
-          for pattern in '^panamaview/App' '^panamaview/macos/Main' '^demo/' '^web/'; do
+          for pattern in '^io/github/lihuu/panamaview/App' '^io/github/lihuu/panamaview/macos/Main' '^demo/' '^web/'; do
             if grep -qE "$pattern" "$contents"; then
               echo "::error::the framework jar carries an application: $pattern"
               fail=1
