@@ -163,7 +163,7 @@ for file in "$ARTIFACTS/panamaview-$VERSION.jar" \
 done
 
 say "the jar has the framework in it"
-unzip -l "$ARTIFACTS/panamaview-$VERSION.jar" | grep -q "panamaview/WebApp.class" \
+unzip -l "$ARTIFACTS/panamaview-$VERSION.jar" | grep -q "io/github/lihuu/panamaview/WebApp.class" \
     || fail "panamaview-$VERSION.jar does not contain the framework's own classes"
 
 say "every template arrived, and the scripts in them are still executable"

@@ -31,4 +31,4 @@ exec "$NATIVE_IMAGE" \
     --enable-native-access=ALL-UNNAMED \
     -cp "target/classes:$(cat target/classpath.txt)" \
     -o target/panamaview-demo \
-    panamaview.demo.Main
+    io.github.lihuu.panamaview.demo.Main

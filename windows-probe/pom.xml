@@ -14,7 +14,7 @@
   <parent>
     <groupId>io.github.lihuu</groupId>
     <artifactId>panamaview-parent</artifactId>
-    <version>0.3.0</version>
+    <version>1.0.0</version>
   </parent>
 
   <artifactId>panamaview-windows-probe</artifactId>
@@ -25,7 +25,7 @@
     without a window. An ordinary consumer of the framework.</description>
 
   <properties>
-    <main.class>panamaview.probe.WindowsProbe</main.class>
+    <main.class>io.github.lihuu.panamaview.probe.WindowsProbe</main.class>
   </properties>
 
   <!--

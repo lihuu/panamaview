@@ -7,7 +7,7 @@
   <parent>
     <groupId>io.github.lihuu</groupId>
     <artifactId>panamaview-parent</artifactId>
-    <version>0.3.0</version>
+    <version>1.0.0</version>
   </parent>
 
   <artifactId>panamaview-demo</artifactId>
@@ -17,7 +17,7 @@
   <description>The bridge self-test in a real window. An ordinary consumer of the framework.</description>
 
   <properties>
-    <main.class>panamaview.demo.Main</main.class>
+    <main.class>io.github.lihuu.panamaview.demo.Main</main.class>
   </properties>
 
   <!--

@@ -101,8 +101,8 @@ When your project is generated:
 ```java
 package com.example;
 
-import panamaview.WebApp;
-import panamaview.macos.MacOsHost; // or panamaview.windows.WindowsHost
+import io.github.lihuu.panamaview.WebApp;
+import io.github.lihuu.panamaview.macos.MacOsHost; // or io.github.lihuu.panamaview.windows.WindowsHost
 
 public final class Main {
     public static void main(String[] args) throws Exception {
@@ -244,6 +244,7 @@ docs/                  Deep-dive architecture and maintenance documentation
 
 ## 📖 Deep Dives & Further Reading
 
+- [Migrating to 1.0 (package rename)](docs/migrating-to-1.0.md)
 - [Where your page runs (Asset Serving & WebKit Internals)](docs/page-environment.md)
 - [Verification & Benchmarks](docs/verification.md)
 - [Publishing to Maven Central & Private Repositories](docs/publishing.md)
