@@ -229,6 +229,19 @@ final class Win32 {
      * message would eat the behaviour behind it.
      */
     static MemorySegment createWindow(Arena arena, String title, int width, int height, Procedure procedure) {
+        return createWindow(arena, title, width, height, CW_USEDEFAULT, CW_USEDEFAULT, procedure);
+    }
+
+    /**
+     * The same, at a caller-chosen position.
+     *
+     * <p>{@code CreateWindowExW} takes the position as two ordinary arguments, so placement needs
+     * no second call and no window-manager negotiation: the window is simply born there. The
+     * coordinates are virtual-screen pixels measured from the top-left of the primary monitor —
+     * the same numbers, in the same pass-through spirit, as {@link panamaview.WindowSpec.Origin}.
+     */
+    static MemorySegment createWindow(Arena arena, String title, int width, int height,
+                                      int x, int y, Procedure procedure) {
         MemorySegment wndProc = LINKER.upcallStub(
                 // Bound to the concrete adapter, by the concrete method name - the exact shape
                 // the prototype proved out. CreateWindowExW dispatches WM_NCCREATE and friends
@@ -270,7 +283,7 @@ final class Win32 {
                     0,                    // exStyle
                     classNameSeg, windowName,
                     WS_OVERLAPPEDWINDOW,  // style
-                    CW_USEDEFAULT, CW_USEDEFAULT, width, height,
+                    x, y, width, height,
                     MemorySegment.NULL, MemorySegment.NULL, instance, MemorySegment.NULL);
             if (hwnd.equals(MemorySegment.NULL)) {
                 // CreateWindowExW reports why only through GetLastError; without it the

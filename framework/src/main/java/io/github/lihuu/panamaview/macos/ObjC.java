@@ -60,6 +60,11 @@ final class ObjC {
             JAVA_DOUBLE.withName("width"),
             JAVA_DOUBLE.withName("height"));
 
+    /** {@code NSPoint}/{@code CGPoint} — {@code {CGFloat x; CGFloat y;}} = two doubles. */
+    public static final MemoryLayout NSPOINT = MemoryLayout.structLayout(
+            JAVA_DOUBLE.withName("x"),
+            JAVA_DOUBLE.withName("y"));
+
     private static final int RTLD_NOW = 0x2;
     private static final int RTLD_GLOBAL = 0x8;
 
@@ -212,6 +217,13 @@ final class ObjC {
             return s;
         }
 
+        public MemorySegment point(double x, double y) {
+            MemorySegment p = arena.allocate(NSPOINT);
+            p.set(JAVA_DOUBLE, 0, x);
+            p.set(JAVA_DOUBLE, 8, y);
+            return p;
+        }
+
         public MemorySegment rect(double x, double y, double w, double h) {
             MemorySegment r = arena.allocate(NSRECT);
             r.set(JAVA_DOUBLE, 0, x);
@@ -257,6 +269,8 @@ final class ObjC {
     private static final FunctionDescriptor VOID2 = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, ADDRESS, ADDRESS);
     private static final FunctionDescriptor VOID3 = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, ADDRESS, ADDRESS, ADDRESS);
     private static final FunctionDescriptor BOOL1 = FunctionDescriptor.of(JAVA_BYTE, ADDRESS, ADDRESS, JAVA_BYTE);
+    /** {@code BOOL} out, one object in — {@code setFrameUsingName:}, {@code setFrameAutosaveName:}. */
+    private static final FunctionDescriptor BOOL_OBJ = FunctionDescriptor.of(JAVA_BYTE, ADDRESS, ADDRESS, ADDRESS);
     /** receiver + selector + object + NSInteger + object + object — {@code NSHTTPURLResponse}'s designated init. */
     private static final FunctionDescriptor ID_OBJ_LONG_OBJ_OBJ =
             FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS);
@@ -266,6 +280,7 @@ final class ObjC {
     private static final FunctionDescriptor VOID_LONG = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_LONG);
     private static final FunctionDescriptor VOID_RECT = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, NSRECT);
     private static final FunctionDescriptor VOID_SIZE = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, NSSIZE);
+    private static final FunctionDescriptor VOID_POINT = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, NSPOINT);
     private static final FunctionDescriptor RECT0 = FunctionDescriptor.of(NSRECT, ADDRESS, ADDRESS);
     private static final FunctionDescriptor ID_RECT_LONG_LONG_BOOL =
             FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, NSRECT, JAVA_LONG, JAVA_LONG, JAVA_BYTE);
@@ -328,6 +343,17 @@ final class ObjC {
         return ((Byte) call(BOOL1, receiver, sel, (byte) (arg ? 1 : 0))) != 0;
     }
 
+    /**
+     * A {@code BOOL}-returning message with one object argument.
+     *
+     * <p>The return value is the whole point of both callers: {@code setFrameUsingName:} answers
+     * <em>whether a saved frame was found</em>, which is how the window knows whether centring it
+     * would be a first launch or would undo the user's choice.
+     */
+    public static boolean sendBool(MemorySegment receiver, MemorySegment sel, MemorySegment object) {
+        return ((Byte) call(BOOL_OBJ, receiver, sel, object)) != 0;
+    }
+
     public static void sendVoidBool(MemorySegment receiver, MemorySegment sel, boolean arg) {
         call(VOID_BOOL, receiver, sel, (byte) (arg ? 1 : 0));
     }
@@ -350,6 +376,11 @@ final class ObjC {
      */
     public static void sendVoidSize(MemorySegment receiver, MemorySegment sel, MemorySegment size) {
         call(VOID_SIZE, receiver, sel, size);
+    }
+
+    /** The same by-value-two-doubles shape for a position: {@code setFrameOrigin:}, {@code setFrameTopLeftPoint:}. */
+    public static void sendVoidPoint(MemorySegment receiver, MemorySegment sel, MemorySegment point) {
+        call(VOID_POINT, receiver, sel, point);
     }
 
     /**

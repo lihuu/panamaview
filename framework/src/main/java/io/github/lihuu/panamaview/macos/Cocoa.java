@@ -34,22 +34,63 @@ final class Cocoa {
     }
 
     /**
-     * A one-item menu bar containing "Quit". Without a main menu, ⌘Q does nothing —
-     * the menu bar is the only thing that gives the app keyboard-level control.
+     * The menu bar: an application menu containing "Quit", and an Edit menu.
+     *
+     * <p>Without a main menu, ⌘Q does nothing — the menu bar is the only thing that gives the
+     * app keyboard-level control. The Edit menu exists for the same reason one level down:
+     * AppKit dispatches keyboard shortcuts through <em>menu item key equivalents</em>, so ⌘C,
+     * ⌘V, ⌘X and ⌘A only reach the focused view if a menu item carries both the key
+     * equivalent and the responder action ({@code copy:}, {@code paste:}, {@code cut:},
+     * {@code selectAll:}). With no Edit menu those actions are unreachable from the keyboard,
+     * and a {@code WKWebView}'s text fields silently stop responding to them.
+     *
+     * <p>Every item is added with a nil target on purpose: with no target, AppKit walks the
+     * responder chain, so the web view's content view — the first responder while typing —
+     * handles the action natively and text editing keeps working exactly as it does in Safari.
      */
     public static void installMenuBar(ObjC.Scope scope, MemorySegment app, String appName) {
         MemorySegment mainMenu = newMenu(scope, "");
+
         MemorySegment appMenuItem = ObjC.newObject("NSMenuItem");
         ObjC.sendVoid(mainMenu, ObjC.selector("addItem:"), appMenuItem);
 
         MemorySegment appMenu = newMenu(scope, appName);
         ObjC.sendVoid(appMenuItem, ObjC.selector("setSubmenu:"), appMenu);
-        ObjC.send(appMenu, ObjC.selector("addItemWithTitle:action:keyEquivalent:"),
-                ObjC.nsString(scope, "Quit " + appName),
-                ObjC.selector("terminate:"),
-                ObjC.nsString(scope, "q"));
+        addItem(scope, appMenu, "Quit " + appName, "terminate:", "q");
+
+        MemorySegment editMenuItem = ObjC.newObject("NSMenuItem");
+        ObjC.sendVoid(editMenuItem, ObjC.selector("setTitle:"), ObjC.nsString(scope, "Edit"));
+        ObjC.sendVoid(mainMenu, ObjC.selector("addItem:"), editMenuItem);
+
+        MemorySegment editMenu = newMenu(scope, "Edit");
+        ObjC.sendVoid(editMenuItem, ObjC.selector("setSubmenu:"), editMenu);
+        addItem(scope, editMenu, "Undo", "undo:", "z");
+        // An uppercase key equivalent implies Shift, so this is ⌘⇧Z.
+        addItem(scope, editMenu, "Redo", "redo:", "Z");
+        addSeparator(editMenu);
+        addItem(scope, editMenu, "Cut", "cut:", "x");
+        addItem(scope, editMenu, "Copy", "copy:", "c");
+        addItem(scope, editMenu, "Paste", "paste:", "v");
+        addSeparator(editMenu);
+        addItem(scope, editMenu, "Select All", "selectAll:", "a");
 
         ObjC.sendVoid(app, ObjC.selector("setMainMenu:"), mainMenu);
+    }
+
+    /** One menu item. The target stays nil, which means "whoever is first responder". */
+    private static void addItem(ObjC.Scope scope, MemorySegment menu,
+                                String title, String action, String keyEquivalent) {
+        ObjC.send(menu, ObjC.selector("addItemWithTitle:action:keyEquivalent:"),
+                ObjC.nsString(scope, title),
+                ObjC.selector(action),
+                ObjC.nsString(scope, keyEquivalent));
+    }
+
+    private static void addSeparator(MemorySegment menu) {
+        // A separator is a class-method singleton, [+NSMenuItem separatorItem].
+        MemorySegment separator = ObjC.send(ObjC.classNamed("NSMenuItem"),
+                ObjC.selector("separatorItem"));
+        ObjC.sendVoid(menu, ObjC.selector("addItem:"), separator);
     }
 
     private static MemorySegment newMenu(ObjC.Scope scope, String title) {
@@ -85,8 +126,47 @@ final class Cocoa {
         ObjC.sendVoidSize(window, ObjC.selector("setContentSize:"), scope.size(width, height));
     }
 
-    public static void show(MemorySegment window) {
+    /**
+     * {@code [window setFrameOrigin:]} — moves the window and leaves its size alone.
+     *
+     * <p>The point is the frame's origin in AppKit's screen coordinates, measured from the
+     * bottom-left of the primary display. Callers get that coordinate space and not a
+     * translated one — see {@link panamaview.WindowSpec.Origin}.
+     */
+    public static void setFrameOrigin(ObjC.Scope scope, MemorySegment window, double x, double y) {
+        ObjC.sendVoidPoint(window, ObjC.selector("setFrameOrigin:"), scope.point(x, y));
+    }
+
+    /**
+     * Puts the window back where the user last left it, and asks AppKit to keep saving it there.
+     *
+     * <p>This is the platform's own persistence, not a side file: {@code setFrameAutosaveName:}
+     * makes the window write its frame — origin <em>and</em> size — into the process' user
+     * defaults whenever it moves or is resized, and {@code setFrameUsingName:} reads it back
+     * here. The name is the only thing the framework has to choose; within one defaults domain
+     * it is the whole key, so two windows get two memories.
+     *
+     * <p>The return value is not a detail. A window that has never been moved has nothing saved,
+     * and then the caller's size plus {@link #center} still decide — first launch looks exactly
+     * as it did before this existed. A window that <em>has</em> been moved must not be centred,
+     * or the restore is undone one line later.
+     *
+     * @return true when a saved frame was restored
+     */
+    public static boolean restoreFrame(ObjC.Scope scope, MemorySegment window, String autosaveName) {
+        MemorySegment name = ObjC.nsString(scope, autosaveName);
+        boolean restored = ObjC.sendBool(window, ObjC.selector("setFrameUsingName:"), name);
+        // Registers for saving from now on; when nothing was restored, the first move creates
+        // the entry.
+        ObjC.sendBool(window, ObjC.selector("setFrameAutosaveName:"), name);
+        return restored;
+    }
+
+    public static void center(MemorySegment window) {
         ObjC.sendVoid(window, ObjC.selector("center"));
+    }
+
+    public static void show(MemorySegment window) {
         ObjC.sendVoid(window, ObjC.selector("makeKeyAndOrderFront:"), MemorySegment.NULL);
     }
 

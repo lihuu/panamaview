@@ -56,6 +56,7 @@ public final class WebApp {
     private boolean liveReload = true;
     private boolean spaFallback = true;
     private Path stagedRoot;
+    private WindowSpec.Origin origin;
 
     public WebApp(UiHost host) {
         this.host = host;
@@ -70,6 +71,22 @@ public final class WebApp {
     public WebApp size(int w, int h) {
         this.width = w;
         this.height = h;
+        return this;
+    }
+
+    /**
+     * Opens the window at this position, on every launch.
+     *
+     * <p>An explicit position is a decision, not a preference: the window is not remembered and
+     * nothing is restored, so a kiosk screen, a presentation display or a test keeps the spot it
+     * was given. Leave it out and the platform does what it always does — centre on the first
+     * launch, then bring the window back where the user left it.
+     *
+     * <p>The coordinates are the platform's own, measured from the window's <em>frame</em>
+     * (title bar included). See {@link WindowSpec.Origin} for why they are not translated.
+     */
+    public WebApp position(int x, int y) {
+        this.origin = new WindowSpec.Origin(x, y);
         return this;
     }
 
@@ -338,6 +355,6 @@ public final class WebApp {
             public boolean shouldQuitWhenLastWindowCloses() {
                 return true;
             }
-        }, new WindowSpec(title, width, height, page));
+        }, new WindowSpec(title, width, height, page, origin));
     }
 }

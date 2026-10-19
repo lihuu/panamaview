@@ -54,6 +54,18 @@ public final class MacOsHost implements UiHost {
             window = Cocoa.createWindow(scope, spec.title(), spec.width(), spec.height());
             webView = WebView.create(scope, spec.width(), spec.height(), dispatch, assets(spec.page()));
             Cocoa.setContentView(window, webView.handle());
+
+            if (spec.origin() != null) {
+                // An explicit position is a decision, not a preference: it is applied on every
+                // launch, so there is no frame to restore and none worth saving. Note that this
+                // also skips registering the autosave name — a placed window can still be
+                // dragged, but where it lands is deliberately not remembered.
+                Cocoa.setFrameOrigin(scope, window, spec.origin().x(), spec.origin().y());
+            } else if (!Cocoa.restoreFrame(scope, window, frameAutosaveName(spec))) {
+                // A saved frame wins, and then centring would immediately undo it. Centring is
+                // what a first launch does, which is why the restore result decides.
+                Cocoa.center(window);
+            }
             Cocoa.show(window);
             Cocoa.activate(application);
 
@@ -92,6 +104,21 @@ public final class MacOsHost implements UiHost {
         return page instanceof PageSource.FromAssets a
                 ? new AssetScheme(a.scheme(), a.root(), a.entry(), a.spaFallback())
                 : null;
+    }
+
+    /**
+     * The name the window's frame is remembered under.
+     *
+     * <p>The title is the only stable identity a {@link WindowSpec} carries, and inside a
+     * defaults domain the name is the whole key. That domain is wider than "this application"
+     * for a bundleless JVM: every {@code java -cp} panamaview app writes to
+     * {@code net.java.openjdk.java}, while a native-image build falls back to its executable's
+     * name. So the title is what separates one panamaview app from another, and two apps that
+     * choose the same title will share one remembered frame — a title is already the app's
+     * statement of its own identity, and the spec has nothing better to offer.
+     */
+    private static String frameAutosaveName(WindowSpec spec) {
+        return spec.title();
     }
 
     // ------------------------------------------------------- callbacks for ObjCDispatch
