@@ -355,6 +355,13 @@ final class ObjC {
         return ((Byte) call(BOOL_OBJ, receiver, sel, object)) != 0;
     }
 
+    /** A {@code BOOL}-returning message with two object arguments — {@code setString:forType:}. */
+    public static boolean sendBool(MemorySegment receiver, MemorySegment sel,
+                                   MemorySegment a, MemorySegment b) {
+        return ((Byte) call(FunctionDescriptor.of(JAVA_BYTE, ADDRESS, ADDRESS, ADDRESS, ADDRESS),
+                receiver, sel, a, b)) != 0;
+    }
+
     public static void sendVoidBool(MemorySegment receiver, MemorySegment sel, boolean arg) {
         call(VOID_BOOL, receiver, sel, (byte) (arg ? 1 : 0));
     }

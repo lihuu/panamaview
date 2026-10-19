@@ -295,6 +295,34 @@
     }
   });
 
+  // ------------------------------------------------------------------ clipboard
+  //
+  // This is the half navigator.clipboard cannot do reliably: by the time an async handler has
+  // its text, the click that started it is no longer "fresh", and WebKit refuses. Java has no
+  // such rule, so the page asks Java.
+
+  $("copy").addEventListener("click", async () => {
+    const text = `panamaview copied this at ${new Date().toLocaleTimeString()}`;
+    try {
+      const result = await java.invoke("copyText", { text });
+      $("clip-state").textContent = `copied ${result.copied} chars (changeCount ${result.changeCount})`;
+      log(`js → java  copyText → ${JSON.stringify(result)}`);
+    } catch (error) {
+      $("clip-state").textContent = `copy failed — ${error.message}`;
+    }
+  });
+
+  $("readclip").addEventListener("click", async () => {
+    try {
+      const result = await java.invoke("clipboard", {});
+      $("clip-state").textContent = result.text === null
+        ? `no text on the clipboard (changeCount ${result.changeCount})`
+        : JSON.stringify(result.text);
+    } catch (error) {
+      $("clip-state").textContent = `read failed — ${error.message}`;
+    }
+  });
+
   // ------------------------------------------------------ system notifications
   //
   // The page never touches the Web Notification API. WebKit's permission for it lives behind a

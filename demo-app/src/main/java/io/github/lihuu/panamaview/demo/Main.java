@@ -48,7 +48,12 @@ public final class Main {
                 // answer with facts the page cannot know on its own: whether this process is a
                 // .app at all, and what the user decided when the system asked.
                 .bind("notificationInfo", params -> notificationInfo(host))
-                .bind("notify", params -> notify(host, params));
+                .bind("notify", params -> notify(host, params))
+                // The clipboard, from the program's side. The page can also use
+                // navigator.clipboard, but only while the user's click is still fresh; behind an
+                // await it is refused. This binding has no such rule.
+                .bind("copyText", params -> copyText(host, params))
+                .bind("clipboard", params -> clipboard(host));
 
         app.web().run();
     }
@@ -81,6 +86,22 @@ public final class Main {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("granted", granted);
         result.put("posted", granted);
+        return result;
+    }
+
+    private static Map<String, Object> copyText(MacOsHost host, Map<String, Object> params) {
+        String text = String.valueOf(params.getOrDefault("text", ""));
+        host.writeClipboard(text);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("copied", text.length());
+        result.put("changeCount", host.clipboardChangeCount());
+        return result;
+    }
+
+    private static Map<String, Object> clipboard(MacOsHost host) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("text", host.readClipboard());
+        result.put("changeCount", host.clipboardChangeCount());
         return result;
     }
 

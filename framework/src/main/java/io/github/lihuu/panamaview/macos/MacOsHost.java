@@ -207,6 +207,35 @@ public final class MacOsHost implements UiHost {
         return path;
     }
 
+    // ------------------------------------------------------------------- clipboard
+
+    /**
+     * The system clipboard's text, or {@code null} when it holds none.
+     *
+     * <p>For the program that needs the clipboard, as opposed to the user pressing ⌘V in a text
+     * field — that one is AppKit's, handled by the menu bar and the responder chain with no Java
+     * involved. This is the other direction: a handler, a start-up read, an event pushed to the
+     * page. Safe to call from a binding handler; the general pasteboard takes any thread.
+     */
+    public String readClipboard() {
+        return Pasteboard.readText();
+    }
+
+    /** Replaces the system clipboard with {@code text}. */
+    public void writeClipboard(String text) {
+        Pasteboard.writeText(text);
+    }
+
+    /**
+     * The pasteboard's change counter.
+     *
+     * <p>Every write bumps it — this app's, another app's, the user's ⌘C — so comparing two reads
+     * is how an app notices that the clipboard changed without polling its contents.
+     */
+    public long clipboardChangeCount() {
+        return Pasteboard.changeCount();
+    }
+
     // ---------------------------------------------------------- system notifications
 
     /**
