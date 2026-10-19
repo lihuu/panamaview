@@ -72,7 +72,11 @@ public final class WindowsHost implements UiHost {
         try {
             Win32.coInitializeApartmentThreaded();
 
-            hwnd = Win32.createWindow(pumpArena, spec.title(), spec.width(), spec.height(), this::onWindowMessage);
+            WindowSpec.Origin origin = spec.origin();
+            hwnd = origin == null
+                    ? Win32.createWindow(pumpArena, spec.title(), spec.width(), spec.height(), this::onWindowMessage)
+                    : Win32.createWindow(pumpArena, spec.title(), spec.width(), spec.height(),
+                            origin.x(), origin.y(), this::onWindowMessage);
 
             Path loader = findLoader();
             WebView2.createEnvironment(WebView2.load(loader),
