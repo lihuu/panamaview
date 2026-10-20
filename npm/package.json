@@ -19,7 +19,7 @@
   ],
   "type": "commonjs",
   "bin": {
-    "panamaview": "./cli.js"
+    "panamaview": "cli.js"
   },
   "engines": {
     "node": ">=18"
