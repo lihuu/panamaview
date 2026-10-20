@@ -22,3 +22,7 @@ target/
 # The smoke writes its stage log beside the module; not source.
 /windows-probe/smoke-result.txt
 /windows-probe/smoke-page.png
+
+# Version snapshots the editor writes into the project root as files change. Not source, and not
+# history either -- the repository already keeps that.
+/.alma-snapshots/
