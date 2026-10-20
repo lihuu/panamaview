@@ -20,6 +20,8 @@ The script enforces verification before making any modifications:
 4. Commits, tags (`vX.Y.Z`), and pushes to origin.
 5. GitHub Actions (`.github/workflows/release.yml`) triggers on the tag to verify agreement across files.
 
+A release is not finished at the tag. Publishing the scaffolder is a separate, manual act — `cd npm && npm publish` — because no credential for the registry lives in this repository. See [Publishing to npm](publishing.md#3-publishing-to-npm) for the two commands, the `prepack` hook they trigger, and the `--ignore-scripts` trap that ships a package which cannot scaffold.
+
 ---
 
 ## 2. Version Distribution (The 13 Version Fields)
