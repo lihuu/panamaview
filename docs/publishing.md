@@ -1,6 +1,6 @@
 # Publishing panamaview
 
-This guide explains how `panamaview` is published to private Maven repositories and to **Maven Central**.
+This guide explains how `panamaview` is published to private Maven repositories, to **Maven Central**, and how the scaffolder is published to **npm**.
 
 ---
 
@@ -59,3 +59,62 @@ The `-Pcentral` profile in `pom.xml` activates:
 - `maven-gpg-plugin` with `--pinentry-mode loopback`.
 - `central-publishing-maven-plugin` for validation and bundle bundling.
 - Exclusion of non-published application modules (`panamaview-demo`, `panamaview-windows-probe`).
+
+---
+
+## 3. Publishing to npm
+
+The scaffolder ships as **`create-panamaview`** on npm:
+
+- **Package**: `create-panamaview` — unscoped, so it is public by default
+- **Entry point**: `npx create-panamaview <dir> --template <vanilla|react|vue|angular|vanilla-tailwind>`
+- **What it carries**: `cli.js`, `src/`, the five templates under `templates/`, and the framework itself as a Maven repository root under `lib/`
+
+This is the front door of the project, and it is the one artifact whose version is read by people who have never cloned the repository. A package left behind at an older version generates projects pinned to that older framework version, which is why `release.yml` checks `npm/package.json` against the tag like it checks the poms.
+
+### Publishing is a manual step
+
+`scripts/release.sh` moves `npm/package.json` to the release version along with the poms, and tags the commit — but it does not publish. CI does not either: `release.yml` stages the package with `build-package.sh` and asks `cli.js --selftest` to read every file it ships, then stops. Nothing in this repository holds a registry credential — there is no `NPM_TOKEN` in the workflows and no `setup-node` registry auth — so a tag push cannot publish under the maintainer's name.
+
+So a release is two acts — the tag, then the publish:
+
+```sh
+./scripts/release.sh patch              # versions, tag, push
+cd npm && npm publish --access public   # the scaffolder
+```
+
+`--access public` is redundant for an unscoped package — the default is already public — and it is kept only because the habit for scoped packages is hard to unlearn. It does no harm.
+
+### What `npm publish` actually runs
+
+`npm/package.json` declares one hook:
+
+```json
+"scripts": { "prepack": "./scripts/build-package.sh" }
+```
+
+`build-package.sh` builds the framework, lays the jar out as a Maven repository root under `lib/`, and copies the five templates into `templates/`. It has to be a hook rather than committed state, because npm's `files` allowlist cannot reach outside the package directory: nothing above `npm/` can be shipped as it stands.
+
+⚠️ **`npm publish --ignore-scripts` publishes a package that cannot scaffold.** It skips the hook, so `lib/` and `templates/` are whatever happens to be sitting on disk — and on a fresh clone that is nothing. npm reports no problem while doing it: packing a tree that has only `cli.js`, `src/` and `package.json` with `--ignore-scripts` yields a three-file tarball and exits 0. The damage shows up later, on the user's machine, as a missing library or an empty template list. Publish without the flag and let the hook run.
+
+### Verifying a publish
+
+Before publishing, the same staging can be exercised without touching the registry:
+
+```sh
+./scripts/verify-npm-package.sh
+```
+
+After publishing, prove the package works from the registry rather than from the working tree:
+
+```sh
+npm view create-panamaview version                                    # what is actually live
+cd /tmp && npx --yes create-panamaview@X.Y.Z create probe --template vanilla
+cd probe && ./run.sh
+```
+
+The generated `pom.xml` must pin `X.Y.Z` and resolve it from Maven Central — so Central has to be published first, and a version published to npm before Central will fail at the first build rather than at `npm publish`.
+
+### Credentials
+
+`npm publish` authenticates with the token in `~/.npmrc`, written by `npm login`. Granular tokens (`npm_…`) expire. When `npm whoami` answers `401`, the token is dead and `npm publish` fails before it reaches the registry — log in again (browser, plus the account's 2FA code) rather than searching for a flag.
