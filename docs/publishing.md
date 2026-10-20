@@ -67,7 +67,7 @@ The `-Pcentral` profile in `pom.xml` activates:
 The scaffolder ships as **`create-panamaview`** on npm:
 
 - **Package**: `create-panamaview` — unscoped, so it is public by default
-- **Entry point**: `npx create-panamaview <dir> --template <vanilla|react|vue|angular|vanilla-tailwind>`
+- **Entry point**: `npx create-panamaview create <dir> --template <vanilla|react|vue|angular|vanilla-tailwind>` — the subcommand is not optional; `npx create-panamaview <dir>` prints the usage text instead of scaffolding
 - **What it carries**: `cli.js`, `src/`, the five templates under `templates/`, and the framework itself as a Maven repository root under `lib/`
 
 This is the front door of the project, and it is the one artifact whose version is read by people who have never cloned the repository. A package left behind at an older version generates projects pinned to that older framework version, which is why `release.yml` checks `npm/package.json` against the tag like it checks the poms.
@@ -115,6 +115,18 @@ cd probe && ./run.sh
 
 The generated `pom.xml` must pin `X.Y.Z` and resolve it from Maven Central — so Central has to be published first, and a version published to npm before Central will fail at the first build rather than at `npm publish`.
 
+### The first few minutes look like a failure
+
+`npm publish` finishing is not the same as the version being installable, and both failure modes are indistinguishable from a real error unless you know to wait.
+
+**The version is missing from the registry.** A successful publish answers `202 Accepted` and prints *"Your package is being processed and may take a few minutes to become available"*. During that window `curl https://registry.npmjs.org/<pkg>/<version>` answers `version not found: 1.0.0` and the tarball URL answers `404`. Measured on 1.0.0: publish at 17:31:56, version present at 17:34:27, tarball reachable at 17:34:39 — about three minutes.
+
+**`npx` claims the version does not exist.** Two caches sit between you and a fresh publish. npm's local packument cache still holds the old metadata, so `npx <pkg>@X.Y.Z` fails with `ETARGET No matching version found`; the CDN edge also caches the earlier `404` for the tarball, so the same version can answer `200` with a cache-busting query string and `404` without one for a couple of minutes. Neither is a bad publish. Retry after the CDN entry expires (`ETARGET` → a minute; stale `404` → about three, measured), or ask the registry directly with a unique query string to see whether the artifact itself is there.
+
 ### Credentials
 
 `npm publish` authenticates with the token in `~/.npmrc`, written by `npm login`. Granular tokens (`npm_…`) expire. When `npm whoami` answers `401`, the token is dead and `npm publish` fails before it reaches the registry — log in again (browser, plus the account's 2FA code) rather than searching for a flag.
+
+A `401` *during* a publish is a different thing and needs nothing from you: npm sees it, opens the browser for web auth, polls `/-/v1/done` until you confirm, and re-sends the `PUT` itself. If the terminal appears to hang at that point, it is waiting on the browser tab it just opened.
+
+One warning during publish is noise and worth recognising so it is not chased: `"bin[panamaview]" script name cli.js was invalid and removed`. Nothing is removed. npm normalises `./cli.js` to `cli.js` in the copy it sends and its change-log wording says "removed" — the published `bin` is intact (`{'panamaview': 'cli.js'}` on 1.0.0). Writing `"bin": { "panamaview": "cli.js" }` without the `./` keeps it quiet.
