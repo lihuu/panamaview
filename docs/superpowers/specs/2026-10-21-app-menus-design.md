@@ -326,8 +326,7 @@ So for a menu the id is the low word and the high word is zero — the framework
 
 **One trap in that table.** A separator sends a `WM_COMMAND` with the low word set to **zero**
 — the system does that when the user selects a separator. So an id of 0 must not be looked
-up as a binding; it means "a separator was clicked", and there is nothing to invoke. The
-framework's ids should start at 1 for the same reason.
+up as a binding; it means "a separator was clicked", and there is nothing to invoke.
 
 And the separator's id *is* zero, confirmed against the real Win32 on a Windows 11 box — a
 menu built with `AppendMenuW`, read back with `GetMenuItemID`:
@@ -343,6 +342,14 @@ item count: 3
 Position 1 is the separator, and its id is 0. So the rule is not merely a precaution: a
 separator really does arrive as id 0, and a framework that started its ids at 0 would find
 its first binding unreachable by a click.
+
+**Which fixes the id allocation.** The framework hands out the command ids, and it starts
+them at 1 — because 0 is what a separator reports. And it must treat `0xFFFFFFFF` as "not a
+command id" too, since that is what a popup item reports. In practice neither arrives at the
+`WM_COMMAND` handler as a click on an item that has a binding: a separator is not
+clickable in the sense that matters, and a popup opens a menu rather than firing an
+action. But the handler should not look either up, and the guard is worth writing down
+rather than leaving to the reader.
 
 And the case is genuinely missing today, which is the whole problem: `WindowsHost.onWindowMessage`
 switches on the message, and `WM_COMMAND` falls into the `default` branch, which forwards to
@@ -378,6 +385,22 @@ the item landed with the id it was given.
 ordinary item, and the **submenu handle** when `MF_POPUP` is set. The `MF_STRING` flag
 makes the item's text come from `lpNewItem`; `MF_SEPARATOR` makes it a separator and
 ignores the text entirely.
+
+The submenu case, checked on a Windows 11 box:
+
+```
+AppendMenuW with MF_POPUP: True
+the bar holds 1 item(s)
+GetSubMenu returns the menu we passed: True
+the submenu's item id: 5
+the bar item's own id (a popup has none): 4294967295
+```
+
+That last line is worth having. **A popup item has no command id of its own** — the system
+reports `0xFFFFFFFF`, which is `-1` read as a signed int. So the `WM_COMMAND` handler must
+not look a popup's id up as a binding, and must not read it as a small number either:
+`0xFFFFFFFF` and `0` are two different "not a command id" answers, and a framework that
+only guarded against zero would eventually look up 65535.
 
 The flag values, from the documented API:
 
