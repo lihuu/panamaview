@@ -1,0 +1,3 @@
+# The asset list the framework stages, in the format Resources expects. One entry, because
+# the test only needs the staged root to exist and be watchable.
+index.html

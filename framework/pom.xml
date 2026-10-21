@@ -22,10 +22,20 @@
     no bundled browser engine.</description>
 
   <!--
-    Zero runtime dependencies on purpose: the whole point is to talk to
+    Zero *runtime* dependencies on purpose: the whole point is to talk to
     Cocoa/WebKit through java.lang.foreign and nothing else.
+
+    The one dependency here is a test-scoped one. A consumer that depends on panamaview must
+    not acquire a test framework on its classpath, and the published jar carries no test code.
   -->
-  <dependencies/>
+  <dependencies>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>5.12.0</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
 
   <build>
     <plugins>
@@ -91,6 +101,25 @@ Move those sources into framework/src/... to match this module, then rebuild.
         to launch, so declaring one would mean shipping the demo again. The demo lives in demo-app/
         and is an ordinary consumer, exactly like the templates.
       -->
+
+      <!--
+        The first tests in this repository, and they exist because of a bug that no amount of
+        looking would have found.
+
+        The framework had no test source at all: everything was verified by running the demo
+        application and reading its self-test output, which is a real check of the bridge and no
+        check at all of the framework's own logic. That is how a platform's event loop could come
+        to disagree with the portable layer about when a UI thread exists — a disagreement with
+        no test to fail, and no Windows CI job to fail it in either.
+
+        JUnit is a test-scope dependency, so it is not inherited by anything that depends on this
+        artifact: the published jar carries no test code and Central sees no test dependency.
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.5.2</version>
+      </plugin>
     </plugins>
   </build>
 </project>

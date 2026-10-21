@@ -731,6 +731,76 @@ The page is pointed at the *staged* directory and the staged copy is refreshed, 
 pointing the page at the source. That keeps the framework's client bridge available beside the
 assets and never writes into the project's source tree.
 
+### 🚨 Live reload did nothing on Windows, and the README said it worked
+
+The watcher was registered only when `host.isUiThread()` was true:
+
+```java
+if (liveReload && host.isUiThread()) { … }
+```
+
+The reasoning was that reloading a window is a UI-thread operation. It is not — reloading is a
+*request*, and the request is delivered later, on whichever thread the platform calls the UI
+thread. What the condition actually asked was "is the **caller** on the UI thread right now",
+which is a different question with a different answer.
+
+On macOS the two questions happen to have the same answer, because AppKit's UI thread is the
+process' first thread from the first instruction: with `-XstartOnFirstThread` the JVM hands
+`main()` to it, so `isUiThread()` is true at every point where the portable layer runs. The
+condition was therefore *always* true on macOS, and the macOS path was never at risk.
+
+On Windows it was always false at the moment it mattered. The host's event loop runs on a thread
+it creates inside `start()`, and the watcher was registered before `start()` — so `isUiThread()`
+was false, the watcher was never registered, and live reload silently did nothing. No error, no
+message, no failed build. The vanilla template's README said the feature worked, and it did not.
+
+The fix is to stop asking the question that was being answered. The watcher is registered
+unconditionally, and the reload is delivered through `host.onUiThread` — which is the platform
+seam's answer to "run this later, on the UI thread", and which every platform already promises
+to accept from any thread.
+
+### 🚨 The fix was not enough, because the queue was broken underneath it
+
+Removing the condition would have made the watcher register on Windows — and the reload would
+still have been lost, one layer down. `WindowsHost.onUiThread` did this:
+
+```java
+uiQueue.add(action);
+Win32.postRunnable(hwnd, 0);      // hwnd is null until start() creates the window
+```
+
+`PostMessageW` with a null HWND does not fail loudly. It returns 0, and the message goes to the
+*calling* thread's queue — the main thread, which has no message loop and never drains it. The
+action sat in `uiQueue` forever. The pump thread's own `WM_APP_RUNNABLE` handler, which is what
+actually drains the queue, was never woken, because the wake-up message went somewhere else.
+
+So the queue is now the source of truth and the message is only the nudge: when the window does
+not exist yet, nothing is posted, and the pump drains the queue itself once it is up. The
+window's existence is the only thing that decides whether there is a bell to ring.
+
+The general shape of this is worth stating, because it is the second time this repository has
+been bitten by it: **a platform's "am I on the right thread" predicate is a statement about
+_now_, and a question about _later_ needs a different answer.** `isUiThread()` is still the
+right thing to ask when you want to know where you are standing — the demo's self-test uses it
+to prove a handler is off the UI thread, and `bindUi` handlers report it. It was the wrong thing
+to ask when what you needed was a way to say "do this later, over there".
+
+### The test that would have caught it
+
+This repository had no test source at all: everything was verified by running the demo
+application and reading its self-test output. That is a real check of the bridge and no check at
+all of the framework's own logic, which is why a disagreement between the portable layer and a
+platform's event loop could sit there for a year with nothing to fail — and no Windows CI job
+to fail in either.
+
+`LiveReloadTest` now pins the *shape* of the failure rather than the platform: a host that
+reports it is not on the UI thread, exactly as Windows does before its event loop is up, must
+still get a working watcher. The next platform to arrive inherits the fix instead of the bug.
+
+The test was checked against the old code before the fix was kept: it fails there, with
+`expected: <true> but was: <false>`, and passes after. A test that has never failed is not
+evidence of anything.
+
 ### 🚨 The verification script had a hole big enough to hide two bugs
 
 The first version of `verify-template.sh` assembled its own `java` invocation to run the headless
@@ -949,6 +1019,8 @@ against the artifact that was published, not against a local copy of something s
 ## 17. Reproducing any of this
 
 ```sh
+mvn -pl framework test                        # the framework's own tests — no window, no demo
+
 cd demo-app
 ./run.sh                                       # JVM, 13 self-test checks
 JAVA_OPTS=-Dpanamaview.snapshot=/tmp/s.png ./run.sh

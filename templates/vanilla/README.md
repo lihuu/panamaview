@@ -81,6 +81,10 @@ Two things to know:
 - **Nothing reloads in a native executable**, because there are no files to watch. That build is
   for shipping.
 
+This works the same on macOS and Windows. The two platforms run their event loops on different
+threads — AppKit on the process' first thread, WebView2 on a thread of its own — but the reload
+is delivered through the same queue either way, so the watcher does not care which it is on.
+
 Turn it off with `app.liveReload(false)` if you would rather not have it. If you want hot module
 replacement rather than a full reload, use the react template — that is what a dev server buys.
 
