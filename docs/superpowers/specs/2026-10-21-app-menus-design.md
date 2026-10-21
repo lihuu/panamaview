@@ -63,12 +63,11 @@ reason it exists is the whole point of the next section.
 
 This is the distinction the design turns on, and getting it wrong re-breaks issue #19.
 
-**A platform item** carries a *native action* — `copy:`, `paste:`, `undo:` — with a **nil
-target**, so AppKit walks the responder chain and the first responder handles it. That is
-precisely how ⌘C reaches the web view's text field today (Cocoa.java:43-48). These items
-have **no binding behind them**, and they must not have one: a target that is a Java object
-would *stop* the action travelling down the responder chain, and the web view would stop
-receiving ⌘C.
+**A platform item** carries a *platform action* with a **nil target**, so AppKit walks the
+responder chain and the first responder handles it. That is precisely how ⌘C reaches the web
+view's text field today (Cocoa.java:43-48). These items have **no binding behind them**, and
+they must not have one: a target that is a Java object would *stop* the action travelling
+down the responder chain, and the web view would stop receiving ⌘C.
 
 **A binding item** carries a *name* — `"export"` — and clicking it invokes the binding
 declared under that name.
@@ -80,17 +79,60 @@ menu(
     menu("文件",
         item("export", "导出").shortcut("CmdOrCtrl+E"),   // a binding item
         separator(),
-        platformItem("quit", "退出")),                     // a platform item
+        platformItem(Platform.QUIT, "退出")),               // a platform item
     editMenu())                                            // the built-in platform items
 ```
 
-The built-in Edit menu is a *platform* menu, and it is not expressible in terms of bindings.
-It is therefore **not part of the binding model at all** — it is something the framework
-supplies, and an application may ask for it, keep it, or leave it out. It is not
-"replaceable by an application-declared menu of the same name", because an application
-declaring 复制/剪切/全选 as binding items would silently stop ⌘C from reaching the web view.
+**A platform item's action is a named platform operation, not a free string.** The first
+version of this design wrote `platformItem("quit", "退出")`, and that is not implementable
+across two platforms: `"quit"` is not a macOS selector (`terminate:` is), and it is not
+anything Windows has. So the model names the *operations* the framework knows, and each
+platform maps them to its own vocabulary.
 
-**Both halves of that claim are measured.**
+The set is small, because the set of things a menu can do without a binding is small:
+
+| Operation | macOS | Windows |
+| :--- | :--- | :--- |
+| `Platform.QUIT` | `terminate:` on the application | `WM_CLOSE` on the window, or the application menu's Quit |
+| `Platform.UNDO` / `REDO` | `undo:` / `redo:` | the browser's own — the page handles these |
+| `Platform.CUT` / `COPY` / `PASTE` / `SELECT_ALL` | `cut:` / `copy:` / `paste:` / `selectAll:` | the browser's own — the page handles these |
+
+Which is the point of the two kinds, and it is a difference the *platforms* draw rather than
+the framework: on macOS the editing commands have to be routed to the web view through the
+responder chain, because that is the only way AppKit reaches it; on Windows the browser
+already performs them (measured — see "A menu's identity"). So the Edit menu is macOS's,
+and a `Platform.COPY` item on Windows has nothing to do.
+
+**The built-in menus are supplied, not declared — and the app menu is one of them.**
+`Cocoa.installMenuBar` builds the whole main menu: the application menu carrying
+"Quit \<app\>", and the Edit menu (Cocoa.java:51-78). The application menu is not an
+afterthought — AppKit expects it first, and ⌘Q lives in it.
+
+So the model has to account for three things, and the first version of it accounted for
+two:
+
+| | what it is | how it reaches the model |
+| :--- | :--- | :--- |
+| the app menu | the first item of the bar, carrying Quit | `appMenu()` — supplied by the framework |
+| the Edit menu | a platform menu of platform items | `editMenu()` — supplied by the framework |
+| the application's own menus | binding items and platform items | `menu(...)` — declared by the application |
+
+**And `.menu(...)` replaces the framework's bar, it does not merge with it.** The
+alternative — merging — has no good answer: AppKit expects the application menu first, and
+an application's first declared menu would have to go after it, which means the model would
+need to say "your menus come after the app menu" and the app menu would have to be
+expressible in the same list. Replacing is simpler and it is what the design does.
+
+**Which means omitting `editMenu()` re-breaks issue #19.** That is the honest cost, and it
+is why `editMenu()` is in the example rather than left to chance: an application that
+declares its own bar and forgets the Edit menu gets a window whose text fields cannot be
+copied from.
+
+So the rule is: **an application that declares a bar takes responsibility for the whole
+bar.** The framework supplies `appMenu()` and `editMenu()` for it to include, and a
+framework that silently merged them would leave the application unable to choose.
+
+**Both halves of the "two kinds" claim are measured.**
 
 - **With a target, the action goes to the target** — not down the responder chain. Checked
   on macOS with a real `NSWindow`, a real `NSMenu` and a runtime-created target class:
@@ -198,13 +240,98 @@ Letters and digits are contiguous in the virtual-key table, which is why the tra
 is arithmetic for them and a table for the rest. `CmdOrCtrl` becomes `MOD_CONTROL` on
 Windows and `NSEventModifierFlagCommand` (1 << 20) on macOS.
 
-**This is the first slice's decision, and it is worth stating plainly:** with Windows
-keyboard shortcuts out of scope, the `VK_*` and `MOD_*` constants are only needed *if* the
-parser translates to them eagerly. A parser that produces a platform-neutral key and
-modifier set, and a platform layer that maps them, means the constants are needed on
-Windows only when the shortcuts arrive — which is a separate piece of work.
+**The macOS shortcut back end is not "two properties" for the whole promised key set**, and
+the first version of this design said it was. The letters and digits are fine; the rest of
+the table is not, and the difference is worth measuring rather than assuming.
+
+Measured on a real `NSMenuItem`:
+
+```
+a bare 'f5' reads back: 'f5'
+  its mask: 0x100000
+the delete key equivalent reads back: 0xf728
+```
+
+**"f5" stays the two characters "f5"** — AppKit does not interpret it as the F5 key, so a
+key equivalent of "f5" matches nothing. The F-keys need AppKit's *function key* modifier
+(`NSEventModifierFlagFunction`, 1 << 23) together with the digit, and Delete needs the
+special key code `0xF728` rather than any printable character.
+
+So the first slice's key set is **letters and digits**, and the rest is either more macOS
+work or out of scope:
+
+| Key | macOS key equivalent | |
+| :--- | :--- | :--- |
+| A–Z | the letter | as measured |
+| 0–9 | the digit | as measured |
+| F1–F12 | the digit, with `NSEventModifierFlagFunction` | **not the first slice** |
+| Delete | `0xF728` | **not the first slice** |
+
+Windows has no such split — `VK_F1` is `0x70` and `VK_DELETE` is `0x2E`, ordinary virtual
+key codes. So the *parser* can accept the whole table, and the *macOS back end* is what
+cannot yet deliver the F-keys and Delete. The design should say which is which, because a
+parser that accepts "F5" and a macOS translation that renders it as "f5" is a shortcut that
+silently does nothing.
+
+**And the `VK_*` and `MOD_*` constants are only needed if the parser translates to them
+eagerly.** With Windows keyboard shortcuts out of scope, a parser that produces a
+platform-neutral key and modifier set, and a platform layer that maps them, means the
+constants are needed on Windows only when the shortcuts arrive — which is a separate piece
+of work.
+
+
+## How the menu reaches the platform
+
+This is the delivery path, and the first version of this design did not have one at all —
+it described the model and the two platform implementations without saying how the model
+got to them. Without this there is nothing to build.
+
+**It does not go in `WindowSpec`.** `WindowSpec` is a published public record
+(WindowSpec.java:20), and adding a component to a record changes its canonical
+constructor — which breaks every consumer that constructs one, at a version that has
+shipped. `WindowSpec` is also the wrong shape for it: a record of plain values, where the
+menu is a tree of objects.
+
+**It does not go on `UiHost` either**, for the same reason: `UiHost` is a published public
+interface, and a new abstract method breaks every implementation outside this repository.
+A `default` method would not break them, but a default method that does nothing is not a
+delivery path.
+
+**So the menu is a construction-time argument, handed over by the application.** The way
+to give it to a host without changing the host's published shape is a separate optional
+collaborator — not a method on `UiHost` at all, but a small interface the framework defines
+and the host *may* implement:
+
+```java
+public interface MenuHost {
+    void setMenu(MenuBar bar);
+}
+```
+
+A host that does not implement it simply has no menu, and the framework's rule about
+optional behaviour already has a precedent: `UiHost.Callbacks.onPageUnloading()` is a
+default method, added because "a host that cannot detect navigation should still be
+usable". `MenuHost` is the same idea, one level out: a host that cannot take a menu is
+still usable.
+
+The application writes it once, and the two hosts implement it:
+
+```java
+new WebApp(new MacOsHost())
+    .menu(bar)          // the app hands the bar to the host, if the host takes one
+    .run();
+```
+
+`WebApp.menu(...)` stores the bar and, at `run()` time, hands it to the host if the host
+implements `MenuHost`. One place for the application to write it, and no change to either
+published type's shape.
+
+**The bar is built at run time, not at `.menu(...)` time**, because the ids are assigned
+while the menu is assembled — and the same walk that creates the items assigns the ids.
+So `WebApp` holds the model, and the platform builds it.
 
 ## The two platform implementations
+
 
 ### macOS
 
@@ -245,6 +372,17 @@ Two ways to give an item a Java target, and one of them is much better:
   of items.
 
 The second is what to build. It is less code, and it does not need `sel_getName`.
+
+**And the target must be kept alive by Java, because AppKit will not.** `NSMenuItem.target`
+is a **weak** reference, so a target that Java's garbage collector collects becomes nil —
+and a nil target is exactly the *platform item* behaviour. The failure is silent and it is
+the worst kind: a binding item quietly stops being a binding item and starts walking the
+responder chain, which is the confusion this whole design exists to prevent.
+
+The framework already knows this rule. NOTES.md §3 records it — "the delegate is a *weak*
+reference, and a garbage-collected delegate is a dangling pointer" — and `ObjCDispatch` obeys
+it by keeping its instance in a **static field** (ObjCDispatch.java:45). The menu target
+needs the same: a static field holding the instance, for the life of the process.
 
 **The whole mechanism, measured.** Not the tag alone — the whole path: a runtime-created
 Objective-C class as the item's target, its action method receiving the clicked item, and
@@ -287,9 +425,26 @@ break.
 method, so the handler reads the tag off the item it was handed rather than off `self` —
 which is also what makes one shared target sufficient.
 
-The upcall signature for that method already exists: an AppKit action is
-`-action:(id)sender`, and `ObjC` has `VOID2` — receiver, selector, one object argument.
-So the menu target needs no new `FunctionDescriptor`, only a new class and its method.
+The upcall signature for that method is `-action:(id)sender` — receiver, selector, one
+object argument — which is **three pointers**, and the encoding is `v@:@`.
+
+**The descriptor is `ObjC.VOID1`, not `VOID2`,** and the first version of this design said
+`VOID2` and would have been wrong in a way that would not have shown up as a compile error.
+The `ObjC` layer's own numbering counts the receiver and the selector:
+
+| | descriptor | pointers | |
+| :--- | :--- | :---: | :--- |
+| `ObjC.VOID0` | `ofVoid(ADDRESS×2)` | 2 | receiver, selector |
+| `ObjC.VOID1` | `ofVoid(ADDRESS×3)` | 3 | **+ one object** — this one |
+| `ObjC.VOID2` | `ofVoid(ADDRESS×4)` | 4 | + two objects |
+
+`ObjCDispatch` uses the same rule from the other end: its `userContentController:didReceiveScriptMessage:`
+takes two objects, so its descriptor is four pointers, `v@:@@` (ObjCDispatch.java:37-38,
+56). A four-pointer stub called with three pushes reads a garbage argument — and on a
+64-bit ABI the garbage is a pointer, so the failure is a wild read rather than an error.
+
+`ObjC.VOID1` is private, so the menu target needs it to become visible — one line, and
+not a new `FunctionDescriptor`.
 
 `NSMenuItem` also needs `keyEquivalentModifierMask` set, because AppKit reads the
 modifiers from the mask rather than from the key character. The mask is an `NSInteger`,
@@ -377,6 +532,22 @@ binding**: the case reads the id out of `wparam` and looks it up.
 
 So for a menu the id is the low word and the high word is zero — the framework can read
 `wparam & 0xFFFF` and be done.
+
+**But the guard belongs on the full `wParam`, not on the masked value.** Two reasons, and
+the first is a bug this design would otherwise have shipped:
+
+- A popup's `wParam` is `0xFFFFFFFF`, and `0xFFFFFFFF & 0xFFFF` is **65535** — not 0. So a
+  handler that masked first and then checked for 0 would not catch it; it would look up the
+  binding numbered 65535. The check has to be against the whole value.
+- **The high word says where the message came from**, and only 0 means a menu. An
+  accelerator is 1, and a control notification is whatever the control defines. Ignoring
+  the high word lets a control whose identifier collides with a menu item's fire that
+  item's binding — and the WebView2 child is full of controls.
+
+So the handler is: take the whole `wParam`; if the high word is not 0, it is not a menu
+click and is not ours; if the low word is 0 or 0xFFFF, it is a separator or a popup and
+there is nothing to invoke; otherwise the low word is the id, looked up in the
+framework's table.
 
 **One trap in that table.** A separator sends a `WM_COMMAND` with the low word set to **zero**
 — the system does that when the user selects a separator. So an id of 0 must not be looked
@@ -553,25 +724,36 @@ new WebApp(host)
     .bind("export", params -> { … })
     .bind("save", params -> { … })
     .menu(menu(
+        appMenu(),                                         // the built-in app menu: Quit
         menu("文件",
             item("export", "导出").shortcut("CmdOrCtrl+E"),
             item("save", "保存").shortcut("CmdOrCtrl+S"),
-            separator(),
-            platformItem("quit", "退出")),
-        editMenu()))
+            separator()),
+        editMenu()))                                        // the built-in Edit menu
     .run();
 ```
 
-`editMenu()` is the framework's built-in Edit menu — the platform items that make ⌘C, ⌘V,
-⌘X, ⌘A and ⌘Z reach the web view. It is supplied, not declared, because an application
-declaring those as binding items would stop them reaching the web view at all.
+**`appMenu()` and `editMenu()` are supplied, not declared**, and both have to be here.
+
+- `appMenu()` is the application menu — AppKit expects it first, and it is where ⌘Q lives.
+  Leaving it out loses ⌘Q.
+- `editMenu()` is the platform items that make ⌘C, ⌘V, ⌘X, ⌘A and ⌘Z reach the web view.
+  Leaving it out re-breaks issue #19, and the cost is invisible: the window opens, and every
+  text field in it silently becomes type-only.
+
+**And `.menu(...)` replaces the framework's bar rather than merging with it.** So an
+application that declares a bar takes responsibility for the whole bar, and the framework
+does not quietly add the built-in menus back — because an application that wants the Edit
+menu in a different place, or not at all, has to be able to say so.
+
+That is the deal: two calls to write, and the framework's defaults are one line away.
 
 **Where the builders live.** `WebApp` is a fluent builder of instance methods — `title`,
 `size`, `bind`, `onReady` — and the repository's static factories live in their own
 classes: `Resources.stage`, `Json.write`, `PageSource.FromAssets`. So the menu builders
 follow that: a `Menus` class in the framework's root package, with `Menus.menu(...)`,
-`Menus.item(...)`, `Menus.separator()`, `Menus.platformItem(...)` and `Menus.editMenu()`.
-An application writes `Menus.menu(…)`, or imports them statically.
+`Menus.item(...)`, `Menus.separator()`, `Menus.platformItem(...)`, `Menus.appMenu()` and
+`Menus.editMenu()`. An application writes `Menus.menu(…)`, or imports them statically.
 
 **The shape of the model.** A menu bar is a list of top-level menus, a top-level menu is a
 list of items, and an item is either a binding item or a platform item. So:
@@ -580,16 +762,27 @@ list of items, and an item is either a binding item or a platform item. So:
 public final class Menus {
     public static MenuBar  menu(Menu… menus);
     public static Menu     menu(String title, Item… items);
-    public static Item     item(String binding, String title);      // a binding item
-    public static Item     platformItem(String action, String title); // a platform item
+    public static Item     item(String binding, String title);          // a binding item
+    public static Item     platformItem(Platform action, String title);  // a platform item
     public static Item     separator();
-    public static Menu     editMenu();                              // the built-in one
+    public static Menu     appMenu();                                    // the built-in app menu
+    public static Menu     editMenu();                                   // the built-in Edit menu
 }
+
+/** The platform operations a menu item can carry without a binding behind it. */
+public enum Platform { QUIT, UNDO, REDO, CUT, COPY, PASTE, SELECT_ALL }
 ```
 
 `WebApp.menu(MenuBar)` takes the bar, and the bar is built from the same `menu(...)`
 overloads — which is why the examples nest the way they do. `Item.shortcut(String)` is
 the one method on an item, and it returns the item so it chains.
+
+**The public names are `MenuBar`, `Menu` and `Item`** — one word each, and the same on
+both platforms. `NSMenu` and `HMENU` are the platforms' names for the same thing, and
+`NSMenuItem` is one of them; a portable model that borrowed either platform's vocabulary
+would be tied to that platform's shape. The first version of this design used both
+`MenuBar`/`Menu`/`Item` and `Menu`/`MenuItem` in different places, which is the kind of
+drift that makes a public API confusing.
 
 **The two `menu` overloads are compiled, not just written down.** They differ only in
 their first argument — a list of menus against a title and a list of items — which is
@@ -613,9 +806,8 @@ door into a binding.
 
 Two ways to open one:
 
-- **A new method on `UiHost.Callbacks`** — `onMenuItem(String name)`. A public API change
-  on an interface that has shipped at 1.0.0, but a small and honest one: the platform says
-  "this item was chosen", the portable layer invokes the binding.
+- **A new method on `UiHost.Callbacks`** — the platform says "this item was chosen", the
+  portable layer invokes the binding.
 - **Synthesise a bridge frame** and push it through the existing `callbacks.onMessage(json)`.
   This reuses the protocol, but it is a fake request: the bridge correlates replies by id
   (Bridge.java:172-174) and every reply is delivered by evaluating `window.__pvResolve` in
@@ -625,19 +817,16 @@ Two ways to open one:
 
 **The first is right.** A menu click is not a page request, and the bridge is built for
 requests that the page made. The framework's rule that the platform layer knows nothing
-about the bridge holds either way; what changes is that `UiHost.Callbacks` grows one method,
-and the portable layer maps the name to a binding.
+about the bridge holds either way.
 
-**Where the mapping happens.** `Bridge` holds the bindings in a private map
-(Bridge.java:131-133) and is package-private itself (Bridge.java:51), so the platform layer
-cannot reach a binding — which is the point of the seam, not an obstacle. `WebApp` owns the
-`Bridge` and is the only implementor of `UiHost.Callbacks` (WebApp.java:350), so the
-callback lands there, and `WebApp` is in the same package as `Bridge` and can ask it to
-invoke the named binding.
+**The seam carries an integer, not a name.** This matters, and the first version of this
+design had it backwards. Both platforms identify an item by an integer: macOS by the
+`tag` the framework puts on the item, Windows by the command id. The *name* is the
+framework's own bookkeeping — the portable layer's `name → id` table.
 
-**Which is the same path a page call takes**, and that is deliberate: a menu item is a
-second surface of a binding, so it should be dispatched the same way — on a virtual thread,
-with the standard deadline, cancellable. The only thing that differs is who asked.
+So the callback is `onMenuItem(int id)`, and the portable layer maps the id back to the
+name and then to the binding. The alternative — a `String name` on the seam — would mean
+the platform layer had to know the portable names, which is the seam's job done backwards.
 
 **The new method should be a `default` one**, and there is precedent for exactly that:
 `onPageUnloading()` is a default method, added because "a host that cannot detect navigation
@@ -652,19 +841,36 @@ today, because `onPageUnloading()` already has a default. Adding another default
 change that. A consumer's `UiHost` implementation is unaffected either way, since the
 change is to the nested interface rather than to `UiHost` itself.
 
-**The binding is invoked the way a binding is invoked** — on a virtual thread, with the
-standard deadline, and cancellable.
+**Where the mapping happens.** `Bridge` holds the bindings in a private map
+(Bridge.java:131-133) and is package-private itself (Bridge.java:51), so the platform layer
+cannot reach a binding — which is the point of the seam, not an obstacle. `WebApp` owns the
+`Bridge` and is the only implementor of `UiHost.Callbacks` (WebApp.java:350), so the
+callback lands there, and `WebApp` is in the same package as `Bridge` and can ask it to
+invoke the named binding.
 
-**A menu item that names a binding nobody declared is a mistake the framework should
-report, not a silent no-op.** But a menu click has **no requester to reject**: the page
-did not ask for it, so there is no promise to refuse and no id to reply to. The framework's
-precedent for a failure with nobody waiting is `Bridge.fail`, which writes to stderr with
-the `[panamaview]` prefix — the same place a malformed bridge message is reported
-(Bridge.java:147, 157, 328).
+**Which is the same path a page call takes**, and that is deliberate: a menu item is a
+second surface of a binding, so it should be dispatched the same way — on a virtual thread,
+with the standard deadline, cancellable. The only thing that differs is who asked.
 
-So the same rule, and the same channel. A menu item naming an undeclared binding is a
-programming error in the application, and it is worth seeing in the log the way every other
-framework-level mistake is.
+**What a menu binding receives.** The parameters are the ones the click carries, and a
+click carries none, so a menu binding is called with an **empty map** — the same `params`
+a page call would get if it passed nothing. A binding that needs an argument reads it
+from the application's own state, which is the point of the binding being the
+application's method.
+
+**What a menu binding's return value does: nothing.** A page call's result goes back to
+the page, which is waiting for it. A menu click has no page waiting, so a returned value
+has nowhere to go and is discarded. That is worth saying, because "the menu item calls my
+method and gets an answer" is a reasonable thing to expect and it does not happen.
+
+**A throwing menu binding** is reported the way a throwing page binding is: `Bridge.fail`,
+to stderr, with the `[panamaview]` prefix. There is no promise to reject.
+
+**A menu item may not name a `bindUi` binding.** `bindUi` handlers run inline on the UI
+thread with no deadline (WebApp.java:144-147), and a menu click arrives on the UI thread
+already — so the item would run there, blocking the window, with no watchdog. The
+framework should refuse it: a menu item that names a UI-thread binding is a mistake, and
+the framework should say so rather than run it.
 
 ## A menu's identity
 
@@ -721,10 +927,36 @@ at all — see the note in "How this is verified" below.
 CI runs ubuntu and macos-latest and never opens a window. There is no Windows runner, so
 the Windows side is the manual `run-selftest.cmd` path that now exists.
 
-A menu test has to *click* an item, which on each platform means synthesising the click:
-macOS `performKeyEquivalent:` on the item, Windows `PostMessage(WM_COMMAND, id, 0)`. That
-needs a way to reach the menu from a test — either a test-only hook on the host, or the
-test uses the same public API an application would.
+A menu test has to *click* an item, which on each platform means synthesising the click.
+
+**On macOS the method is `-[NSMenu performActionForItemAtIndex:]`** — and that is a method
+of `NSMenu`, taking the item's position, not a method of `NSMenuItem`. The first version of
+this design said "performKeyEquivalent: on the item", which is wrong twice over:
+`performKeyEquivalent:` belongs to `NSMenu` too, and it takes an `NSEvent`, not an item.
+`NSMenuItem` has no such method at all. (This is the same class of mistake as
+`NSMenuItem`'s missing `performClick`.) The call that works is the one measured above:
+
+```java
+ObjC.sendVoidLong(menu, ObjC.selector("performActionForItemAtIndex:"), 0L);
+```
+
+**On Windows it is `PostMessage(WM_COMMAND, id, 0)`** to the window — which needs no
+window to exist, since it is a message and not a call.
+
+**And the macOS test cannot run in CI**, which is the constraint that shapes the testing
+plan: CI has no window server, and AppKit cannot be touched at all without one — creating
+an `NSWindow` off the first thread raises `NSInternalInconsistencyException`, and the
+framework's own probe needed `-XstartOnFirstThread` to get as far as creating a menu.
+
+So the macOS test in CI covers **the model and the parser** — that a declaration produces
+the right model, that the shortcut string parses to the right key and modifier set, that
+the ids are allocated from 1 — and **not** the AppKit side, which is verified the way this
+document verified everything else: by running it, on a machine with a desktop.
+
+That split is not a compromise; it is the same shape as the existing verification. The
+framework's macOS behaviour is checked by the demo application (13 checks in a real
+window), and the Windows behaviour by `WindowsSelfTest`. A menu test belongs in both
+places, and the CI job covers the half that CI can run.
 
 This is a real question, not a detail: without it, a menu can only be verified by a person
 looking at the screen, which is the gap that let this whole area go untested.
@@ -769,12 +1001,23 @@ These are the builder's calls, not the partner's, and each is open to being over
    to here, so the framework owns it.
 2. **A binding item references a `bind` name.** Not a callback, not a JavaScript function.
 3. **There are two kinds of item** — a binding item and a platform item — and the built-in
-   Edit menu is made of platform items and stays outside the binding model.
-4. **`separator()` is explicit** rather than a null item, so the model has no null case.
-5. **No icons, no checkable items, no radio items** in the first slice. Each is a
+   menus are made of platform items and stay outside the binding model.
+4. **A platform item names a `Platform` operation**, not a free string, because the two
+   platforms have no common vocabulary for one.
+5. **`separator()` is explicit** rather than a null item, so the model has no null case.
+6. **No icons, no checkable items, no radio items** in the first slice. Each is a
    platform difference with no cross-platform spelling yet.
-6. **The click reaches a binding through a new `UiHost.Callbacks` method**, not by
-   synthesising a bridge frame.
+7. **The click reaches a binding through a new `UiHost.Callbacks` method**, not by
+   synthesising a bridge frame — and that method carries an **int**, because both platforms
+   identify an item by an integer and the name is the framework's own bookkeeping.
+8. **The menu reaches the host through a separate optional `MenuHost` interface**, not
+   through `UiHost` or `WindowSpec`, because both of those are published and adding to
+   either breaks consumers.
+9. **`.menu(...)` replaces the framework's bar**, so an application that declares a bar
+   takes responsibility for the whole bar, built-in menus included.
+10. **The first slice's key set is letters and digits.** The F-keys and Delete need macOS
+    work AppKit does not do for free, and a shortcut that silently does nothing is worse
+    than one that is not offered.
 
 ## Open for the partner
 
@@ -800,17 +1043,43 @@ These are the builder's calls, not the partner's, and each is open to being over
   `HMENU` through the `hMenu` parameter `CreateWindowExW` already has, which means
   `createWindow` grows a parameter (it is package-private, so not a public API change) and
   nothing has to be reordered around `ShowWindow`.
-- The seam: one new method on `UiHost.Callbacks`, and the portable layer mapping the name
-  to a binding.
+- The seam: one new method on `UiHost.Callbacks`, and the portable layer mapping the id
+  back to a name and then to a binding.
 - The built-in Edit menu, which stays macOS-only — measured, see "A menu's identity".
-- **The native-image reachability metadata.** The macOS menu target is a runtime-created
-  Objective-C class whose method is an FFM upcall stub, exactly like `ObjCDispatch` — so it
-  needs an entry in `directUpcalls` and a matching `reflection` entry, or a native build
-  fails at run time with `MissingForeignRegistrationError` rather than at build time. The
-  file is hand-curated, and the schema rejects a `reason` field on an entry, so the
-  explanation goes in the `comment` array at the top. Nothing in CI checks it: the check is
-  a snippet in NOTES.md §17. **Adding a CI step for it would be a good thing to do alongside
-  this work**, since the failure it prevents is a native build that compiles and then dies.
+- **The native-image reachability metadata, which is already missing two shapes the shipped
+  code uses.** This is not only a menu problem, and it is worth fixing whatever else
+  happens.
+
+  The macOS menu target is a runtime-created Objective-C class whose method is an FFM
+  upcall stub, exactly like `ObjCDispatch` — so it needs an entry in `directUpcalls` and a
+  matching `reflection` entry, or a native build fails at run time with
+  `MissingForeignRegistrationError` rather than at build time.
+
+  But diffing the 28 registered downcalls against the descriptors `ObjC` actually uses
+  shows two **already missing**:
+
+  | shape | used by |
+  | :--- | :--- |
+  | `void*(void*,void*)` | `ObjC.send(receiver, selector)` — `ID0` (ObjC.java:264). `+[NSMenuItem separatorItem]` is exactly this (Cocoa.java:91), and so is `alloc` |
+  | `jbyte(void*,void*,void*)` | `ObjC.sendBool(receiver, selector, object)` — `BOOL_OBJ` (ObjC.java:274). `setFrameUsingName:` is exactly this (Cocoa.java:158) |
+
+  Both are missing. Both are reachable from the **existing** code, not just the menu.
+
+  They have never been noticed because **every native CI run is headless**:
+  `verify-scaffold.sh` runs each template with `-Dpanamaview.check=true`, which stages
+  the assets and exits without opening a window. So the native build never reaches the
+  code that uses them, and the missing registrations are invisible.
+
+  That is exactly the shape of failure the menu work would hit: a native build that opens
+  a window — the natural way to validate a menu — dies with
+  `MissingForeignRegistrationError` before reaching any menu code. **Fixing the metadata
+  is a prerequisite for validating the menu in a native build, not a menu feature.**
+
+  The file is hand-curated, and the schema rejects a `reason` field on an entry, so the
+  explanation goes in the `comment` array at the top. Nothing in CI checks it: the check
+  is a snippet in NOTES.md §17, and it checks `directUpcalls` only — never `reflection`,
+  never the downcall shapes. **Adding a CI step for it is worth doing alongside this
+  work**, since the gap is what let the file drift in the first place.
 - Tests: a menu test that synthesises a click, on macOS in CI, and on Windows through the
   self-test that now exists.
 - Documentation: the README's roadmap line, and the template READMEs.
