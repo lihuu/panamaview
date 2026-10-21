@@ -185,6 +185,21 @@ Windows only when the shortcuts arrive — which is a separate piece of work.
 
 ### macOS
 
+**The structure works, measured.** The model is a bar of top-level menus, each a list of
+items with separators among them, and AppKit's own shape holds it — the bar is an `NSMenu`
+whose items are menu items carrying a submenu, and each submenu holds items and
+separators:
+
+```
+menu title: 文件
+item title: 导出, tag: 7
+the bar holds 1 top-level menu(s)
+the 文件 menu holds 2 item(s), separator included
+```
+
+A separator is a menu item — `+[NSMenuItem separatorItem]`, a class-method singleton
+(Cocoa.java:90) — so it needs no special case in the model beyond not having a title.
+
 The existing Edit menu is already correct AppKit: items carry an *action selector*
 (`copy:`, `paste:`) with a **nil target**, so AppKit walks the responder chain and the
 first responder handles it. That is what makes ⌘C reach the web view's text field.
