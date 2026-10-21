@@ -566,6 +566,17 @@ requests that the page made. The framework's rule that the platform layer knows 
 about the bridge holds either way; what changes is that `UiHost.Callbacks` grows one method,
 and the portable layer maps the name to a binding.
 
+**Where the mapping happens.** `Bridge` holds the bindings in a private map
+(Bridge.java:131-133) and is package-private itself (Bridge.java:51), so the platform layer
+cannot reach a binding — which is the point of the seam, not an obstacle. `WebApp` owns the
+`Bridge` and is the only implementor of `UiHost.Callbacks` (WebApp.java:350), so the
+callback lands there, and `WebApp` is in the same package as `Bridge` and can ask it to
+invoke the named binding.
+
+**Which is the same path a page call takes**, and that is deliberate: a menu item is a
+second surface of a binding, so it should be dispatched the same way — on a virtual thread,
+with the standard deadline, cancellable. The only thing that differs is who asked.
+
 **The new method should be a `default` one**, and there is precedent for exactly that:
 `onPageUnloading()` is a default method, added because "a host that cannot detect navigation
 should still be usable". A menu event is the same shape of thing — a host that has no menu
