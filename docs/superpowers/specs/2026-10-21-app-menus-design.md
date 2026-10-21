@@ -161,6 +161,26 @@ the same width as the tag.
 The Windows side is the one that needs a real translation: a letter has to become a
 `VK_*` code, and the modifier set has to become `MOD_*` flags.
 
+**The constants the translation needs**, in the naming style `Win32` already uses
+(`WM_DESTROY = 0x0002`, `SW_SHOW = 5` — the `VK_` prefix and hex values):
+
+| Key | `VK_*` | | Modifier | `MOD_*` |
+| :--- | :--- | :--- | :--- | :--- |
+| A–Z | `0x41`–`0x5A` | | Ctrl | `0x0002` |
+| 0–9 | `0x30`–`0x39` | | Alt | `0x0001` |
+| F1–F12 | `0x70`–`0x7B` | | Shift | `0x0004` |
+| Delete | `0x2E` | | Win | `0x0008` |
+
+Letters and digits are contiguous in the virtual-key table, which is why the translation
+is arithmetic for them and a table for the rest. `CmdOrCtrl` becomes `MOD_CONTROL` on
+Windows and `NSEventModifierFlagCommand` (1 << 20) on macOS.
+
+**This is the first slice's decision, and it is worth stating plainly:** with Windows
+keyboard shortcuts out of scope, the `VK_*` and `MOD_*` constants are only needed *if* the
+parser translates to them eagerly. A parser that produces a platform-neutral key and
+modifier set, and a platform layer that maps them, means the constants are needed on
+Windows only when the shortcuts arrive — which is a separate piece of work.
+
 ## The two platform implementations
 
 ### macOS
