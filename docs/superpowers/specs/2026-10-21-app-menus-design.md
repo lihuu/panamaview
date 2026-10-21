@@ -443,6 +443,14 @@ These are the builder's calls, not the partner's, and each is open to being over
 - The seam: one new method on `UiHost.Callbacks`, and the portable layer mapping the name
   to a binding.
 - The built-in Edit menu, which stays macOS-only — measured, see "A menu's identity".
+- **The native-image reachability metadata.** The macOS menu target is a runtime-created
+  Objective-C class whose method is an FFM upcall stub, exactly like `ObjCDispatch` — so it
+  needs an entry in `directUpcalls` and a matching `reflection` entry, or a native build
+  fails at run time with `MissingForeignRegistrationError` rather than at build time. The
+  file is hand-curated, and the schema rejects a `reason` field on an entry, so the
+  explanation goes in the `comment` array at the top. Nothing in CI checks it: the check is
+  a snippet in NOTES.md §17. **Adding a CI step for it would be a good thing to do alongside
+  this work**, since the failure it prevents is a native build that compiles and then dies.
 - Tests: a menu test that synthesises a click, on macOS in CI, and on Windows through the
   self-test that now exists.
 - Documentation: the README's roadmap line, and the template READMEs.
