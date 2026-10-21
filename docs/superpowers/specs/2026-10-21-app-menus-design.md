@@ -310,6 +310,21 @@ So for a menu the id is the low word and the high word is zero — the framework
 up as a binding; it means "a separator was clicked", and there is nothing to invoke. The
 framework's ids should start at 1 for the same reason.
 
+And the separator's id *is* zero, confirmed against the real Win32 on a Windows 11 box — a
+menu built with `AppendMenuW`, read back with `GetMenuItemID`:
+
+```
+append results: True True True
+item count: 3
+  position 0: id=1
+  position 1: id=0
+  position 2: id=2
+```
+
+Position 1 is the separator, and its id is 0. So the rule is not merely a precaution: a
+separator really does arrive as id 0, and a framework that started its ids at 0 would find
+its first binding unreachable by a click.
+
 And the case is genuinely missing today, which is the whole problem: `WindowsHost.onWindowMessage`
 switches on the message, and `WM_COMMAND` falls into the `default` branch, which forwards to
 `DefWindowProcW` (WindowsHost.java:181). A window with no menu has nothing for
