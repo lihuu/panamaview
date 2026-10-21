@@ -168,6 +168,10 @@ use `JAVA_LONG`, which is the right width.
 method, so the handler reads the tag off the item it was handed rather than off `self` —
 which is also what makes one shared target sufficient.
 
+The upcall signature for that method already exists: an AppKit action is
+`-action:(id)sender`, and `ObjC` has `VOID2` — receiver, selector, one object argument.
+So the menu target needs no new `FunctionDescriptor`, only a new class and its method.
+
 `NSMenuItem` also needs `keyEquivalentModifierMask` set, because AppKit reads the
 modifiers from the mask rather than from the key character. The mask is an `NSInteger`,
 which the `ObjC` layer already knows how to pass (`sendVoidLong`). The existing Edit menu
