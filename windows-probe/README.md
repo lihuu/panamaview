@@ -81,6 +81,11 @@ The two lines worth reading together are the slow-handler pair. The same work, t
 duration, on two different threads: **1 ms** on a virtual thread, **402 ms** on the UI thread.
 That difference is the whole threading contract, measured.
 
+The verdict is in the log; the screenshot is the evidence that something was actually drawn —
+a real Windows 11 desktop, the app window, ten PASS lines on the page:
+
+![the Windows self-test, ten checks passed](../docs/screenshot-windows.png)
+
 It opens a window, so like the smoke it needs an interactive session — see the next section for
 running it from SSH.
 
