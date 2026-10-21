@@ -197,7 +197,15 @@ public final class WebApp {
         return this;
     }
 
-    /** Called once the page has loaded — the first safe moment to call into JavaScript. */
+    /**
+     * Called when the page has loaded — the first safe moment to call into JavaScript.
+     *
+     * <p>It fires on <em>every</em> load, not only the first one. A live reload is a page
+     * load, so a reloaded page calls this again, and so does every navigation the user makes.
+     * A callback that does setup work has to be safe to run more than once: starting a thread
+     * here dies with {@code IllegalThreadStateException} the moment the page reloads, and
+     * anything else that is not idempotent fails the same way, only less obviously.
+     */
     public WebApp onReady(Consumer<WebApp> callback) {
         this.onReady = callback;
         return this;

@@ -801,6 +801,32 @@ The test was checked against the old code before the fix was kept: it fails ther
 `expected: <true> but was: <false>`, and passes after. A test that has never failed is not
 evidence of anything.
 
+### The same bug, measured on a real Windows box
+
+The A/B that the unit test stands in for, run on a Windows 11 machine — the same probe, the
+same page, the same two edits, only a different framework jar:
+
+| | pre-fix jar (115194 B) | fixed jar (115825 B) |
+| --- | --- | --- |
+| `live reload watching …` | absent | present |
+| `change detected, reloading` | never | twice |
+| page loads | **1** | **3** |
+
+The pre-fix run has no watcher line at all and ignores both edits. That is the whole bug, in
+one log.
+
+### Two traps the run on real hardware found, that no reading of the code had
+
+- **`onReady` fires on every page load**, not only the first. A live reload *is* a page load,
+  so the callback runs again — and a callback that starts a thread dies with
+  `IllegalThreadStateException` on the first reload. The javadoc said "called once the page
+  has loaded", which is how the probe was written, and it was wrong in the way that matters:
+  not about the count but about what the count implies for a callback that does setup work.
+- **`$ErrorActionPreference = "Stop"` turns a native command's stderr into a terminating
+  error.** `java -version` writes to stderr, so a diagnostic line in the runner script killed
+  the script before the probe ever started. Worth knowing for any script that captures a
+  program's output on Windows.
+
 ### 🚨 The verification script had a hole big enough to hide two bugs
 
 The first version of `verify-template.sh` assembled its own `java` invocation to run the headless
