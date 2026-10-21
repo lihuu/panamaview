@@ -580,9 +580,18 @@ change that. A consumer's `UiHost` implementation is unaffected either way, sinc
 change is to the nested interface rather than to `UiHost` itself.
 
 **The binding is invoked the way a binding is invoked** — on a virtual thread, with the
-standard deadline, and cancellable. A menu item that names a binding nobody declared is a
-mistake the framework should report, not a silent no-op: the click arrives and the name
-does not resolve, so the framework says so.
+standard deadline, and cancellable.
+
+**A menu item that names a binding nobody declared is a mistake the framework should
+report, not a silent no-op.** But a menu click has **no requester to reject**: the page
+did not ask for it, so there is no promise to refuse and no id to reply to. The framework's
+precedent for a failure with nobody waiting is `Bridge.fail`, which writes to stderr with
+the `[panamaview]` prefix — the same place a malformed bridge message is reported
+(Bridge.java:147, 157, 328).
+
+So the same rule, and the same channel. A menu item naming an undeclared binding is a
+programming error in the application, and it is worth seeing in the log the way every other
+framework-level mistake is.
 
 ## A menu's identity
 
