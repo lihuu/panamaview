@@ -33,7 +33,9 @@ the page can call it. So a **binding item** is a *second surface of the same bin
 ```java
 // panamaview
 .bind("export", params -> { … do the export … })
-.menu(item("export", "导出").shortcut("CmdOrCtrl+E"))
+.menu(menu(
+    menu("文件",
+        item("export", "导出").shortcut("CmdOrCtrl+E"))))
 ```
 
 Clicking 「导出」 calls the `export` binding. The behaviour is still the application's
@@ -251,6 +253,24 @@ classes: `Resources.stage`, `Json.write`, `PageSource.FromAssets`. So the menu b
 follow that: a `Menus` class in the framework's root package, with `Menus.menu(...)`,
 `Menus.item(...)`, `Menus.separator()`, `Menus.platformItem(...)` and `Menus.editMenu()`.
 An application writes `Menus.menu(…)`, or imports them statically.
+
+**The shape of the model.** A menu bar is a list of top-level menus, a top-level menu is a
+list of items, and an item is either a binding item or a platform item. So:
+
+```java
+public final class Menus {
+    public static MenuBar  menu(Menu… menus);
+    public static Menu     menu(String title, Item… items);
+    public static Item     item(String binding, String title);      // a binding item
+    public static Item     platformItem(String action, String title); // a platform item
+    public static Item     separator();
+    public static Menu     editMenu();                              // the built-in one
+}
+```
+
+`WebApp.menu(MenuBar)` takes the bar, and the bar is built from the same `menu(...)`
+overloads — which is why the examples nest the way they do. `Item.shortcut(String)` is
+the one method on an item, and it returns the item so it chains.
 
 ## How a click reaches a binding
 
