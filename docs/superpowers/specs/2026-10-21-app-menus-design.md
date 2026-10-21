@@ -157,6 +157,24 @@ Two ways to give an item a Java target, and one of them is much better:
 
 The second is what to build. It is less code, and it does not need `sel_getName`.
 
+**The whole mechanism, measured.** Not the tag alone — the whole path: a runtime-created
+Objective-C class as the item's target, its action method receiving the clicked item, and
+the tag coming back out of that item:
+
+```
+the action method saw tag: 4242
+the tag survived the action: YES
+```
+
+So the design's macOS approach is not plausible, it is **working**. The pieces it needs
+are all already in the framework: `ObjC.defineClass` for the class, `ObjC.upcall` for the
+method, `VOID2` for the signature, and `sendLong`/`sendVoidLong` for the tag.
+
+One thing the measurement corrected: **`NSMenuItem` has no `performClick`** — that is
+`NSButton`'s method, and sending it to a menu item raises `NSInvalidArgumentException`
+and takes the process down. The action is invoked on the *target*, with the item as the
+argument, which is what AppKit does when the item is chosen.
+
 **The ABI works out, and it is measured.** `NSMenuItem.tag` is an `NSInteger`, which is
 64-bit — and the `ObjC` layer already has exactly the two accessors that needs: `sendLong`
 (no arguments, returns an `NSInteger`) and `sendVoidLong` (one `NSInteger` argument).
