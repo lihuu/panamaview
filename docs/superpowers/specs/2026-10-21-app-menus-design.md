@@ -283,11 +283,30 @@ framework maps id → binding name.
 **How the menu is attached.** `WNDCLASSEX.lpszMenuName` is a *string* field, not an `HMENU`
 slot (Win32.java:71, 300), so it cannot carry a programmatically built menu. An `HMENU`
 reaches a window two ways: the `hMenu` parameter of `CreateWindowExW`, or `SetMenu(hwnd,
-hmenu)` afterwards. `SetMenu` is the one to use, and it has a constraint: `Win32.createWindow`
-calls `ShowWindow` internally (Win32.java:322), so a menu attached after creation lands on
-an already-visible window. The fix is to attach the menu *before* the window is shown, which
-means `createWindow` has to grow a parameter — it is a package-private method, so this is not
-a public API change.
+hmenu)` afterwards.
+
+**The first is the one to use, and it is already there.** `CreateWindowExW` takes twelve
+parameters, and the tenth is `hMenu`:
+
+```c
+HWND CreateWindowExW(DWORD dwExStyle, LPCWSTR lpClassName, LPCWSTR lpWindowName,
+                     DWORD dwStyle, int X, int Y, int nWidth, int nHeight,
+                     HWND hWndParent, HMENU hMenu, HINSTANCE hInstance, LPVOID lpParam);
+```
+
+The binding already has all twelve (Win32.java:117-120), and the call already passes
+`MemorySegment.NULL` in the `hMenu` slot (Win32.java:310-315). So the menu goes in
+there, and nothing has to be reordered around `ShowWindow`.
+
+That matters because the alternative is worse: `SetMenu` afterwards would land on an
+already-visible window, because `Win32.createWindow` calls `ShowWindow` internally
+(Win32.java:322). The window would flash up without its menu and then acquire one, which
+is a visible artifact for something the user sees on every launch. Passing the menu at
+creation time is both less code and the only version that does not flicker.
+
+**`createWindow` grows a parameter** for the `HMENU` — it is a package-private method, so
+this is not a public API change. A null `HMENU` means "no menu", which is the current
+behaviour, so the callers that do not want a menu pass null and nothing changes for them.
 
 **Where the click arrives.** The window procedure already receives
 `(hwnd, message, wparam, lparam)` through its upcall stub, and `wparam` is a `long` — which
@@ -336,23 +355,24 @@ on the effect rather than on the absence of an exception.
 
 - **`WM_COMMAND` handling.** `WindowsHost.onWindowMessage` has no case for it, and a message
   it does not answer falls through to `DefWindowProcW` — which would swallow the click.
-- **`CreateMenu` / `AppendMenuW` / `SetMenu` / `DestroyMenu`.** None are bound.
+- **`CreateMenu` / `AppendMenuW` / `DestroyMenu`.** None are bound. `SetMenu` is not needed
+  at all — the menu goes in `CreateWindowExW`'s `hMenu` parameter, which the binding
+  already has.
 
 **Their signatures**, so the implementation does not have to look them up:
 
 ```c
 HMENU  CreateMenu(void);
-BOOL   AppendMenuW(HMENU hMenu, UINT uFlags, UINT_PTR uIDNewItem,
-                   LPCWSTR lpString, HMENU hSubMenu);
-BOOL   SetMenu(HWND hWnd, HMENU hMenu);
+BOOL   AppendMenuW(HMENU hMenu, UINT uFlags, UINT_PTR uIDNewItem, LPCWSTR lpNewItem);
 BOOL   DestroyMenu(HMENU hMenu);
 ```
 
-`AppendMenuW` is the awkward one: five parameters, of which the *string* is UTF-16 and
+`AppendMenuW` is the awkward one: four parameters, of which the *string* is UTF-16 and
 `uIDNewItem` is a `UINT_PTR` — a pointer-sized integer, so `ADDRESS` in FFM terms, not
-`JAVA_INT`. The `MF_STRING` flag makes the item's text come from `lpString`;
-`MF_SEPARATOR` makes it a separator and ignores the text; `MF_POPUP` with a non-null
-`hSubMenu` makes it a submenu. The command id goes in `uIDNewItem` for a normal item.
+`JAVA_INT`. That one parameter carries two different things: the **command id** for an
+ordinary item, and the **submenu handle** when `MF_POPUP` is set. The `MF_STRING` flag
+makes the item's text come from `lpNewItem`; `MF_SEPARATOR` makes it a separator and
+ignores the text entirely.
 
 The flag values, from the documented API:
 
@@ -635,9 +655,10 @@ These are the builder's calls, not the partner's, and each is open to being over
 - A shortcut parser: string → a platform-neutral key + modifier set.
 - macOS: build the `NSMenu` from the model; one shared runtime target class whose method
   reads the clicked item's `tag`; set `keyEquivalentModifierMask`.
-- Windows: bind `CreateMenu`/`AppendMenuW`/`SetMenu`/`DestroyMenu`; answer `WM_COMMAND`;
-  attach the menu before `ShowWindow`, which means `createWindow` grows a parameter (it is
-  package-private, so not a public API change).
+- Windows: bind `CreateMenu`/`AppendMenuW`/`DestroyMenu`; answer `WM_COMMAND`; pass the
+  `HMENU` through the `hMenu` parameter `CreateWindowExW` already has, which means
+  `createWindow` grows a parameter (it is package-private, so not a public API change) and
+  nothing has to be reordered around `ShowWindow`.
 - The seam: one new method on `UiHost.Callbacks`, and the portable layer mapping the name
   to a binding.
 - The built-in Edit menu, which stays macOS-only — measured, see "A menu's identity".
