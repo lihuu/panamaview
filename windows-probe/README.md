@@ -37,6 +37,58 @@ runtime WebView2 154.0.4258.62
 
 Exit codes: 0 pass, 1 the runtime chain failed, 2 the loader DLL is not staged.
 
+## The bridge self-test
+
+The macOS side has had a self-test since the beginning: the demo application runs thirteen
+checks in a real window and hands the verdict to Java, so the result lands in stdout where a
+machine can read it. Windows had nothing equivalent — `WindowsDemo` is an interactive demo with
+buttons, which proves the same things to a person watching the screen and to nobody else.
+
+That is not a cosmetic difference. The demo runs on macOS, and the portable half of the
+framework behaves the same way on both platforms — so a bug that only shows up on Windows has
+nowhere to show up. One did: live reload silently did nothing on Windows, because the watcher
+was only registered when the caller happened to be on the UI thread, and on Windows that is
+never true at the moment the watcher is registered. The macOS self-test could not have caught
+it, and the Windows probe had no equivalent to catch it with.
+
+`WindowsSelfTest` is that equivalent. It runs the same checks, minus the two that are
+macOS-only — a by-value `NSRect` round trip, which is AppKit's ABI and means nothing here, and
+a programmatic resize, which Windows has no binding for yet. A check that cannot fail is not a
+check, so neither is faked.
+
+```bat
+run-selftest.cmd
+```
+
+Expected output ends:
+
+```
+[selftest] 10 passed, 0 failed
+[selftest]   PASS  hello - Hello World
+[selftest]   PASS  json round trip - {"a":1,"b":"two","c":[3,4],"d":{"nested":true},"e":null}
+[selftest]   PASS  slow handler does not block - hello answered in 1 ms while slow(600 ms) was in flight
+[selftest]   PASS  control: UI-thread handler does block - hello delayed 402 ms behind slowUi(400 ms)
+[selftest]   PASS  cancel actually stops the handler - handler interrupted (count 0 -> 1); page stopped waiting in 0 ms
+[selftest]   PASS  java-side deadline fires on its own - rejected after 302 ms with "no answer within 300 ms"
+[selftest]   PASS  deadline can be disabled - ran 200 ms with no deadline
+[selftest]   PASS  platform extra runs on UI thread - window 1000x700 at 294,294, onUiThread=true
+[selftest]   PASS  ordinary handler runs off the UI thread - OpenJDK 64-Bit Server VM, handler on VirtualThread
+[selftest]   PASS  200 concurrent invocations - 200 round trips in 24 ms
+[selftest] DONE
+```
+
+The two lines worth reading together are the slow-handler pair. The same work, the same
+duration, on two different threads: **1 ms** on a virtual thread, **402 ms** on the UI thread.
+That difference is the whole threading contract, measured.
+
+The verdict is in the log; the screenshot is the evidence that something was actually drawn —
+a real Windows 11 desktop, the app window, ten PASS lines on the page:
+
+![the Windows self-test, ten checks passed](../docs/screenshot-windows.png)
+
+It opens a window, so like the smoke it needs an interactive session — see the next section for
+running it from SSH.
+
 ## The smoke (milestone 2a)
 
 `Smoke.java` is the first real window: it creates a Win32 window, a WebView2 environment
@@ -69,6 +121,12 @@ created, and returns the wrapped script's exit code.
 ```powershell
 # from the SSH session
 .\run-in-session.ps1 -File .\smoke-wrapper.ps1 -TimeoutSeconds 300
+```
+
+The self-test is delivered the same way:
+
+```powershell
+.\run-in-session.ps1 -File .\run-selftest.ps1 -TimeoutSeconds 180
 ```
 
 The session id is deliberately not a parameter: it changes with how the user connected — measured on

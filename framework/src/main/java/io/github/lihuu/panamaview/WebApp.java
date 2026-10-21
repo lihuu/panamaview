@@ -197,7 +197,15 @@ public final class WebApp {
         return this;
     }
 
-    /** Called once the page has loaded — the first safe moment to call into JavaScript. */
+    /**
+     * Called when the page has loaded — the first safe moment to call into JavaScript.
+     *
+     * <p>It fires on <em>every</em> load, not only the first one. A live reload is a page
+     * load, so a reloaded page calls this again, and so does every navigation the user makes.
+     * A callback that does setup work has to be safe to run more than once: starting a thread
+     * here dies with {@code IllegalThreadStateException} the moment the page reloads, and
+     * anything else that is not idempotent fails the same way, only less obviously.
+     */
     public WebApp onReady(Consumer<WebApp> callback) {
         this.onReady = callback;
         return this;
@@ -275,7 +283,24 @@ public final class WebApp {
             System.out.println("[panamaview] web root: " + stagedRoot);
         }
 
-        if (liveReload && host.isUiThread()) {
+        // The watcher is registered here, before the window opens, and that is deliberate: the
+        // page's source directory only has to exist, and the reload itself is delivered through
+        // host.onUiThread, which every platform promises to accept from any thread.
+        //
+        // An earlier version asked host.isUiThread() first, on the theory that reloading a window
+        // is a UI-thread operation. It is not — reloading is a request, and the request is
+        // delivered later, on whichever thread the platform designates as the UI thread. The
+        // question that was actually being asked was "is the *caller* on the UI thread right now",
+        // and on Windows the answer is no at this point in every run: the host's event loop runs
+        // on a thread it creates in start(), and this code runs before start(). So the watcher was
+        // never registered there, and live reload silently did nothing on Windows — no message,
+        // no error, and a README that said it worked.
+        //
+        // The platforms differ in when their UI thread exists (macOS has one from the first
+        // instruction, Windows creates one during start()), and the fix is to depend on neither:
+        // onUiThread is the contract for "run this later, on the UI thread", and it is the right
+        // door for every platform.
+        if (liveReload) {
             Optional<Path> source = Resources.directory(directory);
             source.ifPresent(this::watchForChanges);
         }

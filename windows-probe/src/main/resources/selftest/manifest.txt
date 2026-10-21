@@ -1,0 +1,5 @@
+# The self-test page's own asset list, in the format Resources expects. A separate directory
+# from web/ because this page is a test, not the interactive demo — and because the demo's
+# manifest is what the demo stages.
+selftest.html
+selftest.js

@@ -23,9 +23,14 @@ import java.util.concurrent.LinkedBlockingQueue;
  * that is compulsory on macOS has no Windows counterpart, and a generated project here needs
  * neither it nor its workarounds. {@link #start} still blocks the calling thread until the
  * application quits, so the contract the portable layer sees is the same on both platforms;
- * the pump simply lives elsewhere. The one visible consequence: {@link #isUiThread} is false
- * until the pump is up, which is why a file-backed page's live reload does not engage on this
- * platform yet.
+ * the pump simply lives elsewhere.
+ *
+ * <p>The one visible consequence is that {@link #isUiThread} is false until the pump is up.
+ * That is a fact about <em>now</em>, and it used to be read as a fact about <em>later</em>:
+ * work that wanted the UI thread asked {@code isUiThread()} first, and on this platform the
+ * answer was no for the whole of the window's creation — so the work was never done at all.
+ * The queue ({@link #onUiThread}) is the answer instead: it accepts work from any thread at
+ * any time, and the pump runs it.
  *
  * <h2>What the page is served from</h2>
  * The macOS side answers {@code scheme://app/…} with its own URL scheme handler. Windows has
@@ -77,6 +82,18 @@ public final class WindowsHost implements UiHost {
                     ? Win32.createWindow(pumpArena, spec.title(), spec.width(), spec.height(), this::onWindowMessage)
                     : Win32.createWindow(pumpArena, spec.title(), spec.width(), spec.height(),
                             origin.x(), origin.y(), this::onWindowMessage);
+
+            // Work submitted before the window existed has no message to wake the pump, because
+            // there was no window to post it to. The window exists now, so the queue is drained
+            // here — on the pump thread, which is the only thread these actions may run on.
+            //
+            // Draining here rather than later is deliberate: the web view is created by a COM
+            // completion handler, so a drain that waited for it would never run at all if the
+            // environment failed to start — and a queued action would be lost rather than
+            // reported. Nothing is lost by running early either: an action that touches the web
+            // view before it exists is a no-op, because evaluate() has nothing to evaluate on,
+            // and the page has not loaded yet for a reload to be about.
+            drainUiQueue();
 
             Path loader = findLoader();
             WebView2.createEnvironment(WebView2.load(loader),
@@ -153,10 +170,7 @@ public final class WindowsHost implements UiHost {
                 resizeWebView();
             }
             case Win32.WM_APP_RUNNABLE -> {
-                Runnable action;
-                while ((action = uiQueue.poll()) != null) {
-                    action.run();
-                }
+                drainUiQueue();
             }
             case Win32.WM_DESTROY -> {
                 if (callbacks.shouldQuitWhenLastWindowCloses()) {
@@ -173,6 +187,26 @@ public final class WindowsHost implements UiHost {
         }
         // The cases above handle-or-defer; for them a zero answer is correct.
         return 0;
+    }
+
+    /**
+     * Runs every action submitted for the UI thread, in the order it was submitted.
+     *
+     * <p>Called on the pump thread, which is the only thread these may run on: they touch the
+     * window and the web view. One action that throws does not strand the rest, because the
+     * queue is drained in a loop and a failure here would otherwise leave every later action
+     * unrun — which is how one bad reload could silently stop all reloading.
+     */
+    private void drainUiQueue() {
+        Runnable action;
+        while ((action = uiQueue.poll()) != null) {
+            try {
+                action.run();
+            } catch (Throwable t) {
+                System.err.println("[panamaview] a UI-thread task failed: " + t);
+                t.printStackTrace(System.err);
+            }
+        }
     }
 
     private void resizeWebView() {
@@ -226,7 +260,19 @@ public final class WindowsHost implements UiHost {
     @Override
     public void onUiThread(Runnable action) {
         uiQueue.add(action);
-        Win32.postRunnable(hwnd, 0);
+        // The window is the pump's wake-up bell, and it does not exist yet when this is called
+        // before start() — the pump thread is created inside start(). Posting to a null HWND
+        // does not fail loudly: PostMessageW returns 0, the message goes to the *calling*
+        // thread's queue, and the pump thread never hears about it. The action would sit in
+        // uiQueue forever, which is how live reload came to do nothing on Windows at all.
+        //
+        // So the queue is the source of truth and the message is only the nudge. When the
+        // window is not there yet, the pump drains the queue itself once it is up (see pump()).
+        // When it is there, the message wakes the pump, which drains the queue in turn.
+        MemorySegment window = hwnd;
+        if (window != null) {
+            Win32.postRunnable(window, 0);
+        }
     }
 
     @Override

@@ -58,6 +58,20 @@ jobs:
       - name: Build and install the framework
         run: mvn -q install -DskipTests
 
+      # The framework's own tests, run separately and explicitly, because the build above skips
+      # them. They exist for one reason: the framework had no test source at all until a bug got
+      # through that no amount of reading the code would have found — live reload silently did
+      # nothing on Windows, while the template README said it worked. The demo's in-page
+      # self-test could never have caught it, because the bug was in the portable layer's
+      # decision to register a watcher, and the demo runs on macOS where that decision was
+      # always right.
+      #
+      # -DskipTests on the install above is not an oversight to be tidied away: that step exists
+      # to produce an artifact other jobs consume, and the tests need no artifact. Running them
+      # here instead means a test failure stops the build at the point where it is explained.
+      - name: The framework's own tests
+        run: mvn -B -pl framework test
+
       # The demo used to live in this tree, so the published jar shipped the demo's classes and
       # its pages: a consumer's classpath acquired an application it never asked for, and the
       # framework's own declared entry point was the demo's main(). Nothing else here would

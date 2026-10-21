@@ -39,7 +39,14 @@ public interface UiHost {
     /** Runs {@code script} in the page. UI thread only. */
     void evaluate(String script);
 
-    /** Schedules {@code action} on the UI thread. Safe to call from any thread. */
+    /**
+     * Schedules {@code action} on the UI thread. Safe to call from any thread.
+     *
+     * <p>Safe to call <em>before</em> {@link #start} too, which is what the contract is for:
+     * the action is queued and runs as soon as there is a UI thread to run it on. A host whose
+     * UI thread does not exist yet must not drop the action, and must not try to reach a window
+     * that does not exist yet either.
+     */
     void onUiThread(Runnable action);
 
     /** True when the calling thread already is the UI thread. */
