@@ -228,6 +228,33 @@ a public API change.
 - **`WM_COMMAND` handling.** `WindowsHost.onWindowMessage` has no case for it, and a message
   it does not answer falls through to `DefWindowProcW` — which would swallow the click.
 - **`CreateMenu` / `AppendMenuW` / `SetMenu` / `DestroyMenu`.** None are bound.
+
+**Their signatures**, so the implementation does not have to look them up:
+
+```c
+HMENU  CreateMenu(void);
+BOOL   AppendMenuW(HMENU hMenu, UINT uFlags, UINT_PTR uIDNewItem,
+                   LPCWSTR lpString, HMENU hSubMenu);
+BOOL   SetMenu(HWND hWnd, HMENU hMenu);
+BOOL   DestroyMenu(HMENU hMenu);
+```
+
+`AppendMenuW` is the awkward one: five parameters, of which the *string* is UTF-16 and
+`uIDNewItem` is a `UINT_PTR` — a pointer-sized integer, so `ADDRESS` in FFM terms, not
+`JAVA_INT`. The `MF_STRING` flag makes the item's text come from `lpString`;
+`MF_SEPARATOR` makes it a separator and ignores the text; `MF_POPUP` with a non-null
+`hSubMenu` makes it a submenu. The command id goes in `uIDNewItem` for a normal item.
+
+Strings follow the pattern `Win32` already uses for window titles: `allocateFrom(text,
+StandardCharsets.UTF_16LE)`, with a null terminator — `allocateFrom` adds one. Measured,
+because a menu label that comes out as mojibake is not a thing to find out about in a
+Windows installer:
+
+```
+code units: 导出
+round trip exact: true
+byte size: 6 for 2 chars + terminator
+```
 - **`VK_*` and `MOD_*` constants.** None exist.
 
 ### Keyboard shortcuts on Windows are a different problem from macOS
