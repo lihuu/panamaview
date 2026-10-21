@@ -28,7 +28,7 @@ item was chosen; the application decides what that means. Tauri identifies the i
 string id, and the application matches on it.
 
 panamaview already has the other half of this: `bind` declares a named Java method, and
-the page can call it. So a menu item is a **second surface of the same binding**:
+the page can call it. So a **binding item** is a *second surface of the same binding*:
 
 ```java
 // panamaview
@@ -43,14 +43,19 @@ report that it was chosen*.
 This is deliberately not a new dispatch mechanism. A menu item and a bridge call are the
 same thing seen from two sides.
 
+There is a second kind of item, for the cases the binding model cannot express, and the
+reason it exists is the whole point of the next section.
+
 ## Goals
 
 - An application can declare a menu bar: top-level menus, their items, separators, and
   shortcuts.
-- A menu item points at a name declared with `bind`. Clicking it invokes that binding.
+- A **binding item** points at a name declared with `bind`. Clicking it invokes that
+  binding.
 - The same declaration produces a correct menu on macOS and on Windows.
 - The framework's existing Quit and Edit menus keep working, and keep working by default —
-  an application that forgets the Edit menu must not reproduce issue #19.
+  an application that forgets the Edit menu must not reproduce issue #19. **The Edit menu
+  stays macOS-only**, and the measurement behind that is in "A menu's identity" below.
 
 ## Two kinds of menu item
 
