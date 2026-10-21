@@ -367,6 +367,11 @@ BOOL   AppendMenuW(HMENU hMenu, UINT uFlags, UINT_PTR uIDNewItem, LPCWSTR lpNewI
 BOOL   DestroyMenu(HMENU hMenu);
 ```
 
+**All three arities checked against the real Win32**, because a wrong arity is a wrong
+binding and the extra argument is read off the stack rather than refused. `CreateMenu` takes
+none, `AppendMenuW` takes four, `DestroyMenu` takes one — called on a Windows 11 box, and
+the item landed with the id it was given.
+
 `AppendMenuW` is the awkward one: four parameters, of which the *string* is UTF-16 and
 `uIDNewItem` is a `UINT_PTR` — a pointer-sized integer, so `ADDRESS` in FFM terms, not
 `JAVA_INT`. That one parameter carries two different things: the **command id** for an
