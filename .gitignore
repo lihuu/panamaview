@@ -23,6 +23,11 @@ target/
 /windows-probe/smoke-result.txt
 /windows-probe/smoke-page.png
 
+# The self-test's output, and the screenshot a run can leave behind.
+/windows-probe/selftest-result.txt
+/windows-probe/selftest*.session.log
+/windows-probe/selftest.png
+
 # Version snapshots the editor writes into the project root as files change. Not source, and not
 # history either -- the repository already keeps that.
 /.alma-snapshots/
