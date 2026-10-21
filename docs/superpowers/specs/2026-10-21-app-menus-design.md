@@ -787,12 +787,14 @@ drift that makes a public API confusing.
 **The two `menu` overloads are compiled, not just written down.** They differ only in
 their first argument — a list of menus against a title and a list of items — which is
 exactly the pair that turns into an ambiguity error, or into a call that binds to the
-wrong overload. The design's own example, nested, compiles and runs:
+wrong overload. The revised example, nested and with the built-in menus in it, compiles
+and runs:
 
 ```
-the bar holds 2 menu(s)
-  文件: 4 item(s)
-  Edit: 6 item(s)
+the bar holds 3 menu(s)
+  MyApp: 1 item(s)
+  文件: 3 item(s)
+  Edit: 7 item(s)
 ```
 
 So the nesting in the examples is necessary rather than decorative, and it is the same
