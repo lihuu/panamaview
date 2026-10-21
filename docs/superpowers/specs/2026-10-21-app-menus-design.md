@@ -157,12 +157,24 @@ Two ways to give an item a Java target, and one of them is much better:
 
 The second is what to build. It is less code, and it does not need `sel_getName`.
 
-**The ABI works out.** `NSMenuItem.tag` is an `NSInteger`, which is 64-bit — and the
-`ObjC` layer already has exactly the two accessors that needs: `sendLong` (no arguments,
-returns an `NSInteger`) and `sendVoidLong` (one `NSInteger` argument). NOTES.md §2.3 records
-the trap this is the other side of: `NSInteger` is not `BOOL`, and passing it with the
-wrong width is a mistake that "works" until the value is not 0 or 1. The existing helpers
-use `JAVA_LONG`, which is the right width.
+**The ABI works out, and it is measured.** `NSMenuItem.tag` is an `NSInteger`, which is
+64-bit — and the `ObjC` layer already has exactly the two accessors that needs: `sendLong`
+(no arguments, returns an `NSInteger`) and `sendVoidLong` (one `NSInteger` argument).
+NOTES.md §2.3 records the trap this is the other side of: `NSInteger` is not `BOOL`, and
+passing it with the wrong width is a mistake that "works" until the value is not 0 or 1.
+The existing helpers use `JAVA_LONG`, which is the right width.
+
+Round-tripped on macOS 14, through the real `NSMenuItem`:
+
+```
+wrote 102030405060708
+read  102030405060708
+round trip: EXACT
+small value round trip: EXACT
+```
+
+A full-width value and a small one both survive, which is the case a wrong width would
+break.
 
 **The action's argument.** AppKit sends the clicked item as the argument to the action
 method, so the handler reads the tag off the item it was handed rather than off `self` —
