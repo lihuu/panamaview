@@ -289,6 +289,18 @@ an already-visible window. The fix is to attach the menu *before* the window is 
 means `createWindow` has to grow a parameter — it is a package-private method, so this is not
 a public API change.
 
+**Where the click arrives.** The window procedure already receives
+`(hwnd, message, wparam, lparam)` through its upcall stub, and `wparam` is a `long` — which
+is where `WM_COMMAND` carries the command id, in its low word. So the click needs **no new
+binding**: the case reads the id out of `wparam` and looks it up.
+
+And the case is genuinely missing today, which is the whole problem: `WindowsHost.onWindowMessage`
+switches on the message, and `WM_COMMAND` falls into the `default` branch, which forwards to
+`DefWindowProcW` (WindowsHost.java:181). A window with no menu has nothing for
+`DefWindowProcW` to do with a command id, so the click would be **silently dropped** — the
+same shape of failure as the live-reload bug, and the reason the test for it has to assert
+on the effect rather than on the absence of an exception.
+
 **What the Windows side does not have yet, and this needs:**
 
 - **`WM_COMMAND` handling.** `WindowsHost.onWindowMessage` has no case for it, and a message
