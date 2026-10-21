@@ -543,6 +543,20 @@ public final class Menus {
 overloads — which is why the examples nest the way they do. `Item.shortcut(String)` is
 the one method on an item, and it returns the item so it chains.
 
+**The two `menu` overloads are compiled, not just written down.** They differ only in
+their first argument — a list of menus against a title and a list of items — which is
+exactly the pair that turns into an ambiguity error, or into a call that binds to the
+wrong overload. The design's own example, nested, compiles and runs:
+
+```
+the bar holds 2 menu(s)
+  文件: 4 item(s)
+  Edit: 6 item(s)
+```
+
+So the nesting in the examples is necessary rather than decorative, and it is the same
+shape Tauri's `MenuBuilder` and `SubmenuBuilder` have, which is where the model came from.
+
 ## How a click reaches a binding
 
 This is the seam, and it does not exist yet. `Bridge` is package-private (Bridge.java:51)
