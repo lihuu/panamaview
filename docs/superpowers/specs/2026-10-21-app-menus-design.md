@@ -294,6 +294,22 @@ a public API change.
 is where `WM_COMMAND` carries the command id, in its low word. So the click needs **no new
 binding**: the case reads the id out of `wparam` and looks it up.
 
+`WM_COMMAND` is `0x0111`, and the documented breakdown of `wParam` by source is:
+
+| Source | `wParam` high word | `wParam` low word | `lParam` |
+| :--- | :--- | :--- | :--- |
+| Menu | 0 | the menu identifier | 0 |
+| Accelerator | 1 | the accelerator identifier | 0 |
+| Control | the notification code | the control identifier | the control's handle |
+
+So for a menu the id is the low word and the high word is zero — the framework can read
+`wparam & 0xFFFF` and be done.
+
+**One trap in that table.** A separator sends a `WM_COMMAND` with the low word set to **zero**
+— the system does that when the user selects a separator. So an id of 0 must not be looked
+up as a binding; it means "a separator was clicked", and there is nothing to invoke. The
+framework's ids should start at 1 for the same reason.
+
 And the case is genuinely missing today, which is the whole problem: `WindowsHost.onWindowMessage`
 switches on the message, and `WM_COMMAND` falls into the `default` branch, which forwards to
 `DefWindowProcW` (WindowsHost.java:181). A window with no menu has nothing for
@@ -322,6 +338,21 @@ BOOL   DestroyMenu(HMENU hMenu);
 `JAVA_INT`. The `MF_STRING` flag makes the item's text come from `lpString`;
 `MF_SEPARATOR` makes it a separator and ignores the text; `MF_POPUP` with a non-null
 `hSubMenu` makes it a submenu. The command id goes in `uIDNewItem` for a normal item.
+
+The flag values, from the documented API:
+
+| Flag | Value | |
+| :--- | :--- | :--- |
+| `MF_STRING` | `0x00000000` | the text is a string — **and it is the absence of a flag, not a bit** |
+| `MF_GRAYED` | `0x00000001` | |
+| `MF_DISABLED` | `0x00000002` | |
+| `MF_CHECKED` | `0x00000008` | |
+| `MF_POPUP` | `0x00000010` | `uIDNewItem` is then an `HMENU`, not a command id |
+| `MF_SEPARATOR` | `0x00000800` | the text and the id are both ignored |
+
+`MF_STRING` being zero is the one that catches people: it is not a bit to set, it is the
+absence of `MF_BITMAP` and `MF_OWNERDRAW`. Passing it changes nothing, and passing
+`MF_SEPARATOR` alone is enough for a separator.
 
 Strings follow the pattern `Win32` already uses for window titles: `allocateFrom(text,
 StandardCharsets.UTF_16LE)`, with a null terminator — `allocateFrom` adds one. Measured,
