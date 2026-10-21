@@ -382,6 +382,21 @@ clickable in the sense that matters, and a popup opens a menu rather than firing
 action. But the handler should not look either up, and the guard is worth writing down
 rather than leaving to the reader.
 
+**Where the id-to-name mapping lives, and why it differs by platform.** macOS identifies an
+item by its **name** — the binding's name is the item's identity, and the `tag` carries it
+(the framework's own items are identified by their *action selector*, `copy:`, `paste:`). So
+on macOS the click arrives as a name and the lookup is a map from name to binding.
+
+Windows identifies an item by an **integer**, so the framework has to keep the map the
+other way round: from the id it handed out to the name it stands for. That map is the
+framework's, and it is built while the menu is assembled — the same walk that creates the
+menu items assigns the ids.
+
+So the portable layer owns a **name → id** table, and each platform reads it in its own
+direction: macOS puts the name in the item's `tag`, Windows puts the id in `uIDNewItem`.
+The table is the only thing that has to agree across the two.
+
+
 And the case is genuinely missing today, which is the whole problem: `WindowsHost.onWindowMessage`
 switches on the message, and `WM_COMMAND` falls into the `default` branch, which forwards to
 `DefWindowProcW` (WindowsHost.java:181). A window with no menu has nothing for
