@@ -308,6 +308,37 @@ creation time is both less code and the only version that does not flicker.
 this is not a public API change. A null `HMENU` means "no menu", which is the current
 behaviour, so the callers that do not want a menu pass null and nothing changes for them.
 
+**How a top-level menu joins the bar** — and this is where the two platforms differ in
+shape, though not in what the model says.
+
+**On macOS**, the bar is an `NSMenu` and its items are menu items; a top-level menu is
+attached through a **menu item that holds it as its submenu**. Measured:
+
+```
+menu title: 文件
+item title: 导出, tag: 7
+the bar holds 1 top-level menu(s)
+the 文件 menu holds 2 item(s), separator included
+```
+
+The bar's item is the one that carries the title the user sees; the submenu it holds is
+where the items live. The existing `Cocoa.installMenuBar` does exactly this (Cocoa.java:54-63).
+
+**On Windows**, the bar is an `HMENU` and a top-level menu is an item with `MF_POPUP`,
+whose `uIDNewItem` is the submenu's handle rather than a command id. Measured:
+
+```
+AppendMenuW with MF_POPUP: True
+the bar holds 1 item(s)
+GetSubMenu returns the menu we passed: True
+the submenu's item id: 5
+the bar item's own id (a popup has none): 4294967295
+```
+
+So the same model — a bar of menus — needs a wrapper item on macOS and a flag on Windows.
+That is a platform difference in the *implementation*, and the model says nothing about it:
+`MenuBar` is a list of `Menu`s on both sides.
+
 **Where the click arrives.** The window procedure already receives
 `(hwnd, message, wparam, lparam)` through its upcall stub, and `wparam` is a `long` — which
 is where `WM_COMMAND` carries the command id, in its low word. So the click needs **no new
