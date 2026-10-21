@@ -535,6 +535,16 @@ item already carries them. Windows keyboard shortcuts are a separate piece of wo
 their own design question — how to get a Ctrl+E to a menu item without taking it from the
 page — and shipping the clickable menu without them is honest rather than broken.
 
+**What that costs, stated plainly.** On Windows, in the first slice, a menu item is
+**clickable but not reachable by keyboard**: the menu bar opens on click, the item works on
+click, and there is no Ctrl+E. A Windows user gets the menu structure and the actions; they
+do not get the shortcut. On macOS the same declaration gives both, because the key
+equivalent rides on the item itself.
+
+The reason this is worth shipping in that order rather than waiting is that the clickable
+menu is the whole capability, and the shortcut is an extra. But the cost is real, and an
+application that needs a keyboard shortcut on Windows has to wait for the second piece.
+
 ## What the application writes
 
 ```java
