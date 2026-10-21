@@ -158,6 +158,29 @@ matters because `"CmdOrCtrl+E"` carries the letter E and a letter is not a key c
 `keyEquivalentModifierMask` is an `NSInteger`, so `sendVoidLong` and `sendLong` carry it,
 the same width as the tag.
 
+**And the mask replaces AppKit's default rather than adding to it — which is a trap.**
+Measured on a real `NSMenuItem`:
+
+```
+a bare key equivalent, no mask: 1048576
+an explicit Command mask:      100000
+an explicit empty mask:        0
+```
+
+`1048576` is `0x100000`, which is `NSEventModifierFlagCommand` — so **AppKit's default for a
+bare key equivalent is already Command**, which is why the framework's own Edit menu can
+pass a bare `"c"` and get ⌘C. Setting the mask explicitly to Command gives the *same*
+value, not Command-and-Command, so the mask is a replacement.
+
+The trap is on the other side of that. A declaration that names **no** modifiers must
+**clear** the mask — set it to 0 — or AppKit's default Command would silently turn
+`"C"` into ⌘C. And a declaration that names only Control, on macOS, means ⌃C and not ⌘C,
+which is the opposite of what the same string means on Windows. That is the whole reason
+`CmdOrCtrl` exists as a spelling.
+
+So the macOS translation is: the character goes in the key equivalent, and the modifier set
+goes in the mask **always** — including the empty set, which is `0`.
+
 The Windows side is the one that needs a real translation: a letter has to become a
 `VK_*` code, and the modifier set has to become `MOD_*` flags.
 
