@@ -90,6 +90,19 @@ supplies, and an application may ask for it, keep it, or leave it out. It is not
 "replaceable by an application-declared menu of the same name", because an application
 declaring 复制/剪切/全选 as binding items would silently stop ⌘C from reaching the web view.
 
+**Both halves of that claim are measured.**
+
+- **With a target, the action goes to the target** — not down the responder chain. Checked
+  on macOS with a real `NSWindow`, a real `NSMenu` and a runtime-created target class:
+  `with a target, the action landed on: the target`.
+- **With a nil target, the action walks the chain** — checked when issue #19 was fixed,
+  against a real `WKWebView` in a real window: `sendAction:` with a nil target, which is
+  what a key equivalent sends, put "BBB-SENTINEL" into a textarea on ⌘V, copied
+  "AAA-MARK" back to the pasteboard on ⌘A ⌘C, and moved "CUT-ME" out on ⌘X.
+
+So the two kinds are not a distinction the framework invented. They are two different
+places the action can go, and the framework has to say which one it means.
+
 **Consequence for the API:** the model needs two item kinds, and the built-in Edit menu
 stays outside them. A design with one kind of item cannot express both.
 
