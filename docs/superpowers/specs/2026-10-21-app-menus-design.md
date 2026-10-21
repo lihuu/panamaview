@@ -245,6 +245,13 @@ new WebApp(host)
 ⌘X, ⌘A and ⌘Z reach the web view. It is supplied, not declared, because an application
 declaring those as binding items would stop them reaching the web view at all.
 
+**Where the builders live.** `WebApp` is a fluent builder of instance methods — `title`,
+`size`, `bind`, `onReady` — and the repository's static factories live in their own
+classes: `Resources.stage`, `Json.write`, `PageSource.FromAssets`. So the menu builders
+follow that: a `Menus` class in the framework's root package, with `Menus.menu(...)`,
+`Menus.item(...)`, `Menus.separator()`, `Menus.platformItem(...)` and `Menus.editMenu()`.
+An application writes `Menus.menu(…)`, or imports them statically.
+
 ## How a click reaches a binding
 
 This is the seam, and it does not exist yet. `Bridge` is package-private (Bridge.java:51)
@@ -267,6 +274,13 @@ Two ways to open one:
 requests that the page made. The framework's rule that the platform layer knows nothing
 about the bridge holds either way; what changes is that `UiHost.Callbacks` grows one method,
 and the portable layer maps the name to a binding.
+
+**The new method should be a `default` one**, and there is precedent for exactly that:
+`onPageUnloading()` is a default method, added because "a host that cannot detect navigation
+should still be usable". A menu event is the same shape of thing — a host that has no menu
+has nothing to report, and it should not have to implement the method to be usable. There is
+also only one implementor of `UiHost.Callbacks` in the whole repository (`WebApp.java:350`),
+so the cost is nil either way; the default method is the polite form.
 
 **The binding is invoked the way a binding is invoked** — on a virtual thread, with the
 standard deadline, and cancellable. A menu item that names a binding nobody declared is a
