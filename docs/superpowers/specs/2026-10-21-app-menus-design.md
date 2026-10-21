@@ -421,6 +421,12 @@ has nothing to report, and it should not have to implement the method to be usab
 also only one implementor of `UiHost.Callbacks` in the whole repository (`WebApp.java:350`),
 so the cost is nil either way; the default method is the polite form.
 
+**And the compatibility is checked, not assumed.** An implementation of `UiHost.Callbacks`
+written the way an outside consumer would write one — without every method — compiles
+today, because `onPageUnloading()` already has a default. Adding another default does not
+change that. A consumer's `UiHost` implementation is unaffected either way, since the
+change is to the nested interface rather than to `UiHost` itself.
+
 **The binding is invoked the way a binding is invoked** — on a virtual thread, with the
 standard deadline, and cancellable. A menu item that names a binding nobody declared is a
 mistake the framework should report, not a silent no-op: the click arrives and the name
