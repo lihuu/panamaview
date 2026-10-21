@@ -130,6 +130,24 @@ handed to the platform. macOS wants a key *character* plus a modifier mask; Wind
 *virtual key code* plus a modifier mask. Neither accepts a string, so a small parser is
 needed on both sides, and it is the same parser with two back ends.
 
+**Both halves of the macOS side are measured**, and the good news is that the parser's
+output is directly usable there — no translation layer beyond setting two properties:
+
+```
+key equivalent reads back: 'e'
+a plain character is enough: YES
+modifier mask round trip: 100000 (asked for 100000)
+the mask survives: YES
+```
+
+So a plain character is enough for the key equivalent — no key *codes* on this side, which
+matters because `"CmdOrCtrl+E"` carries the letter E and a letter is not a key code. And
+`keyEquivalentModifierMask` is an `NSInteger`, so `sendVoidLong` and `sendLong` carry it,
+the same width as the tag.
+
+The Windows side is the one that needs a real translation: a letter has to become a
+`VK_*` code, and the modifier set has to become `MOD_*` flags.
+
 ## The two platform implementations
 
 ### macOS
