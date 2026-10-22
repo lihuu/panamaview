@@ -63,7 +63,7 @@ run-selftest.cmd
 Expected output ends:
 
 ```
-[selftest] 10 passed, 0 failed
+[selftest] 11 passed, 0 failed
 [selftest]   PASS  hello - Hello World
 [selftest]   PASS  json round trip - {"a":1,"b":"two","c":[3,4],"d":{"nested":true},"e":null}
 [selftest]   PASS  slow handler does not block - hello answered in 1 ms while slow(600 ms) was in flight
@@ -74,6 +74,7 @@ Expected output ends:
 [selftest]   PASS  platform extra runs on UI thread - window 1000x700 at 294,294, onUiThread=true
 [selftest]   PASS  ordinary handler runs off the UI thread - OpenJDK 64-Bit Server VM, handler on VirtualThread
 [selftest]   PASS  200 concurrent invocations - 200 round trips in 24 ms
+[selftest]   PASS  menu item reaches its binding - the click ran the binding 1 time(s)
 [selftest] DONE
 ```
 
@@ -81,10 +82,33 @@ The two lines worth reading together are the slow-handler pair. The same work, t
 duration, on two different threads: **1 ms** on a virtual thread, **402 ms** on the UI thread.
 That difference is the whole threading contract, measured.
 
-The verdict is in the log; the screenshot is the evidence that something was actually drawn —
-a real Windows 11 desktop, the app window, ten PASS lines on the page:
+The eleventh check is the menu, and it is the one this platform owes the other one. The
+application declares a bar with a binding item in it, the test clicks that item, and the
+binding's effect is what the check asserts — a counter that has not moved says the click went
+nowhere, and a click that goes nowhere does not throw, it does nothing, silently. The wait for
+the effect lives in the binding rather than in the page, because the click crosses three hops
+before it lands: the message to the window, the pump thread's `WM_COMMAND` handling, and the
+binding on a virtual thread.
 
-![the Windows self-test, ten checks passed](../docs/screenshot-windows.png)
+A **watchdog** stands behind the verdict. The exit code belongs to the application, and a
+failure before the window exists — a menu whose titles do not match the model is refused at
+start-up — leaves the page with nothing to report, so the process would sit there and exit 0:
+loud on stderr, and a pass to anything reading the exit code. If the page has not reported
+within a minute, the self-test says so and exits non-zero.
+
+The verdict is in the log; the screenshot is the evidence that something was actually drawn —
+a real Windows 11 desktop, the app window, eleven PASS lines on the page, and the menu bar
+with the 文件 menu open:
+
+![the Windows self-test, eleven checks passed](../docs/screenshot-windows.png)
+
+That box's display runs at 200% scaling, so a capture is the desktop at half its size: the
+window is 1000×700 in the pixels the framework asked for and 500×350 in the picture. The same
+picture, magnified twice, is what the menu looks like at the size a person at the keyboard sees
+it — the application's own menu, its binding item 探测 in it, and the Chinese titles as
+characters rather than as mojibake:
+
+![the Windows self-test's menu, magnified](../docs/screenshot-windows-menu.png)
 
 It opens a window, so like the smoke it needs an interactive session — see the next section for
 running it from SSH.

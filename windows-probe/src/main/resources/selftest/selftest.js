@@ -155,6 +155,24 @@
       check("200 concurrent invocations", false, String(error.message));
     }
 
+    // 10. A menu item, chosen.
+    //
+    // The check asserts the effect — that the click reached the binding — and not the
+    // absence of an exception: a click that goes nowhere does not throw, it does nothing,
+    // silently. The count is the only evidence that the dispatch path ran.
+    //
+    // The wait for the effect lives in Java, inside the click, because the click crosses
+    // three hops: the message to the window, the pump thread's WM_COMMAND handling, and the
+    // binding on a virtual thread. The answer therefore arrives with the result, in one
+    // round trip, and the page never has to poll.
+    try {
+      const count = await java.invoke("menuClick", {});
+      check("menu item reaches its binding", count >= 1,
+            "the click ran the binding " + count + " time(s)");
+    } catch (error) {
+      check("menu item reaches its binding", false, String(error.message));
+    }
+
     // The verdict goes to Java so it lands in stdout.
     const passed = results.filter((r) => r.ok).length;
     try {
