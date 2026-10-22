@@ -8,6 +8,8 @@ import io.github.lihuu.panamaview.Platform;
 import io.github.lihuu.panamaview.Shortcut;
 
 import java.lang.foreign.MemorySegment;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -67,10 +69,12 @@ final class Cocoa {
      * @param bar     the model the menu is built from
      * @param appName the application's name, which the model has no way to know
      * @param target  the shared target of the binding items
+     * @return the menus it built, one per top-level menu, in the model's order
      */
-    public static void installMenuBar(ObjC.Scope scope, MemorySegment app, MenuBar bar,
-                                      String appName, MemorySegment target) {
+    public static List<MemorySegment> installMenuBar(ObjC.Scope scope, MemorySegment app, MenuBar bar,
+                                                     String appName, MemorySegment target) {
         MemorySegment mainMenu = newMenu(scope, "");
+        List<MemorySegment> built = new ArrayList<>();
 
         for (Menu menu : bar.menus()) {
             // The application's own menu is the one the model could not name: the model has no
@@ -87,6 +91,7 @@ final class Cocoa {
 
             MemorySegment submenu = newMenu(scope, appMenu ? appName : menu.title());
             ObjC.sendVoid(menuItem, ObjC.selector("setSubmenu:"), submenu);
+            built.add(submenu);
 
             for (Item item : menu.items()) {
                 addItem(scope, submenu, item, itemTitle(menu, item, appName), target);
@@ -94,6 +99,36 @@ final class Cocoa {
         }
 
         ObjC.sendVoid(app, ObjC.selector("setMainMenu:"), mainMenu);
+        return built;
+    }
+
+    /**
+     * Where an item sits in the menu that was built: which top-level menu it is in, and its
+     * position inside that menu.
+     *
+     * <p>The position is the item's index in the model's own item list, because the builder
+     * appends the items in exactly that order. The separators are in that list too, and each
+     * one occupies a position of its own — so the item after a separator is not where it looks
+     * to be, and an activation that counted only the items would land on the wrong one.
+     *
+     * <p>An id that names no item is an error rather than a shrug: the id is the framework's
+     * own, so an id nobody holds is a bar that was not the one that was built.
+     */
+    static Position positionOf(MenuBar bar, int id) {
+        List<Menu> menus = bar.menus();
+        for (int menu = 0; menu < menus.size(); menu++) {
+            List<Item> items = menus.get(menu).items();
+            for (int index = 0; index < items.size(); index++) {
+                if (items.get(index).id() == id) {
+                    return new Position(menu, index);
+                }
+            }
+        }
+        throw new IllegalArgumentException("the menu has no item with the id " + id);
+    }
+
+    /** Where an item sits in the built menu: the top-level menu, and the position in it. */
+    record Position(int menu, int index) {
     }
 
     /**

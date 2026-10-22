@@ -9,11 +9,12 @@ import org.junit.jupiter.api.Test;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * The two translations the macOS menu builder makes out of the model.
+ * The three translations the macOS menu builder makes out of the model.
  *
- * <p>Neither of them touches AppKit, and that is the point: the rest of the builder cannot be
+ * <p>None of them touches AppKit, and that is the point: the rest of the builder cannot be
  * exercised without a window server, so these are the only parts of it that a build can check.
  * They are also the parts a typo would break silently — a wrong selector is an item that does
  * nothing when it is chosen, and a wrong modifier mask is a shortcut that does not fire.
@@ -92,5 +93,28 @@ class CocoaMenuTest {
         // A separator has no title, and a null must not leave the method: the native call that
         // takes a title would be handed one.
         assertEquals("", Cocoa.itemTitle(Menus.appMenu(), Menus.separator(), "MyApp"));
+    }
+
+    @Test
+    void anItemIsFoundByItsIdAndTheSeparatorsCount() {
+        var probe = Menus.item("probe", "探测");
+        var other = Menus.item("other", "另一个");
+        var bar = Menus.menu(
+                Menus.appMenu(),
+                Menus.menu("文件", probe, Menus.separator(), other));
+
+        assertEquals(new Cocoa.Position(1, 0), Cocoa.positionOf(bar, probe.id()),
+                "the application's own menu is the second one in the bar");
+        assertEquals(new Cocoa.Position(1, 2), Cocoa.positionOf(bar, other.id()),
+                "the separator takes a position of its own, so the item after it is at 2 — an "
+                        + "activation that counted only the items would land on the separator");
+    }
+
+    @Test
+    void anIdThatNamesNoItemIsAnError() {
+        var bar = Menus.menu(Menus.menu("文件", Menus.item("probe", "探测")));
+        assertThrows(IllegalArgumentException.class, () -> Cocoa.positionOf(bar, 999),
+                "the id is the framework's own, so an id nobody holds means the bar that was "
+                        + "built is not the one that was declared");
     }
 }

@@ -1049,7 +1049,7 @@ mvn -pl framework test                        # the framework's own tests — no
 
 cd demo-app
 ./run.sh                                       # JVM, 13 self-test checks
-JAVA_OPTS=-Dpanamaview.snapshot=/tmp/s.png ./run.sh
+JAVA_OPTS=-Dpanamaview.snapshot=/tmp/s.png ./run.sh   # 14 — the WebKit snapshot check too
 JAVA_OPTS=-Dpanamaview.navigateAway=true ./run.sh          # also exercise the unload path
 ./build-native.sh && ./target/panamaview-demo -Dpanamaview.snapshot=/tmp/s.png
 otool -L target/panamaview-demo                # what the binary actually links
@@ -1068,19 +1068,11 @@ node npm/cli.js templates
 ./scripts/deploy-private.sh                    # publish to the repository in ~/.m2/settings.xml
 ./scripts/deploy-private.sh --verify-only      # just check it still serves these versions
 
-# Every class and method named in the native-image metadata must still exist in the sources.
-# Worth running before any native build: nothing else catches a class that moved.
-python3 - <<'EOF'
-import json, pathlib, re
-m = json.loads(pathlib.Path("framework/src/main/resources/META-INF/native-image/"
-                            "io.github.lihuu/panamaview/reachability-metadata.json").read_text())
-src = pathlib.Path("framework/src/main/java")
-for e in m["foreign"]["directUpcalls"]:
-    text = (src / (e["class"].replace(".", "/") + ".java")).read_text()
-    assert re.search(r"(?m)^\s*(public\s+)?static\s+[\w\[\]<>.?,\s]+\s+"
-                     + re.escape(e["method"]) + r"\s*\(", text), e
-print("metadata resolves")
-EOF
+# Every class and method named in the native-image metadata must still exist in the sources,
+# and every shape the sources build must be registered. Worth running before any native build:
+# nothing else catches a class that moved. The second script proves the first can fail.
+python3 scripts/verify-native-metadata.py
+python3 scripts/verify-native-metadata-failures.py
 ```
 
 The self-test runs on page load and reports to stdout and on screen, so a single run covers
@@ -1088,3 +1080,204 @@ JS→Java, Java→JS, structured round trips, 200 concurrent invocations, cancel
 by-value struct get/set, resize, and a WebKit self-snapshot. The `-Dpanamaview.snapshot` property
 exists because WebKit's own snapshot API is the most reliable way to see the result without a
 desktop session — and using it is itself an end-to-end test of the block bridge.
+
+## 18. Application menus
+
+An application can declare its own menu bar, and the framework builds it on both platforms.
+The declaration is portable; the menus that come out of it are the platform's.
+
+```java
+new WebApp(host)
+    .menu(Menus.menu(
+            Menus.appMenu(),
+            Menus.menu("文件",
+                    Menus.item("export", "导出").shortcut("CmdOrCtrl+E"),
+                    Menus.separator(),
+                    Menus.platformItem(Platform.QUIT, "退出")),
+            Menus.editMenu()))
+    .bind("export", params -> { … })
+    .run();
+```
+
+A **binding item** names a Java method: choosing it calls that binding, exactly as a page's
+`java.invoke` would. A **platform item** names an operation the platform already knows —
+`Platform.QUIT`, `Platform.COPY` — and has no binding behind it. The two are different in
+kind, not in decoration.
+
+### Why there are two kinds, and it is not a matter of taste
+
+On macOS a platform item's target is **nil**, so AppKit walks the responder chain and the
+first responder handles the action. That is the only way ⌘C reaches the web view's text
+field, and it is what issue #19 was about. A target that stopped the action there — a Java
+object, say — would break it. So a platform item must have *no* target and a binding item
+must have one, and the framework cannot offer one kind and dress it up as the other.
+
+**A binding item's target has to be kept alive by Java.** `NSMenuItem.target` is a **weak**
+reference, so a target Java's collector reclaims becomes nil — which is exactly what a
+platform item does. A binding item whose target was collected would quietly stop being one
+and start walking the responder chain, which is the failure the whole distinction exists to
+prevent. The target's instance therefore lives in a static field.
+
+### The ids, and the two values that are not ids
+
+The framework numbers the items when the bar is built, and the number is what the platform
+reports when an item is chosen. The numbering starts at 1, and a **separator takes an id of
+its own**, so that the ids after it are not shifted — a separator is an item as far as the
+numbering is concerned.
+
+Two values are **not** ids, and both come back from the platform looking like one:
+
+| value | what it means |
+| --- | --- |
+| `0` | a separator was chosen — the macOS separator is a shared singleton with no tag, and a Win32 separator's command id is 0 |
+| `0xFFFFFFFF` | a popup was chosen: a menu that opens another menu rather than a command |
+
+`0xFFFFFFFF & 0xFFFF` is 65535, not 0, so a guard written on the masked value would look up
+the binding numbered 65535. The guard is on the whole value.
+
+### The shortcut string, and why the framework parses it itself
+
+`CmdOrCtrl` is the spelling that means "the platform's own key" — ⌘ on macOS, Ctrl on
+Windows — and it is the reason the framework parses the shortcut string rather than handing
+it to each platform: the same declaration then means the same user-visible action on both.
+
+The parser is strict, because a shortcut that silently does nothing is worse than one that
+is not offered. `"Ctrl+"` used to parse as the key `Ctrl` with no modifiers, and
+`"Ctrl+Shift"` as the key `Shift`. Both throw now, and so does a modifier on its own.
+
+### What AppKit actually does with a key equivalent
+
+These are measurements, and two of them contradict what the shipped code believed.
+
+- **The modifier mask *replaces* AppKit's default rather than adding to it, and AppKit's
+  default for a bare key equivalent is ⌘.** So a declaration of "C" with no modifier means
+  the plain `c`, not ⌘C: the platform sets the mask always, and the model has to say which
+  it means.
+- **An uppercase key equivalent does not imply Shift.** The shipped Edit menu passed "Z" for
+  Redo and set no mask, so its effective shortcut was ⌘Z; the uppercase letter changed only
+  the *displayed* key. The comment in the source that said otherwise was a belief, not a
+  measurement, and it is gone.
+- **Among items with different actions, the second to declare the same key and the same
+  mask loses its key equivalent entirely** — the key comes back empty, so the item is
+  reachable by no chord at all. The rule reaches across the whole main menu, not only within
+  one of its menus.
+- **Items that share an action both keep theirs.** That is how two binding items may declare
+  the same shortcut, and why the framework's own Undo and Redo — two platform items, with
+  different actions — have to differ in the case of the letter ("z" and "Z") to keep both.
+
+So the rule for an application is: **two platform items anywhere in the bar must not declare
+the same key and the same mask.** Two binding items may; the second one simply shadows the
+first when the chord is pressed.
+
+**What is not measured: which chord AppKit gives an uppercase key equivalent.** A synthesized
+`NSEvent` and `-[NSMenu performKeyEquivalent:]` were tried and matched nothing — an event
+built from a `CGEvent` does not carry what AppKit's matcher needs, and a detached menu
+answers "no match" for everything — so the experiment measures the harness rather than the
+rule. The mask is measured (Command); the matching is not. No chord claim goes into the
+source or into this file.
+
+### The two platforms do not offer the same menus, and the difference is measured
+
+**The built-in Edit menu is macOS's.** On Windows the WebView2 control performs the
+clipboard operations by itself: `document.execCommand('copy')` inside a real user gesture
+put the text on the clipboard with no framework involved, and that call is the code path
+Chromium's own Ctrl+C runs. So on Windows the browser already does the editing commands,
+and the Windows bar is for *application* items. The framework installs no Edit menu there,
+and a `Platform.COPY` item has nothing to do.
+
+**Windows keyboard shortcuts are a separate piece of work.** The first slice delivers a
+clickable menu bar on both platforms; macOS additionally gets shortcuts, because its menu
+item already carries them. The Windows accelerator route is not in this one, and the reason
+is measured: a Windows shortcut handled by the framework would have to take the key away
+from the page.
+
+### A declared bar replaces the framework's bar, and that is a responsibility
+
+`.menu(...)` replaces the framework's bar; it does not merge with it. Merging has no good
+answer — AppKit expects the application menu first — so the model would have to say "your
+menus come after the app menu", and the app menu would have to be expressible in the same
+list. Replacing is simpler, and it is what the design does.
+
+The cost is that **an application that declares a bar takes responsibility for the whole
+bar**: `appMenu()` and `editMenu()` included. On macOS, leaving the Edit menu out brings back
+issue #19 — ⌘C stops reaching the web view's text field — and the symptom is "the text fields
+stopped working", which mentions nothing about menus. The built-in menus are supplied for the
+application to include; a framework that merged them would leave the application unable to
+choose.
+
+### A menu item can be chosen without a human, and that is how it is checked
+
+A check that cannot fail is not a check, and a menu check has to be able to *choose* an item
+without a human choosing it. Both platforms grew a seam for it, in the same family as
+`windowRectangle()` and `readClipboard()`:
+
+```java
+host.clickMenuItem(id);        // the id the framework assigned, readable from the model
+```
+
+On **macOS** it is `-[NSMenu performActionForItemAtIndex:]` — a method of `NSMenu`, taking
+the item's *position*. `NSMenuItem` has no `performClick` at all; that is `NSButton`'s
+method, and sending it to a menu item raises `NSInvalidArgumentException`. The call works on
+a submenu, the position counts the separators, and the target receives the item as the sender
+and reads the id off its `tag` — the same path a real click takes. Activating a separator does
+nothing, which is right. The position is the item's index in the model's own item list, which
+is the order the builder appends them in, so the id is found by walking the model and the
+index comes from where the walk found it.
+
+On **Windows** it is a message: `PostMessage(WM_COMMAND, id, 0)` to the window, which is
+what the menu bar does when an item is chosen. The message still has to reach a window —
+`PostMessageW` to a null handle goes nowhere, quietly — so the call refuses when there is no
+window to post to.
+
+The wait belongs in the binding, not in the page. The activation crosses three hops — the
+menu item's action, the target's upcall, and the binding on a virtual thread — so the effect
+is not there the instant the call returns. Waiting inside the binding makes the answer
+arrive with the result, in one round trip, with no polling in the page and no race in the
+check. Two seconds is generous for an activation that has already happened.
+
+### The built menu is read back, and a mismatch refuses to start
+
+A menu with the wrong ids dispatches the wrong binding, silently: the item is there, the
+click works, and the wrong handler runs. So the Windows builder reads the `HMENU` it just
+built and compares it with the plan — the number of items in each submenu, and each item's
+command id and title. **A mismatch is a hard failure, not a warning**, and the message names
+the menu, the position and both ids, because the person reading it is looking at a menu and
+not at a stack trace.
+
+The macOS side paid for the same lesson the other way round: a key equivalent that looked
+right in the model came back from AppKit with the shortcut gone, and nothing but reading the
+built menu back would have said so. The macOS builder has no read-back yet, so that failure
+is still caught by measurement rather than by the build.
+
+### What the demo's run showed
+
+The demo declares a bar, and its own check proves the wiring. The red was seen before the
+green, and the red was the failure this feature is exposed to: with the bar declared but not
+handed to the host, the id named a *different* item — the framework's default bar was
+installed instead — and the binding's count stayed at 0.
+
+```
+[selftest] 13 passed, 1 failed
+[selftest]   FAIL  menu item reaches its binding — the menu item ran the binding 0 time(s), and the one after the separator 0
+```
+
+and after the bar was handed over:
+
+```
+[selftest] 14 passed, 0 failed
+[selftest]   PASS  menu item reaches its binding — the menu item ran the binding 1 time(s), and the one after the separator 1
+```
+
+Two items are chosen, not one, and the second one is the item *after* the separator. An item's
+position in a menu is not the number of the items before it, so a click that counted only the
+items would land on the separator and reach nothing — which is the failure the check would
+then report, and which choosing only the first item would not have caught.
+
+The menu bar is AppKit's own chrome, above the window, so the demo's own snapshot does not
+show it: `docs/screenshot-macos-menu.png` is a region capture of the top of the screen, and
+it shows the application's own menu (文件) beside the framework's Edit menu.
+
+One detail the picture makes plain: **the application menu is titled with the process
+name**, because an unbundled JVM has no application name of its own. The Quit item inside it
+is titled with the *window's* title — "Quit panamaview" — because that is the name the
+framework has. A bundled `.app` shows its own name in the same place.

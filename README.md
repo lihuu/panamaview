@@ -235,7 +235,8 @@ docs/                  Deep-dive architecture and maintenance documentation
 - [x] GraalVM Native Image reachability metadata & standalone builds
 - [x] Maven Central publishing & npm scaffolder (`create-panamaview`)
 - [ ] Native file/directory dialogs (`NSOpenPanel` / `IFileDialog`)
-- [ ] Application menus & system tray integration
+- [x] Application menu bar (macOS & Windows)
+- [ ] System tray integration
 - [ ] Multi-window management
 - [ ] Linux host via WebKitGTK
 - [ ] Distribution packaging (`.app` bundle, `.dmg`, Windows `.msi` installers)
