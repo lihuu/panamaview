@@ -5,6 +5,7 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -57,6 +58,8 @@ public final class WebApp {
     private boolean spaFallback = true;
     private Path stagedRoot;
     private WindowSpec.Origin origin;
+    private MenuBar menuBar;
+    private Map<Integer, String> menuBindings = Map.of();
 
     public WebApp(UiHost host) {
         this.host = host;
@@ -338,6 +341,59 @@ public final class WebApp {
         }
     }
 
+    /**
+     * Declares the menu bar.
+     *
+     * <p>The bar is handed to the host when {@link #run()} starts, before the platform opens
+     * its window: a platform builds its native menu during start-up, so a bar handed over
+     * afterwards would arrive too late to appear in either menu.
+     *
+     * <p>A host that does not implement {@link MenuHost} simply has no menu. The application
+     * still runs — a host that cannot take a menu is still usable.
+     */
+    public WebApp menu(MenuBar bar) {
+        this.menuBar = bar;
+        this.menuBindings = bindingsById(bar);
+        return this;
+    }
+
+    /**
+     * The table from an item's id to the binding it names.
+     *
+     * <p>The ids are the framework's own — they were assigned while the bar was built, and they
+     * are what the platform puts on its items and reports back. The names are what the
+     * bindings are registered under. Only binding items name a binding: a platform item is
+     * the platform's own business, and a separator names nothing at all.
+     */
+    private static Map<Integer, String> bindingsById(MenuBar bar) {
+        Map<Integer, String> table = new HashMap<>();
+        for (Menu menu : bar.menus()) {
+            for (Item item : menu.items()) {
+                if (item.binding() != null) {
+                    table.put(item.id(), item.binding());
+                }
+            }
+        }
+        return table;
+    }
+
+    /**
+     * A menu item was chosen.
+     *
+     * <p>The id names an item of the declared bar. An id that names no binding — a platform
+     * item, a separator, or an id the host made up — is ignored: there is nothing for the
+     * portable layer to do about it, and the platform's own items are its own business.
+     */
+    private void onMenuItem(int id) {
+        String name = menuBindings.get(id);
+        if (name == null) {
+            return;
+        }
+        // A click carries no parameters, so the binding is called with an empty map — the
+        // same params a page call would get if it passed nothing.
+        bridge.invokeBinding(name, Map.of());
+    }
+
     /** Runs the platform event loop. Blocks until the application quits. */
     public void run() throws IOException {
         String directory = entry.substring(0, entry.lastIndexOf('/'));
@@ -346,6 +402,12 @@ public final class WebApp {
         PageSource page = resolvePage(directory, fileName);
 
         bridge.verbose(verbose);
+
+        if (menuBar != null && host instanceof MenuHost menuHost) {
+            // Before start(): both platforms build their native menu during start-up, so a bar
+            // handed over afterwards would come too late to be in either menu.
+            menuHost.setMenu(menuBar);
+        }
 
         host.start(new UiHost.Callbacks() {
 
@@ -374,6 +436,11 @@ public final class WebApp {
                 // Requests belong to the page that made them; when it navigates away they are
                 // over. Any reply would be addressed to a document that no longer exists.
                 bridge.cancelAll("the page navigated away");
+            }
+
+            @Override
+            public void onMenuItem(int id) {
+                WebApp.this.onMenuItem(id);
             }
 
             @Override

@@ -79,6 +79,18 @@ public interface UiHost {
         default void onPageUnloading() {
         }
 
+        /**
+         * A menu item was chosen, identified by the id the framework gave it.
+         *
+         * <p>The id is an integer because that is what both platforms can carry: a tag on
+         * macOS, a command id on Windows. The name behind it is the framework's own business.
+         *
+         * <p>Optional: a host with no menu has nothing to report, and a default method keeps
+         * every existing implementation of this interface working.
+         */
+        default void onMenuItem(int id) {
+        }
+
         /** Whether closing the last window should end the process. */
         boolean shouldQuitWhenLastWindowCloses();
     }
