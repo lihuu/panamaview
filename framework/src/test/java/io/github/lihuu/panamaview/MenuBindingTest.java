@@ -16,6 +16,7 @@ import java.util.function.BooleanSupplier;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -107,6 +108,18 @@ class MenuBindingTest {
         host.callbacks.onMenuItem(2);
         await(() -> calls.get() == 1);
         assertEquals(1, calls.get(), "one bad action must not strand the ones after it");
+    }
+
+    @Test
+    void aNullBarMeansNoMenu() throws Exception {
+        var host = new RecordingHost();
+        var app = new WebApp(host).quiet();
+
+        // A null bar is "no menu", which is what the run already does with one: the host is
+        // simply not given a menu.
+        app.menu(null);
+        assertDoesNotThrow(app::run);
+        assertNull(host.bar, "no bar means the host is given no menu");
     }
 
     @Test

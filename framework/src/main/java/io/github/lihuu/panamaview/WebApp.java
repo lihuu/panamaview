@@ -355,10 +355,15 @@ public final class WebApp {
      *
      * <p>A host that does not implement {@link MenuHost} simply has no menu. The application
      * still runs — a host that cannot take a menu is still usable.
+     *
+     * <p>A <em>null</em> bar means no menu, the same thing as never declaring one: the null is
+     * noticed here, where the bindings would have been read from it, and acted on at the run,
+     * where the host is simply not given a menu. The door does not refuse what the rest of the
+     * class accepts.
      */
     public WebApp menu(MenuBar bar) {
         this.menuBar = bar;
-        this.menuBindings = bar.bindings();
+        this.menuBindings = bar == null ? Map.of() : bar.bindings();
         return this;
     }
 
