@@ -794,8 +794,13 @@ and runs:
 the bar holds 3 menu(s)
   MyApp: 1 item(s)
   文件: 3 item(s)
-  Edit: 7 item(s)
+  Edit: 8 item(s)
 ```
+
+The Edit menu has **eight** entries because the menu it replaces has eight
+(Cocoa.java:67-75 — a separator after Redo *and* one after Paste). The count was an
+observation of the model's shape, never a design decision, and reproducing the shipped menu
+is what keeps a user's Edit menu looking the same after the change.
 
 So the nesting in the examples is necessary rather than decorative, and it is the same
 shape Tauri's `MenuBuilder` and `SubmenuBuilder` have, which is where the model came from.
