@@ -16,6 +16,9 @@ public sealed interface Item permits Item.BindingItem, Item.PlatformItem, Item.S
      * item with no shortcut gets no key equivalent, which is what the platform builds for it.
      * So a null shortcut is allowed here, and it means "no shortcut" — the state the item
      * starts in.
+     *
+     * <p>The {@link String} overload is the other way in, and it refuses a null or a blank
+     * string: there is no shortcut to name, so there is nothing to set.
      */
     Item shortcut(Shortcut s);
 
@@ -79,7 +82,18 @@ public sealed interface Item permits Item.BindingItem, Item.PlatformItem, Item.S
         @Override public String binding() { return null; }
         @Override public Platform platformAction() { return null; }
         @Override public Shortcut shortcut() { return shortcut; }
-        @Override public Item shortcut(Shortcut s) { this.shortcut = s; return this; }
+        @Override public Item shortcut(Shortcut s) {
+            if (s != null) {
+                // A separator carries no key equivalent on either platform, so a shortcut here
+                // would be accepted and do nothing — the same shape this model refuses
+                // everywhere else. A null is fine: null means "no shortcut", and a separator
+                // has none.
+                throw new IllegalArgumentException("A separator cannot have a shortcut: the "
+                        + "platforms draw it as a line and carry no key equivalent for it");
+            }
+            this.shortcut = s;
+            return this;
+        }
         @Override public int id() { return id; }
         void assignId(int id) { this.id = id; }
     }

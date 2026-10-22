@@ -37,12 +37,28 @@ public record Shortcut(String key, Set<Modifier> modifiers) {
         // A key that names a modifier is the other way of writing a modifier, and the shortcut
         // it makes means nothing. parse refuses it too, and compares the same way: on the
         // uppercased form, because the key keeps its own case.
-        String keyUpper = key.toUpperCase(Locale.ROOT);
-        if (keyUpper.equals("CMDORCTRL") || keyUpper.equals("CTRL") ||
-            keyUpper.equals("SHIFT") || keyUpper.equals("ALT")) {
+        if (namesAModifier(key.toUpperCase(Locale.ROOT))) {
             throw new IllegalArgumentException("Modifier cannot be the key: " + key);
         }
         modifiers = Set.copyOf(modifiers);
+    }
+
+    /**
+     * Whether the key names a modifier — in the enum's own spelling, or in the spelling a
+     * shortcut string uses.
+     *
+     * <p>Both come from the enum, so the two cannot drift apart again: {@code CMD_OR_CTRL} is
+     * the constant's name, and {@code CMDORCTRL} is that name without its underscores, which
+     * is how a shortcut string spells it.
+     */
+    private static boolean namesAModifier(String upperKey) {
+        for (Modifier modifier : Modifier.values()) {
+            String name = modifier.name();
+            if (upperKey.equals(name) || upperKey.equals(name.replace("_", ""))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static Shortcut parse(String s) {
@@ -74,9 +90,7 @@ public record Shortcut(String key, Set<Modifier> modifiers) {
         }
 
         // The key cannot be a known modifier name, regardless of segment count
-        String keyUpper = key.toUpperCase(Locale.ROOT);
-        if (keyUpper.equals("CMDORCTRL") || keyUpper.equals("CTRL") ||
-            keyUpper.equals("SHIFT") || keyUpper.equals("ALT")) {
+        if (namesAModifier(key.toUpperCase(Locale.ROOT))) {
             throw new IllegalArgumentException("Modifier cannot be the key: " + s);
         }
 

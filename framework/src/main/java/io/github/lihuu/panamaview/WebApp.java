@@ -356,10 +356,17 @@ public final class WebApp {
      * <p>A host that does not implement {@link MenuHost} simply has no menu. The application
      * still runs — a host that cannot take a menu is still usable.
      *
-     * <p>A <em>null</em> bar means no menu, the same thing as never declaring one: the null is
-     * noticed here, where the bindings would have been read from it, and acted on at the run,
-     * where the host is simply not given a menu. The door does not refuse what the rest of the
+     * <p>A <em>null</em> bar means the same thing as never declaring one: on macOS the
+     * framework's own Quit and Edit bar, and on Windows no bar at all. The null is noticed
+     * here, where the bindings would have been read from it, and acted on at the run, where
+     * the host is simply not given a menu. The door does not refuse what the rest of the
      * class accepts.
+     *
+     * <p>That is a cost worth naming: a null arriving from a bug is now silent where it used
+     * to be a {@code NullPointerException}, and on macOS the visible symptom is the
+     * <em>wrong</em> menu rather than an error. The branch has decided to pay that cost
+     * elsewhere too — a null shortcut is silent as well — so it is said here rather than left
+     * for a reader to find.
      */
     public WebApp menu(MenuBar bar) {
         this.menuBar = bar;

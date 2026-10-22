@@ -47,8 +47,8 @@ public final class MenuBar {
      * The ids live in the items themselves, so one item in two places would be given its
      * second id and lose its first: both places would carry the same id, and the two places
      * would become indistinguishable — a click could no longer say which one was chosen,
-     * while the id table kept an entry for an id no item carries. The binding itself would
-     * still be the right one, because it is the same item; what stops agreeing is the
+     * while the id table could keep an entry for an id no item carries. The binding itself
+     * would still be the right one, because it is the same item; what stops agreeing is the
      * places. That is the one way the table and the numbering could still disagree, so it
      * is not left to be discovered.
      */
@@ -69,7 +69,7 @@ public final class MenuBar {
                     throw new IllegalArgumentException("The same menu item is in the bar twice: "
                             + describe(item) + ". An item may appear only once: one id would "
                             + "serve both places, so a click could not say which place was "
-                            + "chosen, and the id table would keep an entry for an id no item "
+                            + "chosen, and the id table could keep an entry for an id no item "
                             + "carries.");
                 }
                 // Assign sequential IDs to all items to support platform mapping

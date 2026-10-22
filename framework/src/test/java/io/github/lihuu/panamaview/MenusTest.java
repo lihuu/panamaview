@@ -302,4 +302,25 @@ class MenusTest {
         assertNull(item.shortcut((Shortcut) null).shortcut(),
                 "a null shortcut means no shortcut — the state the item starts in");
     }
+
+    @Test
+    void aShortcutRefusesAModifierNameAsItsKeyInEitherSpelling() {
+        // The enum's own spelling, and the spelling a shortcut string uses — both names of a
+        // modifier, and neither a key.
+        assertThrows(IllegalArgumentException.class, () -> new Shortcut("CMD_OR_CTRL", Set.of()));
+        assertThrows(IllegalArgumentException.class, () -> new Shortcut("CMDORCTRL", Set.of()));
+        assertThrows(IllegalArgumentException.class, () -> new Shortcut("ctrl", Set.of()));
+        // The parser refuses the same thing, the same way.
+        assertThrows(IllegalArgumentException.class, () -> Shortcut.parse("Cmd_Or_Ctrl"));
+    }
+
+    @Test
+    void aSeparatorCannotHaveAShortcut() {
+        var thrown = assertThrows(IllegalArgumentException.class, () -> Menus.separator().shortcut("Ctrl+x"));
+        assertTrue(thrown.getMessage().contains("separator"),
+                "the message must say what is wrong: " + thrown.getMessage());
+
+        // A null shortcut is still fine: null means "no shortcut", and a separator has none.
+        assertNull(Menus.separator().shortcut((Shortcut) null).shortcut());
+    }
 }

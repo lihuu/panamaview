@@ -37,11 +37,16 @@ public final class Menus {
      * that is not one has to say what it is called. The two platforms would otherwise handle
      * the same mistake differently: one would fail on a null title, the other would draw an
      * empty row.
+     *
+     * <p>Two things are accepted and fail later rather than here, and both are questions about
+     * what a name may be rather than about nulls: a <em>blank</em> binding name reaches "no
+     * Java binding named ''" at run time, and an <em>empty</em> title draws an empty row on
+     * both platforms.
      */
     public static Item item(String binding, String title) {
         if (binding == null) {
-            throw new IllegalArgumentException("A binding item must have a binding: the title \""
-                    + title + "\"");
+            throw new IllegalArgumentException("A binding item must have a binding"
+                    + (title == null ? "" : ": the title \"" + title + "\""));
         }
         if (title == null) {
             throw new IllegalArgumentException("A binding item must have a title: the binding \""
@@ -54,12 +59,13 @@ public final class Menus {
      * A platform item: it names a platform operation, and it has a title.
      *
      * <p>Same rule as a binding item: a titleless item is a separator, and a separator is
-     * made by {@link #separator()}.
+     * made by {@link #separator()}. An <em>empty</em> title is accepted and draws an empty
+     * row on both platforms — the same open question as a blank binding name.
      */
     public static Item platformItem(Platform action, String title) {
         if (action == null) {
-            throw new IllegalArgumentException("A platform item must have an operation: the title \""
-                    + title + "\"");
+            throw new IllegalArgumentException("A platform item must have an operation"
+                    + (title == null ? "" : ": the title \"" + title + "\""));
         }
         if (title == null) {
             throw new IllegalArgumentException("A platform item must have a title: the operation "
