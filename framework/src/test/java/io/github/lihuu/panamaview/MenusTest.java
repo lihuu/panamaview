@@ -2,6 +2,7 @@ package io.github.lihuu.panamaview;
 
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
+import java.util.Set;
 
 class MenusTest {
 
@@ -35,7 +36,7 @@ class MenusTest {
     void aShortcutParsesItsModifiers() {
         var shortcut = Shortcut.parse("CmdOrCtrl+Shift+E");
         assertEquals("E", shortcut.key());
-        assertEquals(java.util.Set.of(Shortcut.Modifier.CMD_OR_CTRL, Shortcut.Modifier.SHIFT), shortcut.modifiers());
+        assertEquals(Set.of(Shortcut.Modifier.CMD_OR_CTRL, Shortcut.Modifier.SHIFT), shortcut.modifiers());
     }
 
     @Test
@@ -54,7 +55,7 @@ class MenusTest {
     void shortcutStringSetterWorks() {
         var item = Menus.item("export", "导出").shortcut("CmdOrCtrl+E");
         assertEquals("E", item.shortcut().key());
-        assertEquals(java.util.Set.of(Shortcut.Modifier.CMD_OR_CTRL), item.shortcut().modifiers());
+        assertEquals(Set.of(Shortcut.Modifier.CMD_OR_CTRL), item.shortcut().modifiers());
     }
 
     @Test
@@ -63,13 +64,21 @@ class MenusTest {
         assertThrows(IllegalArgumentException.class, () -> Shortcut.parse("Ctrl+Shift+"));
         assertThrows(IllegalArgumentException.class, () -> Shortcut.parse("Ctrl"));
         assertThrows(IllegalArgumentException.class, () -> Shortcut.parse("Shift"));
+        assertThrows(IllegalArgumentException.class, () -> Shortcut.parse("Ctrl+Shift"));
     }
 
     @Test
     void parserTrimsKey() {
         var shortcut = Shortcut.parse("Ctrl + E");
         assertEquals("E", shortcut.key());
-        assertEquals(java.util.Set.of(Shortcut.Modifier.CTRL), shortcut.modifiers());
+        assertEquals(Set.of(Shortcut.Modifier.CTRL), shortcut.modifiers());
+    }
+
+    @Test
+    void aComplexShortcutStillParses() {
+        var shortcut = Shortcut.parse("Ctrl+Shift+E");
+        assertEquals("E", shortcut.key());
+        assertEquals(Set.of(Shortcut.Modifier.CTRL, Shortcut.Modifier.SHIFT), shortcut.modifiers());
     }
 
     @Test
@@ -82,7 +91,7 @@ class MenusTest {
     @Test
     void editMenuHasCorrectPlatformItems() {
         var menu = Menus.editMenu();
-        assertEquals(7, menu.items().size());
+        assertEquals(8, menu.items().size());
         assertEquals(Platform.UNDO, menu.items().get(0).platformAction());
         assertEquals(Platform.REDO, menu.items().get(1).platformAction());
         assertNull(menu.items().get(2).platformAction());
@@ -90,6 +99,8 @@ class MenusTest {
         assertEquals(Platform.CUT, menu.items().get(3).platformAction());
         assertEquals(Platform.COPY, menu.items().get(4).platformAction());
         assertEquals(Platform.PASTE, menu.items().get(5).platformAction());
-        assertEquals(Platform.SELECT_ALL, menu.items().get(6).platformAction());
+        assertNull(menu.items().get(6).platformAction());
+        assertNull(menu.items().get(6).binding());
+        assertEquals(Platform.SELECT_ALL, menu.items().get(7).platformAction());
     }
 }

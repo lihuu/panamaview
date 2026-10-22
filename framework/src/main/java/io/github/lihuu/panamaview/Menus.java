@@ -2,7 +2,6 @@ package io.github.lihuu.panamaview;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 
 public final class Menus {
     private Menus() {}
@@ -40,6 +39,7 @@ public final class Menus {
             platformItem(Platform.CUT, "Cut"),
             platformItem(Platform.COPY, "Copy"),
             platformItem(Platform.PASTE, "Paste"),
+            separator(),
             platformItem(Platform.SELECT_ALL, "Select All")
         ));
     }

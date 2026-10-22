@@ -1,7 +1,5 @@
 package io.github.lihuu.panamaview;
 
-import java.util.Collections;
-
 public sealed interface Item permits Item.BindingItem, Item.PlatformItem, Item.SeparatorItem {
     String title();
     String binding();          // null unless this is a BindingItem
@@ -14,8 +12,6 @@ public sealed interface Item permits Item.BindingItem, Item.PlatformItem, Item.S
     }
 
     int id();
-
-    // assignId is moved to implementations to hide it from the public interface
 
     final class BindingItem implements Item {
         private final String binding;

@@ -36,13 +36,11 @@ public record Shortcut(String key, Set<Modifier> modifiers) {
             }
         }
 
-        // Reject if the only part is a known modifier
-        if (parts.length == 1) {
-            String keyUpper = key.toUpperCase();
-            if (keyUpper.equals("CMDORCTRL") || keyUpper.equals("CTRL") ||
-                keyUpper.equals("SHIFT") || keyUpper.equals("ALT")) {
-                throw new IllegalArgumentException("Modifier cannot be the key: " + s);
-            }
+        // The key cannot be a known modifier name, regardless of segment count
+        String keyUpper = key.toUpperCase();
+        if (keyUpper.equals("CMDORCTRL") || keyUpper.equals("CTRL") ||
+            keyUpper.equals("SHIFT") || keyUpper.equals("ALT")) {
+            throw new IllegalArgumentException("Modifier cannot be the key: " + s);
         }
 
         return new Shortcut(key, Set.copyOf(modifiers));
