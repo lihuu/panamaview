@@ -2,6 +2,13 @@ package io.github.lihuu.panamaview;
 
 import org.junit.jupiter.api.Test;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
@@ -9,6 +16,7 @@ import java.util.function.BooleanSupplier;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 class MenuBindingTest {
@@ -17,12 +25,14 @@ class MenuBindingTest {
     private static final class RecordingHost implements UiHost, MenuHost {
         UiHost.Callbacks callbacks;
         MenuBar bar;
+        /** The host calls in the order they happened, so the order can be asserted on. */
+        final List<String> calls = new ArrayList<>();
 
-        @Override public void start(Callbacks c, WindowSpec spec) { this.callbacks = c; }
+        @Override public void start(Callbacks c, WindowSpec spec) { this.callbacks = c; calls.add("start"); }
         @Override public void evaluate(String script) { }
         @Override public void onUiThread(Runnable action) { action.run(); }
         @Override public boolean isUiThread() { return true; }
-        @Override public void setMenu(MenuBar bar) { this.bar = bar; }
+        @Override public void setMenu(MenuBar bar) { this.bar = bar; calls.add("setMenu"); }
     }
 
     /** A host that takes no menu at all. */
@@ -108,6 +118,103 @@ class MenuBindingTest {
         // The application declared a menu and the host cannot take one. The application runs.
         assertDoesNotThrow(app::run);
         assertNotNull(host.callbacks);
+    }
+
+    @Test
+    void theBarReachesTheHostBeforeItStarts() throws Exception {
+        var host = new RecordingHost();
+        var app = new WebApp(host).quiet();
+        app.menu(Menus.menu(Menus.menu("文件", Menus.item("export", "导出"))));
+        app.run();
+
+        // Both platforms build their native menu inside start(), so a bar handed over
+        // afterwards would arrive too late to be in either menu.
+        assertEquals(List.of("setMenu", "start"), host.calls,
+                "the bar must reach the host before the host starts");
+    }
+
+    @Test
+    void anIdNamesItsBindingEvenAfterASeparator() throws Exception {
+        var host = new RecordingHost();
+        var calls = new AtomicInteger();
+        var app = new WebApp(host).bind("save", params -> { calls.incrementAndGet(); return "ok"; }).quiet();
+        app.menu(Menus.menu(Menus.menu("文件",
+                Menus.item("export", "导出"),
+                Menus.separator(),
+                Menus.item("save", "保存"))));
+        app.run();
+
+        // The separator takes an id of its own, so "save" is the third id and not the second.
+        // The table the click is looked up in is the one the same walk that numbered the items
+        // produced, so the two cannot disagree about where "save" is.
+        host.callbacks.onMenuItem(3);
+        await(() -> calls.get() == 1);
+        assertEquals(1, calls.get(), "the id the framework assigned must name the binding");
+    }
+
+    @Test
+    void aPageNavigationDoesNotCancelAMenuBinding() throws Exception {
+        var host = new RecordingHost();
+        var started = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var finished = new AtomicInteger();
+        var app = new WebApp(host).bind("slow", params -> {
+            started.countDown();
+            try {
+                release.await(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return null;
+            }
+            finished.incrementAndGet();
+            return "ok";
+        }).quiet();
+        app.menu(Menus.menu(Menus.menu("文件", Menus.item("slow", "慢"))));
+        app.run();
+
+        host.callbacks.onMenuItem(1);
+        assertTrue(started.await(10, TimeUnit.SECONDS), "the binding must have started");
+
+        // The page navigates away. The binding was not made by the page, so it is not over: an
+        // application whose "Save" writes to disk must not have that save cut short by a
+        // navigation.
+        host.callbacks.onPageUnloading();
+        assertEquals(1, app.inFlight(),
+                "a menu binding must still be in flight after the page went away");
+
+        release.countDown();
+        await(() -> finished.get() == 1);
+        assertEquals(1, finished.get(), "the menu binding must run to completion");
+    }
+
+    @Test
+    void aMenuBindingThatTimesOutIsReported() throws Exception {
+        var host = new RecordingHost();
+        var app = new WebApp(host)
+                .timeout(Duration.ofMillis(100))
+                .bind("slow", params -> { Thread.sleep(30_000); return null; })
+                .quiet();
+        app.menu(Menus.menu(Menus.menu("文件", Menus.item("slow", "慢"))));
+        app.run();
+
+        var reported = new ByteArrayOutputStream();
+        PrintStream original = System.err;
+        try {
+            System.setErr(new PrintStream(reported, true, StandardCharsets.UTF_8));
+            host.callbacks.onMenuItem(1);
+            await(() -> text(reported).contains("timed out"));
+        } finally {
+            System.setErr(original);
+        }
+
+        // A menu click has no page to report to, so the framework's own channel is the only
+        // place this failure can surface.
+        assertTrue(text(reported).contains("binding 'slow' timed out"),
+                "the timeout must be reported, and must name the binding: " + text(reported));
+    }
+
+    private static String text(ByteArrayOutputStream out) {
+        return out.toString(StandardCharsets.UTF_8);
     }
 
     /**

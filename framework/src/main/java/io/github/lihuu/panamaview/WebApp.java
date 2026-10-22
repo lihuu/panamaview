@@ -5,7 +5,6 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.time.Duration;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -254,7 +253,13 @@ public final class WebApp {
         host.evaluate("window.location.reload()");
     }
 
-    /** Stops every request still in flight. Called automatically when the page goes away. */
+    /**
+     * Stops every request still in flight — the page's and the menu's alike.
+     *
+     * <p>This is the application's own sweep, so it reaches everything. The page going away is
+     * a different matter: that ends the requests the page made and leaves the menu bindings
+     * alone.
+     */
     public void cancelInFlight(String reason) {
         bridge.cancelAll(reason);
     }
@@ -353,28 +358,8 @@ public final class WebApp {
      */
     public WebApp menu(MenuBar bar) {
         this.menuBar = bar;
-        this.menuBindings = bindingsById(bar);
+        this.menuBindings = bar.bindings();
         return this;
-    }
-
-    /**
-     * The table from an item's id to the binding it names.
-     *
-     * <p>The ids are the framework's own — they were assigned while the bar was built, and they
-     * are what the platform puts on its items and reports back. The names are what the
-     * bindings are registered under. Only binding items name a binding: a platform item is
-     * the platform's own business, and a separator names nothing at all.
-     */
-    private static Map<Integer, String> bindingsById(MenuBar bar) {
-        Map<Integer, String> table = new HashMap<>();
-        for (Menu menu : bar.menus()) {
-            for (Item item : menu.items()) {
-                if (item.binding() != null) {
-                    table.put(item.id(), item.binding());
-                }
-            }
-        }
-        return table;
     }
 
     /**
@@ -434,8 +419,9 @@ public final class WebApp {
             @Override
             public void onPageUnloading() {
                 // Requests belong to the page that made them; when it navigates away they are
-                // over. Any reply would be addressed to a document that no longer exists.
-                bridge.cancelAll("the page navigated away");
+                // over. Any reply would be addressed to a document that no longer exists. A
+                // menu binding was not made by the page, so it is not among them.
+                bridge.cancelPageRequests("the page navigated away");
             }
 
             @Override
