@@ -230,12 +230,12 @@ final class WinMenu {
 
         try (Arena scope = Arena.ofConfined()) {
             MemorySegment bar = Win32.createMenu();
+            // The submenus, in the order the plan lists them: the read-back checks that each
+            // popup in the bar is the menu the framework built, by handle.
             List<MemorySegment> submenus = new ArrayList<>();
             try {
                 for (MenuPlan menu : plan.menus()) {
                     MemorySegment submenu = Win32.createMenu();
-                    // Listed the moment it exists, so that a failure in the middle of it is
-                    // still a failure the framework can clean up after.
                     submenus.add(submenu);
                     for (ItemPlan item : menu.items()) {
                         // A separator's text and id are both ignored, so neither is passed.
@@ -251,14 +251,21 @@ final class WinMenu {
                 verify(bar, plan, submenus, scope);
             } catch (Throwable t) {
                 // The menu was never given to a window, so it is the framework's to free — and
-                // DestroyMenu does not free a menu's popups, so the submenus are freed one by
-                // one as well. The bar goes first, so that no live menu is ever left holding
-                // a handle to a freed one. A menu that did reach a window is a different
-                // matter, and is left to the process — see the host.
+                // the bar alone is enough: DestroyMenu takes a menu's popups with it.
+                //
+                // That is measured, not assumed, and the measurement is worth carrying here
+                // because the documentation's wording suggests the opposite and the next
+                // reader will have the same doubt. A menu is a USER object, and
+                // GetGuiResources(GetCurrentProcess(), GR_USEROBJECTS) counts them: on a
+                // Windows 11 box, a bar and its popup were two objects before
+                // DestroyMenu(bar) and none after it. Freeing the popups one by one as well
+                // would free them twice, and a double free in this path is undefined
+                // behaviour — it can corrupt the heap rather than fail cleanly, and it would
+                // replace the read-back's reason with a crash.
+                //
+                // A menu that did reach a window is a different matter, and is left to the
+                // process — see the host.
                 Win32.destroyMenu(bar);
-                for (MemorySegment submenu : submenus) {
-                    Win32.destroyMenu(submenu);
-                }
                 throw t;
             }
             return bar;
