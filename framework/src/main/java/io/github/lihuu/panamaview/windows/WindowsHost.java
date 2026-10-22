@@ -188,6 +188,10 @@ public final class WindowsHost implements UiHost, MenuHost {
      * <p>The plan is kept, because it is the host's own table of what the command ids mean:
      * the host cannot ask the portable layer which ids are bindings, and a click that arrives
      * has to be told apart from a platform operation the host performs itself.
+     *
+     * <p>The menu that reaches the window is not freed by the framework. The window outlives
+     * the menu, the process outlives the window, and freeing it in the teardown path is a
+     * mistake that would crash the application on its way out — the worst place to find one.
      */
     private MemorySegment buildMenu(WindowSpec spec) {
         MenuBar bar = menuBar;
@@ -361,10 +365,13 @@ public final class WindowsHost implements UiHost, MenuHost {
     /**
      * Posts a menu command to the window, the way a click on the item would.
      *
-     * <p>Windows synthesizes a click with a message, so this needs no window to exist and no
-     * mouse: it is how the self-test exercises the menu without a human. The id is the one
-     * the framework assigned, and it is readable from the declared bar — {@code Item.id()} is
-     * public — so a test knows which id to post.
+     * <p>Windows synthesizes a click with a message, so it needs no mouse and no human: that
+     * is how the self-test exercises the menu without one. The message still has to reach a
+     * window, though — {@code PostMessageW} to a null handle goes nowhere, quietly — so this
+     * refuses when there is no window to post to.
+     *
+     * <p>The id is the one the framework assigned, and it is readable from the declared bar —
+     * {@code Item.id()} is public — so a test knows which id to post.
      *
      * <p>It is on this class and not on {@link UiHost} because {@code UiHost} is a published
      * type that may not gain abstract methods.

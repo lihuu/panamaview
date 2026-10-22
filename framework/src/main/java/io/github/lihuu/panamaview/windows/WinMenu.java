@@ -31,14 +31,17 @@ import java.util.TreeSet;
  * silently, and they are the parts a build can check: the native half cannot be touched
  * outside Windows at all, because {@code Win32}'s static initializer binds {@code user32.dll}.
  *
- * <p>So this class is public, and its plan is public, while the build is not. A plan is data:
- * it says what the menu will hold, and reading it tells an application what its menu became.
+ * <p>So the class is package-private, like the rest of this package except {@code WindowsHost}:
+ * an application cannot reach the plan, and the platform seam stays the whole surface. The
+ * plan's records are public inside it, which is what lets this package's own test read them —
+ * the same shape the macOS package has, where {@code Cocoa} is package-private and its methods
+ * are not.
  *
  * <p>The flags live here rather than in {@code Win32}, whose static initializer reaches for
  * {@code user32.dll}: a constant in the class that binds the library is a subtlety nobody
  * should have to hold in their head.
  */
-public final class WinMenu {
+final class WinMenu {
 
     private WinMenu() {
     }
@@ -231,7 +234,9 @@ public final class WinMenu {
                 }
                 verify(bar, plan, submenus, scope);
             } catch (Throwable t) {
-                // The menu was never given to a window, so it is the framework's to free.
+                // The menu was never given to a window, so it is the framework's to free. A
+                // menu that did reach a window is a different matter, and is left to the
+                // process — see the host.
                 Win32.destroyMenu(bar);
                 throw t;
             }
