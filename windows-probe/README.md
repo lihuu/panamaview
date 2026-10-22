@@ -111,9 +111,11 @@ with the 文件 menu open:
 ![the Windows self-test, eleven checks passed](../docs/screenshot-windows.png)
 
 That box's display runs at 200% scaling, so a capture is the desktop at half its size: the
-window is 1000×700 in the pixels the framework asked for and 500×350 in the picture. The same
-picture, magnified twice, is what the menu looks like at the size a person at the keyboard sees
-it — the application's own menu, its binding item 探测 in it, and the Chinese titles as
+window is 1000×700 in the pixels the framework asked for and 500×350 in the picture. The
+menu item's rectangle in the log is in physical pixels too — `GetMenuItemRect` answers in
+Win32's own coordinates — so `at 316,107 78x38` is at `158,53 39x19` in the picture. The same
+picture, magnified twice, is what the menu looks like at the size a person at the keyboard
+sees it — the application's own menu, its binding item 探测 in it, and the Chinese titles as
 characters rather than as mojibake:
 
 ![the Windows self-test's menu, magnified](../docs/screenshot-windows-menu.png)

@@ -535,13 +535,23 @@ public final class WindowsSelfTest {
             }
         }
 
-        /** The title of the item at this position, read by position. */
+        /**
+         * The title of the item at this position, read by position.
+         *
+         * <p>A title too long for the buffer is not the title it claims to be, and this says
+         * so rather than returning a cut-short one: the guard is the same shape as the
+         * framework's read-back's, and for the same reason — {@code cchMax} counts the null
+         * terminator, so the count of characters written can never reach the buffer's size.
+         * Here the answer to a title that does not fit is "not the item I was looking for":
+         * an empty title cannot match the one being looked for, and a truncated one could
+         * match the wrong item.
+         */
         static String itemTitle(MemorySegment menu, int position) {
             int maxChars = 256;
             try (Arena scope = Arena.ofConfined()) {
                 MemorySegment buffer = scope.allocate(maxChars * 2L);
                 int written = (int) GET_MENU_STRING.invoke(menu, position, buffer, maxChars, MF_BYPOSITION);
-                if (written <= 0) {
+                if (written <= 0 || written + 1 >= maxChars) {
                     return "";
                 }
                 StringBuilder title = new StringBuilder(written);
