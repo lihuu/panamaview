@@ -18,6 +18,7 @@ No Electron bloat. No bundled Chromium. Zero JNI, JNA, or C/C++ shims.
 - ⚡ **Pure Java 25 FFM**: Zero C/C++ shims. Direct native interop with Cocoa/WebKit (macOS) and Win32/WebView2 (Windows) via `java.lang.foreign`.
 - 🌐 **Modern Frontend Toolchains**: Built-in private URL scheme (`panamaview://app/` on macOS, `https://app.panamaview/` on Windows) supporting ES modules, CORS, `fetch()`, Web Workers, and SPA History-mode routers.
 - 🧵 **High-Concurrency Virtual Thread IPC**: IPC handlers run on Java Virtual Threads off the UI thread without freezing the window; built-in request cancellation and watchdog deadlines.
+- 🍽️ **Native Application Menus**: Declare a menu bar in Java — items, separators, and shortcuts — and get a native one on macOS and Windows. Only macOS binds the keyboard shortcuts today, and the framework installs no Edit menu of its own on Windows — there the browser already owns the editing commands.
 - 🛠️ **Out-of-the-Box Scaffolder & Templates**: First-class templates for React, Vue 3, Angular, Tailwind CSS, and Vanilla JS.
 
 ---
@@ -234,8 +235,8 @@ docs/                  Deep-dive architecture and maintenance documentation
 - [x] Private asset URL schemes with SPA routing fallback
 - [x] GraalVM Native Image reachability metadata & standalone builds
 - [x] Maven Central publishing & npm scaffolder (`create-panamaview`)
-- [ ] Native file/directory dialogs (`NSOpenPanel` / `IFileDialog`)
 - [x] Application menu bar (macOS & Windows)
+- [ ] Native file/directory dialogs (`NSOpenPanel` / `IFileDialog`)
 - [ ] System tray integration
 - [ ] Multi-window management
 - [ ] Linux host via WebKitGTK
