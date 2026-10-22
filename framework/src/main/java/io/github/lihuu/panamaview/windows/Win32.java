@@ -457,6 +457,25 @@ final class Win32 {
      *
      * <p>{@code GetMenuStringW} returns the number of characters it wrote, so a title that
      * fills the buffer is truncated — and a truncated title is a failure, not a pass.
+     *
+     * <p>The guard below is {@code written + 1 >= maxChars}, and the {@code + 1} is the whole
+     * point. {@code cchMax} is the buffer's size in characters <em>including</em> the null
+     * terminator, so the function writes at most {@code maxChars - 1} characters and returns
+     * that count — which is why it returns 511 for a 512-character buffer. A guard of
+     * {@code written >= maxChars} therefore cannot ever be true, and a title too long for the
+     * buffer came back truncated and was reported as a <em>mismatch</em>: the read-back
+     * compared a cut-short title with the model's title and said they differed, printing two
+     * strings that are the same to the eye.
+     *
+     * <p>What the guard can see is that the buffer was filled to its last character slot,
+     * which is either a title of exactly {@code maxChars - 1} characters or a longer one cut
+     * short — the return value cannot tell the two apart. So both are called "did not fit",
+     * which is the safe direction: a title that long is a bug anyway, and a false "did not
+     * fit" is better than a truncated title reported as a difference that is not there.
+     *
+     * <p>The bug was found by the Windows self-test's watchdog experiment, on the box: a menu
+     * with a 602-character title, which is what the experiment needed to stop the application
+     * before its window existed.
      */
     static String getMenuString(Arena arena, MemorySegment menu, int position, int maxChars, int flags) {
         MemorySegment buffer = arena.allocate((long) maxChars * 2);
@@ -466,7 +485,7 @@ final class Win32 {
         } catch (Throwable t) {
             throw new IllegalStateException("GetMenuStringW could not be called", t);
         }
-        if (written >= maxChars) {
+        if (written + 1 >= maxChars) {
             throw new IllegalStateException("a menu title did not fit in " + maxChars + " characters");
         }
         // UTF-16, and the count is in characters: read them one code unit at a time, so a
