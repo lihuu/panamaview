@@ -63,7 +63,7 @@
       check("slow handler does not block", false, String(error.message));
     }
 
-    // 3b. The control. Same work, same duration, on the UI thread: it *should* delay.
+    // 4. The control. Same work, same duration, on the UI thread: it *should* delay.
     //     Without this, the check above could pass for reasons unrelated to scheduling.
     try {
       const blocking = java.invoke("slowUi", { ms: 400 });
@@ -77,7 +77,7 @@
       check("control: UI-thread handler does block", false, String(error.message));
     }
 
-    // 4. Cancellation, tested honestly: the promise rejecting locally proves nothing about
+    // 5. Cancellation, tested honestly: the promise rejecting locally proves nothing about
     //    Java. What has to be shown is that the handler was really stopped, so the handler
     //    counts its own interruptions and the page reads the counter back.
     try {
@@ -96,7 +96,7 @@
       check("cancel actually stops the handler", false, String(error.message));
     }
 
-    // 5. Java's own deadline, independent of the page's fuse. The page allows 10 s here and
+    // 6. Java's own deadline, independent of the page's fuse. The page allows 10 s here and
     //    the handler's deadline is 300 ms, so a ~300 ms rejection proves Java's timer fired.
     try {
       const started = performance.now();
@@ -114,7 +114,7 @@
       check("java-side deadline fires on its own", false, String(error.message));
     }
 
-    // 6. A binding with no deadline must still work.
+    // 7. A binding with no deadline must still work.
     try {
       const result = await java.invoke("unbounded", { ms: 200 });
       check("deadline can be disabled", /no deadline/.test(result), result);
@@ -122,7 +122,7 @@
       check("deadline can be disabled", false, String(error.message));
     }
 
-    // 7. The platform extra runs on the UI thread; ordinary handlers must not.
+    // 8. The platform extra runs on the UI thread; ordinary handlers must not.
     try {
       const info = await java.invoke("windowInfo", {});
       check("platform extra runs on UI thread", info.onUiThread === true,
@@ -131,7 +131,7 @@
       check("windowInfo", false, String(error.message));
     }
 
-    // 8. Runtime facts only Java can supply, including which thread answered.
+    // 9. Runtime facts only Java can supply, including which thread answered.
     try {
       const info = await java.invoke("runtime", {});
       check("ordinary handler runs off the UI thread",
@@ -141,7 +141,7 @@
       check("runtime", false, String(error.message));
     }
 
-    // 9. Two hundred replies, correlated by id rather than by arrival order.
+    // 10. Two hundred replies, correlated by id rather than by arrival order.
     try {
       const count = 200;
       const started = performance.now();
@@ -155,7 +155,7 @@
       check("200 concurrent invocations", false, String(error.message));
     }
 
-    // 10. A menu item, chosen.
+    // 11. A menu item, chosen.
     //
     // The check asserts the effect — that the click reached the binding — and not the
     // absence of an exception: a click that goes nowhere does not throw, it does nothing,

@@ -22,6 +22,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -103,6 +105,16 @@ public final class WindowsSelfTest {
      */
     private static final long WATCHDOG_MILLIS = 60_000;
 
+    /**
+     * How long the exit thread waits for the picture before ending the process anyway.
+     *
+     * <p>Shorter than the watchdog's minute on purpose: when a verdict exists, the verdict's
+     * own code is the one that should end the process, and the watchdog's generic 1 is the
+     * answer for the case where there is no verdict at all. So the picture gets half a
+     * minute to arrive, and the verdict's code wins.
+     */
+    private static final long CAPTURE_GRACE_MILLIS = 30_000;
+
     /** The menu title the capture opens, so the picture shows the binding item in it. */
     private static final String MENU_TITLE = "文件";
 
@@ -151,7 +163,7 @@ public final class WindowsSelfTest {
                     return "slept " + millis + " ms";
                 })
 
-                // 3b. The control: the same work, on the UI thread, which *should* block.
+                // 4. The control: the same work, on the UI thread, which *should* block.
                 // Without this, check 3 could pass for reasons that have nothing to do with
                 // scheduling. Same work, same duration, different thread.
                 .bindUi("slowUi", params -> {
@@ -160,21 +172,7 @@ public final class WindowsSelfTest {
                     return "slept " + millis + " ms on the UI thread";
                 })
 
-                // 4. A deliberately short deadline, to prove the Java-side timer fires on its
-                // own — without relying on the page's own fuse, which is much longer.
-                .bind("deadlineProbe", params -> {
-                    Thread.sleep(5000);
-                    return "should never be reached: the deadline is 300 ms";
-                }, Duration.ofMillis(300))
-
-                // 5. No deadline at all: the escape hatch for honestly unbounded work.
-                .bind("unbounded", params -> {
-                    long millis = ((Number) params.getOrDefault("ms", 50)).longValue();
-                    Thread.sleep(millis);
-                    return "ran " + millis + " ms with no deadline";
-                }, null)
-
-                // 6. Sleeps, and records whether it was interrupted doing so.
+                // 5. Sleeps, and records whether it was interrupted doing so.
                 .bind("interruptible", params -> {
                     try {
                         Thread.sleep(((Number) params.getOrDefault("ms", 5000)).longValue());
@@ -186,19 +184,33 @@ public final class WindowsSelfTest {
                 })
                 .bind("interrupts", params -> INTERRUPTS.get())
 
-                // 7. The platform extra. bindUi, because it asks the window a question and
+                // 6. A deliberately short deadline, to prove the Java-side timer fires on its
+                // own — without relying on the page's own fuse, which is much longer.
+                .bind("deadlineProbe", params -> {
+                    Thread.sleep(5000);
+                    return "should never be reached: the deadline is 300 ms";
+                }, Duration.ofMillis(300))
+
+                // 7. No deadline at all: the escape hatch for honestly unbounded work.
+                .bind("unbounded", params -> {
+                    long millis = ((Number) params.getOrDefault("ms", 50)).longValue();
+                    Thread.sleep(millis);
+                    return "ran " + millis + " ms with no deadline";
+                }, null)
+
+                // 8. The platform extra. bindUi, because it asks the window a question and
                 // window questions are only legal on the UI thread.
                 .bindUi("windowInfo", params -> Map.of(
                         "window", host.windowRectangle(),
                         "onUiThread", host.isUiThread()))
 
-                // 8. Runtime facts only Java can supply, including which thread answered.
+                // 9. Runtime facts only Java can supply, including which thread answered.
                 .bind("runtime", params -> runtime())
 
-                // 9. The menu's two bindings, which the page's tenth check uses. The first is
-                // the item the platform dispatches to when the native menu is chosen, and the
-                // counter it moves is the effect the check asserts; the second is the click
-                // that chooses it.
+                // 11. The menu's two bindings, and the eleventh check with them. The first
+                // is the item the platform dispatches to when the native menu is chosen, and
+                // the counter it moves is the effect the check asserts; the second is the
+                // click that chooses it.
                 .bind("menuProbe", params -> PROBE_COUNT.incrementAndGet())
                 .bind("menuProbe2", params -> PROBE_COUNT_2.incrementAndGet())
 
@@ -222,7 +234,7 @@ public final class WindowsSelfTest {
                     return PROBE_COUNT.get();
                 })
 
-                // 10. The verdict goes here, so it lands in stdout where a machine can read it.
+                // The verdict goes here, so it lands in stdout where a machine can read it.
                 .bind("report", params -> {
                     int passed = ((Number) params.getOrDefault("passed", 0)).intValue();
                     int failed = ((Number) params.getOrDefault("failed", 0)).intValue();
@@ -236,24 +248,39 @@ public final class WindowsSelfTest {
                             }
                         }
                     }
-                    // The verdict is in; the watchdog has nothing left to watch for.
-                    REPORTED.set(true);
-                    // The picture: the menu bar is the one thing the log cannot show, so the
-                    // capture happens here, where the window is known to be up and the timing
-                    // stops being a race.
-                    capture();
-                    System.out.println("[selftest] DONE");
-                    // The window stays up a moment longer, so a person watching the screen can
-                    // see what the run did: the verdict is in this log, and the page on the
-                    // screen says the same thing.
+                    // The thread that carries the verdict's exit code starts *before* the
+                    // picture, not after it. A capture can hang — Robot on a locked desktop,
+                    // a display driver that stops answering — and a capture that hangs after
+                    // the exit code's thread has been started still ends the process, with
+                    // the verdict's own code. Starting it afterwards would leave a hung
+                    // capture holding a process with no exit code at all, and only the
+                    // runner's own timeout would end it.
+                    CountDownLatch captured = new CountDownLatch(1);
                     new Thread(() -> {
+                        // The window stays up a moment longer, so a person watching the screen
+                        // can see what the run did: the verdict is in this log, and the page
+                        // on the screen says the same thing.
                         try {
+                            captured.await(CAPTURE_GRACE_MILLIS, TimeUnit.MILLISECONDS);
                             Thread.sleep(8000);
                         } catch (InterruptedException ignored) {
                             // exiting anyway
                         }
                         System.exit(failed == 0 ? 0 : 1);
                     }, "selftest-exit").start();
+                    // The picture: the menu bar is the one thing the log cannot show, so the
+                    // capture happens here, where the window is known to be up and the timing
+                    // stops being a race.
+                    try {
+                        capture();
+                    } finally {
+                        captured.countDown();
+                    }
+                    // The watchdog is disarmed only now, after the picture: it is the thing
+                    // that says "the page never reported", and the picture is the last thing
+                    // that can go wrong before the verdict's own exit code is delivered.
+                    REPORTED.set(true);
+                    System.out.println("[selftest] DONE");
                     return "ok";
                 });
 
@@ -278,6 +305,11 @@ public final class WindowsSelfTest {
      *
      * <p>The thread is deliberately not a daemon: when the host fails, {@code app.run()}
      * returns and the JVM would exit 0 on its own, before the watchdog ever got to speak.
+     *
+     * <p>It is disarmed when the picture has been taken, and not when the verdict was
+     * printed, because the picture is the last thing that can go wrong: a capture that hangs
+     * has the exit thread to end the process, and the watchdog is the backstop for the case
+     * where the page itself never reported.
      */
     private static void startWatchdog() {
         Thread watchdog = new Thread(() -> {
@@ -341,8 +373,9 @@ public final class WindowsSelfTest {
      *
      * <p>Two clicks at most: the first click on a window that is not in the foreground
      * activates it, and a click that only activates is a click that has not opened the menu
-     * yet. Whether the menu opened is asked of Windows rather than guessed: an open menu is
-     * a window of its own, and that window is found by its class.
+     * yet. Whether the menu opened is asked of Windows rather than guessed, and the answer
+     * has to be about <em>this</em> window's menu: an open menu is a window of its own, and
+     * the one that is open has to belong to the window being photographed.
      */
     private static void openMenu() {
         try {
@@ -374,7 +407,7 @@ public final class WindowsSelfTest {
                 // land half a screen away from the item.
                 Win32Menu.clickAt(item.x + item.width / 2, item.y + item.height / 2);
                 Thread.sleep(600);
-                if (Win32Menu.menuIsOpen()) {
+                if (Win32Menu.menuIsOpen(window)) {
                     return;
                 }
             }
@@ -400,9 +433,18 @@ public final class WindowsSelfTest {
     /**
      * The few Win32 calls the screenshot needs.
      *
-     * <p>This is the probe's own Win32 and not the framework's: the framework's is package
-     * private on purpose, and a test that reached into the thing it is checking would be
-     * checking itself.
+     * <p>These are the probe's own bindings, and the reason is not that the framework's
+     * would be wrong. The framework's {@code Win32} is package private in
+     * {@code io.github.lihuu.panamaview.windows}, so the probe could not have reached it
+     * whatever it wanted; the real cost of the probe's own layer is a second set of
+     * {@code user32} bindings — {@code GetMenuStringW} and {@code GetMenuItemCount} already
+     * exist in the framework's — and it is paid for four call shapes that exist only to take
+     * one picture.
+     *
+     * <p>They are nested here rather than sitting beside {@code Native.java}, which is the
+     * probe's other FFI layer, because these four shapes are the screenshot's own business
+     * and no other class in the probe could use them: a sibling file would read as another
+     * layer the probe shares, which this is not.
      */
     private static final class Win32Menu {
 
@@ -417,6 +459,9 @@ public final class WindowsSelfTest {
         /** The window class every Win32 menu popup has. */
         private static final String MENU_WINDOW_CLASS = "#32768";
 
+        /** {@code GW_OWNER} — the window that owns another one. */
+        private static final int GW_OWNER = 4;
+
         private static final Linker LINKER = Linker.nativeLinker();
         private static final SymbolLookup USER32 = SymbolLookup.libraryLookup("user32.dll", Arena.global());
 
@@ -430,6 +475,8 @@ public final class WindowsSelfTest {
                 FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT, ADDRESS));
         private static final MethodHandle GET_MENU_STRING = bind("GetMenuStringW",
                 FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT));
+        private static final MethodHandle GET_WINDOW = bind("GetWindow",
+                FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_INT));
         private static final MethodHandle SET_CURSOR_POS = bind("SetCursorPos",
                 FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT));
         private static final MethodHandle MOUSE_EVENT = bind("mouse_event",
@@ -527,12 +574,39 @@ public final class WindowsSelfTest {
             }
         }
 
-        /** Whether a menu is open right now: an open menu is a window of its own. */
-        static boolean menuIsOpen() {
+        /**
+         * Whether this window's menu is open right now.
+         *
+         * <p>An open menu is a window of its own, of the class every Win32 menu has — but
+         * the question is not whether such a window exists on the desktop, it is whether
+         * <em>this</em> window's menu is the one that is open. Another application's open
+         * menu would satisfy the first question and leave the second one unanswered, and
+         * the picture would then show a closed menu bar while the code said the menu was
+         * open: the failure the picture exists to rule out.
+         *
+         * <p>The owner is what tells them apart. A menu popup is owned by the window whose
+         * menu it is, so the owner is the answer.
+         */
+        static boolean menuIsOpen(MemorySegment window) {
             try (Arena scope = Arena.ofConfined()) {
                 MemorySegment name = scope.allocateFrom(MENU_WINDOW_CLASS, StandardCharsets.UTF_16LE);
-                MemorySegment found = (MemorySegment) FIND_WINDOW.invoke(name, MemorySegment.NULL);
-                return !found.equals(MemorySegment.NULL);
+                MemorySegment popup = (MemorySegment) FIND_WINDOW.invoke(name, MemorySegment.NULL);
+                if (popup.equals(MemorySegment.NULL)) {
+                    return false;
+                }
+                MemorySegment owner = (MemorySegment) GET_WINDOW.invoke(popup, GW_OWNER);
+                if (owner.equals(MemorySegment.NULL)) {
+                    return false;
+                }
+                if (owner.address() != window.address()) {
+                    // Said, because the picture's whole job is to show this menu, and a
+                    // menu that belongs to another window is worth knowing about.
+                    System.err.println("[selftest] the screenshot: a menu is open, but it belongs"
+                            + " to another window (owner 0x" + Long.toHexString(owner.address())
+                            + ")");
+                    return false;
+                }
+                return true;
             } catch (Throwable t) {
                 return false;
             }

@@ -69,14 +69,22 @@ Expected output ends:
 [selftest]   PASS  slow handler does not block - hello answered in 1 ms while slow(600 ms) was in flight
 [selftest]   PASS  control: UI-thread handler does block - hello delayed 402 ms behind slowUi(400 ms)
 [selftest]   PASS  cancel actually stops the handler - handler interrupted (count 0 -> 1); page stopped waiting in 0 ms
-[selftest]   PASS  java-side deadline fires on its own - rejected after 302 ms with "no answer within 300 ms"
+[selftest]   PASS  java-side deadline fires on its own - rejected after 303 ms with "no answer within 300 ms"
 [selftest]   PASS  deadline can be disabled - ran 200 ms with no deadline
-[selftest]   PASS  platform extra runs on UI thread - window 1000x700 at 294,294, onUiThread=true
+[selftest]   PASS  platform extra runs on UI thread - window 1000x700 at 49,49, onUiThread=true
 [selftest]   PASS  ordinary handler runs off the UI thread - OpenJDK 64-Bit Server VM, handler on VirtualThread
 [selftest]   PASS  200 concurrent invocations - 200 round trips in 24 ms
 [selftest]   PASS  menu item reaches its binding - the click ran the binding 1 time(s)
+[selftest] the screenshot: the menu item '文件' is at 316,107 78x38
+[selftest] the screenshot is at selftest-window.png (1920x1080)
 [selftest] DONE
 ```
+
+That block is one run — the run the screenshot beside it came from. Two of its numbers are
+Windows' to choose rather than the test's: the window's **position**, which `CW_USEDEFAULT`
+places where it likes and which moved on every run of that box (49,49 / 98,98 / 196,196 /
+294,294 / 392,392), and the milliseconds, which are the machine's. The verdict is the same
+either way: eleven passed, none failed, and the exit code 0.
 
 The two lines worth reading together are the slow-handler pair. The same work, the same
 duration, on two different threads: **1 ms** on a virtual thread, **402 ms** on the UI thread.
