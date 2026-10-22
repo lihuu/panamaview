@@ -161,4 +161,35 @@ class MenusTest {
         assertEquals("导出", bar.menus().get(0).items().get(0).title(),
                 "and so does the bar — the id table and the items must not be able to disagree");
     }
+
+    @Test
+    void aShortcutRefusesAModifierAsItsKey() {
+        var thrown = assertThrows(IllegalArgumentException.class, () -> new Shortcut("Ctrl", Set.of()));
+        assertTrue(thrown.getMessage().contains("Modifier"),
+                "the message must say what is wrong: " + thrown.getMessage());
+
+        // The check is on the uppercased form, the way parse's is, and the key itself keeps
+        // its own case.
+        assertThrows(IllegalArgumentException.class, () -> new Shortcut("ctrl", Set.of()));
+        assertEquals("e", new Shortcut("e", Set.of()).key(), "the key keeps its case");
+    }
+
+    @Test
+    void aBarRefusesTheSameItemTwice() {
+        var item = Menus.item("export", "导出");
+        var thrown = assertThrows(IllegalArgumentException.class,
+                () -> new MenuBar(List.of(
+                        new Menu("文件", List.of(item)),
+                        new Menu("其他", List.of(item)))));
+        assertTrue(thrown.getMessage().contains("导出"),
+                "the message must name the item: " + thrown.getMessage());
+    }
+
+    @Test
+    void aBarRefusesTheSameMenuTwice() {
+        var menu = Menus.menu("文件", Menus.item("export", "导出"));
+        var thrown = assertThrows(IllegalArgumentException.class, () -> new MenuBar(List.of(menu, menu)));
+        assertTrue(thrown.getMessage().contains("文件"),
+                "the message must name the menu: " + thrown.getMessage());
+    }
 }

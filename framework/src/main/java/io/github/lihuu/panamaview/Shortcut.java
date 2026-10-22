@@ -14,8 +14,9 @@ public record Shortcut(String key, Set<Modifier> modifiers) {
      *
      * <p>{@link #parse} is the disciplined way in, and it holds this line for a string; the
      * constructor is the other way in, and it holds it for the pieces themselves. A null or
-     * blank key, and a null modifier set, are refused here rather than failing somewhere
-     * further on — in the platform's modifier mask, which is a long way from the mistake.
+     * blank key, a null modifier set, and a key that names a modifier are refused here rather
+     * than failing somewhere further on — in the platform's modifier mask, which is a long way
+     * from the mistake.
      *
      * <p>The modifier set is copied, so the shortcut means what it meant when it was made: a
      * set handed in and changed afterwards cannot change a shortcut that has already been
@@ -27,6 +28,14 @@ public record Shortcut(String key, Set<Modifier> modifiers) {
         }
         if (modifiers == null) {
             throw new IllegalArgumentException("Shortcut modifiers cannot be null");
+        }
+        // A key that names a modifier is the other way of writing a modifier, and the shortcut
+        // it makes means nothing. parse refuses it too, and compares the same way: on the
+        // uppercased form, because the key keeps its own case.
+        String keyUpper = key.toUpperCase(Locale.ROOT);
+        if (keyUpper.equals("CMDORCTRL") || keyUpper.equals("CTRL") ||
+            keyUpper.equals("SHIFT") || keyUpper.equals("ALT")) {
+            throw new IllegalArgumentException("Modifier cannot be the key: " + key);
         }
         modifiers = Set.copyOf(modifiers);
     }

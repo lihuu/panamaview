@@ -905,9 +905,10 @@ because the model has nothing else to put there.
 
 **Are the built-in menus macOS-only?** The framework installs them only on macOS: an
 application that declares no bar gets the Quit and Edit menus there. On Windows it installs
-none of its own — the window is born with a null `HMENU` (`lpszMenuName` is `NULL`, and a
-menu built at run time is attached afterwards rather than through the class registration) —
-and an application declares its own.
+none of its own — the window is born with a null `HMENU` (`lpszMenuName` is `NULL`; a menu
+the application declares is built at run time and handed to `CreateWindowExW` in its `hMenu`
+slot, not attached afterwards, so the window never appears without its menu) — and an
+application declares its own.
 
 **Measured on Windows 11, 2026-10-21:** the WebView2 control performs clipboard operations
 itself. The test asked the page to select its text and run `document.execCommand('copy')`
