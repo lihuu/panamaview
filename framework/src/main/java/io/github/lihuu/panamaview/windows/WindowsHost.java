@@ -15,8 +15,13 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * The Windows implementation of the seam: Win32 plus WebView2, owned entirely by this package.
- * Only this class is public here — an application cannot reach the COM machinery, and the
- * platform seam is the whole surface, exactly as on macOS.
+ * This class is the seam, and the seam is the whole surface, exactly as on macOS.
+ *
+ * <p>The machinery behind it is out of reach: {@code Com}, {@code Win32} and {@code WinMenu}
+ * are package-private, and so is every method of {@code WebView2} but one. {@code WebView2} is
+ * the one other public class here, public for that one method — {@code browserVersion}, the
+ * version of the installed runtime — because a consumer asks it before any window exists: the
+ * probe module does exactly that, to report which runtime it found.
  *
  * <h2>Threading, and where this differs from macOS</h2>
  * AppKit demands the process' first thread; WebView2 only demands that the thread which
