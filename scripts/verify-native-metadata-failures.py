@@ -33,22 +33,29 @@ import tempfile
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CHECK = "verify-native-metadata.py"
 PACKAGE_DIR = "framework/src/main/java/io/github/lihuu/panamaview/macos"
+PACKAGE_NAME = "io.github.lihuu.panamaview.macos"
 METADATA = ("framework/src/main/resources/META-INF/native-image/"
             "io.github.lihuu/panamaview/reachability-metadata.json")
 
-# The Java layout each native shape is written with.
+# The Java layout each native shape is written with. This is the check's own
+# vocabulary: a driver that knew fewer carriers than the check would crash on a
+# metadata the check tolerates, and a CI step that crashes on a metadata that grew
+# is a CI step that stops people from growing the metadata.
 JAVA_LAYOUTS = {
     "void*": "ADDRESS",
     "jbyte": "JAVA_BYTE",
+    "jshort": "JAVA_SHORT",
     "jint": "JAVA_INT",
     "jlong": "JAVA_LONG",
+    "jfloat": "JAVA_FLOAT",
     "jdouble": "JAVA_DOUBLE",
+    "jboolean": "JAVA_BOOLEAN",
 }
 
-# The number of pointers in the shapes the driver can build, most unlikely to be
-# registered first. The driver takes the first one the metadata does not already
-# register, so a metadata that grows does not break the fixture.
-SHAPE_SIZES = [7, 6, 8, 5, 4]
+# The shapes the driver can build: a run of pointers. It takes the first one the
+# metadata does not already register, so a metadata that grows does not break the
+# fixture. The run is long enough that it cannot be exhausted.
+SHAPE_SIZES = range(2, 64)
 
 passed = 0
 failed = 0
@@ -142,15 +149,22 @@ def registered_shapes(root):
 
 
 def java_descriptor(shape):
-    """The Java that builds a shape, or None when the shape is a struct."""
+    """The Java that builds a shape, or None when the driver cannot write it.
+
+    A by-value aggregate cannot be written here, and neither can a carrier the
+    driver does not know. Returning None rather than raising is the point: the
+    driver then picks another shape, where a crash would stop the whole run.
+    """
     return_type, _, parameters = shape.partition("(")
     parameters = parameters.rstrip(")").split(",") if parameters else []
     if "struct(" in return_type or any("struct(" in p for p in parameters):
         return None
+    layouts = parameters if return_type == "void" else [return_type] + parameters
+    if any(layout not in JAVA_LAYOUTS for layout in layouts):
+        return None
     if return_type == "void":
-        return "FunctionDescriptor.ofVoid(%s)" % ", ".join(JAVA_LAYOUTS[p] for p in parameters)
-    return "FunctionDescriptor.of(%s)" % ", ".join(
-        [JAVA_LAYOUTS[return_type]] + [JAVA_LAYOUTS[p] for p in parameters])
+        return "FunctionDescriptor.ofVoid(%s)" % ", ".join(JAVA_LAYOUTS[l] for l in layouts)
+    return "FunctionDescriptor.of(%s)" % ", ".join(JAVA_LAYOUTS[l] for l in layouts)
 
 
 def a_registered_shape(root):
@@ -171,6 +185,19 @@ def an_unregistered_shape(root):
     return None, None
 
 
+def a_framework_upcall(metadata):
+    """The first directUpcalls entry that names a class in the package.
+
+    The check does not look at an entry whose class is outside the package -- a JDK
+    class is the JDK's business -- so a break aimed at one of those would change
+    nothing, and a fixture that breaks nothing is worse than no fixture.
+    """
+    for entry in metadata["foreign"]["directUpcalls"]:
+        if entry["class"].startswith(PACKAGE_NAME + "."):
+            return entry
+    return None
+
+
 SHAPE_SOURCE = """package io.github.lihuu.panamaview.macos;
 
 import java.lang.foreign.FunctionDescriptor;
@@ -179,9 +206,12 @@ import java.lang.foreign.MethodHandle;
 import java.lang.foreign.SymbolLookup;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
+import static java.lang.foreign.ValueLayout.JAVA_BOOLEAN;
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
+import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
+import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 
 /**
  * A fixture: a native shape, and a downcall that uses it.
@@ -205,9 +235,12 @@ import java.lang.foreign.MethodHandle;
 import java.lang.foreign.SymbolLookup;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
+import static java.lang.foreign.ValueLayout.JAVA_BOOLEAN;
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
+import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
+import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 
 /**
  * A fixture: a descriptor, and how it is used -- in a downcall, and then in a
@@ -276,7 +309,11 @@ def case_missing_method(work):
     root = make_tree(work, "method")
     expect_clean("the tree is clean before the break", root)
     metadata = read_metadata(root)
-    metadata["foreign"]["directUpcalls"][0]["method"] = "aMethodThatDoesNotExist"
+    entry = a_framework_upcall(metadata)
+    if entry is None:
+        bad("an upcall entry to break", "the metadata names no class in the package")
+        return
+    entry["method"] = "aMethodThatDoesNotExist"
     write_metadata(root, metadata)
     expect_failure("the check notices the method that is not there", root,
                    "names a method that is not in")
@@ -288,7 +325,10 @@ def case_missing_reflection(work):
     root = make_tree(work, "reflection")
     expect_clean("the tree is clean before the break", root)
     metadata = read_metadata(root)
-    entry = metadata["foreign"]["directUpcalls"][0]
+    entry = a_framework_upcall(metadata)
+    if entry is None:
+        bad("an upcall entry to break", "the metadata names no class in the package")
+        return
     for reflected in metadata["reflection"]:
         if reflected["type"] != entry["class"]:
             continue
