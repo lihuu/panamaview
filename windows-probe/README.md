@@ -99,6 +99,12 @@ It comes after the verdict and after the exit code, and PowerShell renders a nat
 stderr as an error, so a reader — or a log parser — can take it for one. It is the browser
 tidying up after the window closed, and it is what the run has always ended with.
 
+**Every stderr line in the run arrives like that** — the framework's own disabled-operations
+line below, and the watchdog's timeout line — so a line that says what happened can look like
+a failure. It is the rendering, not the line: the disabled-operations line is the evidence
+that the editing commands were built disabled, and the timeout line is the evidence that the
+watchdog ended a run nothing else would have ended.
+
 The two lines worth reading together are the slow-handler pair. The same work, the same
 duration, on two different threads: **1 ms** on a virtual thread, **405 ms** on the UI thread.
 That difference is the whole threading contract, measured.
