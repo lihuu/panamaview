@@ -1,6 +1,6 @@
 package io.github.lihuu.panamaview;
 
-import java.util.Objects;
+import java.util.Collections;
 
 public sealed interface Item permits Item.BindingItem, Item.PlatformItem, Item.SeparatorItem {
     String title();
@@ -8,8 +8,14 @@ public sealed interface Item permits Item.BindingItem, Item.PlatformItem, Item.S
     Platform platformAction(); // null unless this is a PlatformItem
     Shortcut shortcut();
     Item shortcut(Shortcut s);
+
+    default Item shortcut(String s) {
+        return shortcut(Shortcut.parse(s));
+    }
+
     int id();
-    void assignId(int id);
+
+    // assignId is moved to implementations to hide it from the public interface
 
     final class BindingItem implements Item {
         private final String binding;
@@ -28,7 +34,7 @@ public sealed interface Item permits Item.BindingItem, Item.PlatformItem, Item.S
         @Override public Shortcut shortcut() { return shortcut; }
         @Override public Item shortcut(Shortcut s) { this.shortcut = s; return this; }
         @Override public int id() { return id; }
-        @Override public void assignId(int id) { this.id = id; }
+        void assignId(int id) { this.id = id; }
     }
 
     final class PlatformItem implements Item {
@@ -48,7 +54,7 @@ public sealed interface Item permits Item.BindingItem, Item.PlatformItem, Item.S
         @Override public Shortcut shortcut() { return shortcut; }
         @Override public Item shortcut(Shortcut s) { this.shortcut = s; return this; }
         @Override public int id() { return id; }
-        @Override public void assignId(int id) { this.id = id; }
+        void assignId(int id) { this.id = id; }
     }
 
     final class SeparatorItem implements Item {
@@ -63,6 +69,6 @@ public sealed interface Item permits Item.BindingItem, Item.PlatformItem, Item.S
         @Override public Shortcut shortcut() { return shortcut; }
         @Override public Item shortcut(Shortcut s) { this.shortcut = s; return this; }
         @Override public int id() { return id; }
-        @Override public void assignId(int id) { this.id = id; }
+        void assignId(int id) { this.id = id; }
     }
 }

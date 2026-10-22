@@ -1,6 +1,7 @@
 package io.github.lihuu.panamaview;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 public final class Menus {
@@ -27,10 +28,19 @@ public final class Menus {
     }
 
     public static Menu appMenu() {
-        return new Menu("App", java.util.Collections.emptyList());
+        return new Menu("[Application Name]",
+            Collections.singletonList(platformItem(Platform.QUIT, "Quit")));
     }
 
     public static Menu editMenu() {
-        return new Menu("Edit", java.util.Collections.emptyList());
+        return new Menu("Edit", Arrays.asList(
+            platformItem(Platform.UNDO, "Undo"),
+            platformItem(Platform.REDO, "Redo"),
+            separator(),
+            platformItem(Platform.CUT, "Cut"),
+            platformItem(Platform.COPY, "Copy"),
+            platformItem(Platform.PASTE, "Paste"),
+            platformItem(Platform.SELECT_ALL, "Select All")
+        ));
     }
 }

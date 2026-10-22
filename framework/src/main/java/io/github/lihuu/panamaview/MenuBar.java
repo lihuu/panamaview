@@ -14,7 +14,10 @@ public final class MenuBar {
         int currentId = 1;
         for (Menu menu : menus) {
             for (Item item : menu.items()) {
-                item.assignId(currentId++);
+                // Use a internal method since Item.assignId is no longer public
+                if (item instanceof Item.BindingItem b) b.assignId(currentId++);
+                else if (item instanceof Item.PlatformItem p) p.assignId(currentId++);
+                else if (item instanceof Item.SeparatorItem s) s.assignId(currentId++);
             }
         }
     }

@@ -49,4 +49,47 @@ class MenusTest {
     void aShortcutIsTheEmptyOneWhenThereIsNone() {
         assertNull(Menus.item("export", "导出").shortcut());
     }
+
+    @Test
+    void shortcutStringSetterWorks() {
+        var item = Menus.item("export", "导出").shortcut("CmdOrCtrl+E");
+        assertEquals("E", item.shortcut().key());
+        assertEquals(java.util.Set.of(Shortcut.Modifier.CMD_OR_CTRL), item.shortcut().modifiers());
+    }
+
+    @Test
+    void parserThrowsOnMalformedInput() {
+        assertThrows(IllegalArgumentException.class, () -> Shortcut.parse("Ctrl+"));
+        assertThrows(IllegalArgumentException.class, () -> Shortcut.parse("Ctrl+Shift+"));
+        assertThrows(IllegalArgumentException.class, () -> Shortcut.parse("Ctrl"));
+        assertThrows(IllegalArgumentException.class, () -> Shortcut.parse("Shift"));
+    }
+
+    @Test
+    void parserTrimsKey() {
+        var shortcut = Shortcut.parse("Ctrl + E");
+        assertEquals("E", shortcut.key());
+        assertEquals(java.util.Set.of(Shortcut.Modifier.CTRL), shortcut.modifiers());
+    }
+
+    @Test
+    void appMenuHasQuit() {
+        var menu = Menus.appMenu();
+        assertEquals(1, menu.items().size());
+        assertEquals(Platform.QUIT, menu.items().get(0).platformAction());
+    }
+
+    @Test
+    void editMenuHasCorrectPlatformItems() {
+        var menu = Menus.editMenu();
+        assertEquals(7, menu.items().size());
+        assertEquals(Platform.UNDO, menu.items().get(0).platformAction());
+        assertEquals(Platform.REDO, menu.items().get(1).platformAction());
+        assertNull(menu.items().get(2).platformAction());
+        assertNull(menu.items().get(2).binding());
+        assertEquals(Platform.CUT, menu.items().get(3).platformAction());
+        assertEquals(Platform.COPY, menu.items().get(4).platformAction());
+        assertEquals(Platform.PASTE, menu.items().get(5).platformAction());
+        assertEquals(Platform.SELECT_ALL, menu.items().get(6).platformAction());
+    }
 }
