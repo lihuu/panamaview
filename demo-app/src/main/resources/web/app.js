@@ -215,7 +215,7 @@
       }
     }
 
-    // 14. A menu item, chosen.
+    // 11. A menu item, chosen.
     //
     // The check asserts the effect, not the absence of an exception: a menu item that
     // reaches nobody does not throw — it does nothing, silently, which is the failure this

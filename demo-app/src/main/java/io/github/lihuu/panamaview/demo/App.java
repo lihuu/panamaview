@@ -68,7 +68,7 @@ public final class App {
      * item in a menu is not the number of the items before it, and a menu with a separator in
      * it is where that shows.
      */
-    private final MenuBar menu = Menus.menu(
+    private final MenuBar bar = Menus.menu(
             Menus.appMenu(),
             Menus.menu("文件",
                     Menus.item(PROBE, "探测"),
@@ -96,7 +96,7 @@ public final class App {
                 .title(APP_NAME)
                 .size(1000, 700)
                 .load("/web/index.html")
-                .menu(menu);
+                .menu(bar);
     }
 
     /** The underlying app, for wiring platform-specific extras onto. */
@@ -238,7 +238,7 @@ public final class App {
      * than counted, which would break the moment a separator came before the item meant.
      */
     private int idOf(String binding) {
-        for (Menu menu : menu.menus()) {
+        for (Menu menu : bar.menus()) {
             for (Item item : menu.items()) {
                 if (binding.equals(item.binding())) {
                     return item.id();
@@ -283,7 +283,7 @@ public final class App {
      */
     private Map<String, Object> menuState() {
         List<Map<String, Object>> menus = new ArrayList<>();
-        for (Menu menu : menu.menus()) {
+        for (Menu menu : bar.menus()) {
             List<Map<String, Object>> items = new ArrayList<>();
             for (Item item : menu.items()) {
                 Map<String, Object> entry = new LinkedHashMap<>();

@@ -1139,7 +1139,9 @@ the binding numbered 65535. The guard is on the whole value.
 
 `CmdOrCtrl` is the spelling that means "the platform's own key" — ⌘ on macOS, Ctrl on
 Windows — and it is the reason the framework parses the shortcut string rather than handing
-it to each platform: the same declaration then means the same user-visible action on both.
+it to each platform: one declaration, one meaning, whichever platform it lands on. macOS
+honours that today; the Windows builder registers no accelerator yet, so a shortcut there does
+nothing — see the Windows shortcuts below.
 
 The parser is strict, because a shortcut that silently does nothing is worse than one that
 is not offered. `"Ctrl+"` used to parse as the key `Ctrl` with no modifiers, and
@@ -1154,9 +1156,9 @@ These are measurements, and two of them contradict what the shipped code believe
   the plain `c`, not ⌘C: the platform sets the mask always, and the model has to say which
   it means.
 - **An uppercase key equivalent does not imply Shift.** The shipped Edit menu passed "Z" for
-  Redo and set no mask, so its effective shortcut was ⌘Z; the uppercase letter changed only
-  the *displayed* key. The comment in the source that said otherwise was a belief, not a
-  measurement, and it is gone.
+  Redo and set no mask, so the mask that applied was AppKit's default — Command; the uppercase
+  letter changed only the *displayed* key, never the mask. The comment in the source that said
+  otherwise was a belief, not a measurement, and it is gone.
 - **Among items with different actions, the second to declare the same key and the same
   mask loses its key equivalent entirely** — the key comes back empty, so the item is
   reachable by no chord at all. The rule reaches across the whole main menu, not only within
@@ -1182,8 +1184,12 @@ source or into this file.
 clipboard operations by itself: `document.execCommand('copy')` inside a real user gesture
 put the text on the clipboard with no framework involved, and that call is the code path
 Chromium's own Ctrl+C runs. So on Windows the browser already does the editing commands,
-and the Windows bar is for *application* items. The framework installs no Edit menu there,
-and a `Platform.COPY` item has nothing to do.
+and the Windows bar is for *application* items. The framework installs no Edit menu of its own
+there, and a declared `editMenu()` is built with every editing item **disabled** — the user
+sees that it exists and cannot have it, which is the same trade the framework makes
+everywhere else: an item that looks live and does nothing is worse than one that says it
+cannot be had. The framework says so once on stderr, naming the operations it could not
+perform, because a silent difference between the platforms costs an afternoon.
 
 **Windows keyboard shortcuts are a separate piece of work.** The first slice delivers a
 clickable menu bar on both platforms; macOS additionally gets shortcuts, because its menu
@@ -1217,12 +1223,12 @@ host.clickMenuItem(id);        // the id the framework assigned, readable from t
 
 On **macOS** it is `-[NSMenu performActionForItemAtIndex:]` — a method of `NSMenu`, taking
 the item's *position*. `NSMenuItem` has no `performClick` at all; that is `NSButton`'s
-method, and sending it to a menu item raises `NSInvalidArgumentException`. The call works on
-a submenu, the position counts the separators, and the target receives the item as the sender
-and reads the id off its `tag` — the same path a real click takes. Activating a separator does
-nothing, which is right. The position is the item's index in the model's own item list, which
-is the order the builder appends them in, so the id is found by walking the model and the
-index comes from where the walk found it.
+method, and a menu item is not a button. The call works on a submenu, the position counts
+the separators, and the target receives the item as the sender and reads the id off its
+`tag` — the same path a real click takes. Activating a separator does nothing, which is
+right. The position is the item's index in the model's own item list, which is the order the
+builder appends them in, so the id is found by walking the model and the index comes from
+where the walk found it.
 
 On **Windows** it is a message: `PostMessage(WM_COMMAND, id, 0)` to the window, which is
 what the menu bar does when an item is chosen. The message still has to reach a window —
@@ -1243,6 +1249,15 @@ built and compares it with the plan — the number of items in each submenu, and
 command id and title. **A mismatch is a hard failure, not a warning**, and the message names
 the menu, the position and both ids, because the person reading it is looking at a menu and
 not at a stack trace.
+
+**The built menu reads back exactly what went into it, and that is measured.** A non-ASCII
+title survives character for character: 导出 comes back as U+5BFC U+51FA and 文件 as
+U+6587 U+4EF6. That is the mojibake question — a menu item whose title is not ASCII must not
+be mojibake in the menu — answered on the real Win32, and on macOS the same round trip
+through `NSMenu` brings 导出 and 保存 back exactly. And a mnemonic marker survives verbatim —
+"&File" comes back with its `&` — which is what lets the read-back compare the *titles* as
+well as the ids: a platform that stripped the marker would report a mismatch for every title
+that had one, and the ids alone would have left the titles unchecked.
 
 The macOS side paid for the same lesson the other way round: a key equivalent that looked
 right in the model came back from AppKit with the shortcut gone, and nothing but reading the
@@ -1268,6 +1283,10 @@ and after the bar was handed over:
 [selftest]   PASS  menu item reaches its binding — the menu item ran the binding 1 time(s), and the one after the separator 1
 ```
 
+Both blocks are the **snapshot** run — `JAVA_OPTS=-Dpanamaview.snapshot=… ./run.sh` — because
+that is the run with the WebKit check in it. A plain `./run.sh` reports one fewer, the
+snapshot check being the one that only runs when the property is set.
+
 Two items are chosen, not one, and the second one is the item *after* the separator. An item's
 position in a menu is not the number of the items before it, so a click that counted only the
 items would land on the separator and reach nothing — which is the failure the check would
@@ -1280,4 +1299,6 @@ it shows the application's own menu (文件) beside the framework's Edit menu.
 One detail the picture makes plain: **the application menu is titled with the process
 name**, because an unbundled JVM has no application name of its own. The Quit item inside it
 is titled with the *window's* title — "Quit panamaview" — because that is the name the
-framework has. A bundled `.app` shows its own name in the same place.
+framework has, and the platform composes it (`Cocoa.itemTitle`); the app menu is closed in the
+picture, so that one is from the code rather than from the capture. A bundled `.app` shows
+its own name in the same place.

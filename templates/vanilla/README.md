@@ -143,7 +143,8 @@ Two kinds of item, and the difference is not decoration:
   `Platform.UNDO`, …) and has no Java behind it.
 
 `CmdOrCtrl` means ⌘ on macOS and Ctrl on Windows, so one declaration means the same
-user-visible action on both.
+user-visible action on both — on macOS today. The Windows builder registers no accelerator
+yet, so a shortcut there does nothing until that is done.
 
 **A declared bar replaces the framework's bar — it does not merge with it — so the
 application takes responsibility for the whole bar, `appMenu()` and `editMenu()` included.**
@@ -157,11 +158,13 @@ The two platforms do not offer the same built-in menus, so this is not a formali
   keyboard through menu items, so ⌘C reaches the web view's text field only because the Edit
   menu carries it. Leave `editMenu()` out and ⌘C stops working, with a symptom that mentions
   nothing about menus.
-- **On Windows there is no Edit menu at all.** The WebView2 control performs the clipboard
-  operations itself — `document.execCommand('copy')` inside a real user gesture puts the text
-  on the clipboard with no framework involved, and that is the code path Chromium's own Ctrl+C
-  runs. The browser already does the editing commands there, so the Windows bar is for
-  *application* items.
+- **On Windows the framework installs no Edit menu of its own.** The WebView2 control performs
+  the clipboard operations itself — `document.execCommand('copy')` inside a real user gesture
+  puts the text on the clipboard with no framework involved, and that is the code path
+  Chromium's own Ctrl+C runs. The browser already does the editing commands there, so the
+  Windows bar is for *application* items. A declared `editMenu()` is still built — with every
+  editing item **disabled**, so the user sees that it exists and cannot have it, and the
+  framework says so once on stderr.
 
 **Windows keyboard shortcuts are not part of this.** The menu bar is clickable on both
 platforms, and macOS additionally gets shortcuts, because its menu item already carries them.

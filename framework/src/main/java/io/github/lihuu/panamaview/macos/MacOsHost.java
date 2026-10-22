@@ -219,12 +219,10 @@ public final class MacOsHost implements UiHost, MenuHost {
         }
         Cocoa.Position position = Cocoa.positionOf(bar, id);
         MemorySegment menu = menus.get(position.menu());
-        onUiThread(() -> {
-            try (ObjC.Scope scope = ObjC.scope()) {
-                ObjC.sendVoidLong(menu, ObjC.selector("performActionForItemAtIndex:"),
-                        position.index());
-            }
-        });
+        // No scope: the call takes an integer, so there is no arena-allocated buffer to
+        // invalidate, and the run loop's own pool is where anything AppKit autoreleases goes.
+        onUiThread(() -> ObjC.sendVoidLong(menu, ObjC.selector("performActionForItemAtIndex:"),
+                position.index()));
     }
 
     /**
