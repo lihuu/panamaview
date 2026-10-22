@@ -1,5 +1,7 @@
 package io.github.lihuu.panamaview.probe;
 
+import io.github.lihuu.panamaview.Item;
+import io.github.lihuu.panamaview.Menu;
 import io.github.lihuu.panamaview.MenuBar;
 import io.github.lihuu.panamaview.Menus;
 import io.github.lihuu.panamaview.WebApp;
@@ -88,8 +90,14 @@ public final class WindowsSelfTest {
      */
     private static final AtomicInteger PROBE_COUNT = new AtomicInteger();
 
-    /** How many times the second menu item has run. It is never clicked; it is declared. */
-    private static final AtomicInteger PROBE_COUNT_2 = new AtomicInteger();
+    /** How many times the second menu item has run. */
+    private static final AtomicInteger OTHER_COUNT = new AtomicInteger();
+
+    /** The binding the application's own first menu item names. */
+    private static final String PROBE = "menuProbe";
+
+    /** The binding the application's own second menu item names — the one after the separator. */
+    private static final String OTHER = "menuProbe2";
 
     /** Whether the page has reported. The watchdog's reason to stay quiet. */
     private static final AtomicBoolean REPORTED = new AtomicBoolean();
@@ -118,6 +126,9 @@ public final class WindowsSelfTest {
     /** The menu title the capture opens, so the picture shows the binding item in it. */
     private static final String MENU_TITLE = "文件";
 
+    /** The framework's Edit menu, whose items Windows has no route for. */
+    private static final String EDIT_TITLE = "Edit";
+
     private static WebApp app;
 
     public static void main(String[] args) throws Exception {
@@ -133,14 +144,15 @@ public final class WindowsSelfTest {
         MenuBar bar = Menus.menu(
                 Menus.appMenu(),
                 Menus.menu(MENU_TITLE,
-                        Menus.item("menuProbe", "探测"),
+                        Menus.item(PROBE, "探测"),
                         Menus.separator(),
-                        Menus.item("menuProbe2", "另一个")));
-
-        // The id the platform will report, read out of the model rather than guessed. The
-        // model numbers its items while it is built, so this is the id the native menu
-        // carries and the id a click comes back with.
-        int probeId = bar.menus().get(1).items().get(0).id();
+                        Menus.item(OTHER, "另一个")),
+                // The framework's Edit menu, declared on purpose. Windows has no route for
+                // the editing commands — the browser performs them itself — so every item in
+                // it is built disabled, and the framework says so on stderr. Declaring it
+                // here is what puts that line in a real run's output, instead of leaving it
+                // covered only by a unit test on a machine that cannot load user32.dll.
+                Menus.editMenu());
 
         app = new WebApp(host)
                 .title(WINDOW_TITLE)
@@ -210,9 +222,9 @@ public final class WindowsSelfTest {
                 // 11. The menu's two bindings, and the eleventh check with them. The first
                 // is the item the platform dispatches to when the native menu is chosen, and
                 // the counter it moves is the effect the check asserts; the second is the
-                // click that chooses it.
-                .bind("menuProbe", params -> PROBE_COUNT.incrementAndGet())
-                .bind("menuProbe2", params -> PROBE_COUNT_2.incrementAndGet())
+                // item after the separator, which has a counter of its own.
+                .bind(PROBE, params -> PROBE_COUNT.incrementAndGet())
+                .bind(OTHER, params -> OTHER_COUNT.incrementAndGet())
 
                 // The click, and the wait for its effect.
                 //
@@ -226,12 +238,19 @@ public final class WindowsSelfTest {
                 //
                 // The wait is bounded. Two seconds is generous for a message that is already
                 // queued, and a check that can wait forever is not a check.
+                //
+                // The item is named rather than numbered, so the page says which one it
+                // means and the name-to-id mapping stays here, where the model is.
                 .bind("menuClick", params -> {
-                    host.clickMenuItem(probeId);
-                    for (int waited = 0; waited < 200 && PROBE_COUNT.get() == 0; waited++) {
+                    String which = String.valueOf(params.getOrDefault("item", PROBE));
+                    AtomicInteger counter = counterOf(which);
+                    int before = counter.get();
+                    host.clickMenuItem(idOf(bar, which));
+                    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+                    while (counter.get() == before && System.nanoTime() < deadline) {
                         Thread.sleep(10);
                     }
-                    return PROBE_COUNT.get();
+                    return counter.get();
                 })
 
                 // The verdict goes here, so it lands in stdout where a machine can read it.
@@ -355,17 +374,34 @@ public final class WindowsSelfTest {
      */
     private static void capture() {
         String target = System.getenv().getOrDefault("PANAMAVIEW_SCREENSHOT", "selftest-window.png");
+        String editTarget = System.getenv().getOrDefault("PANAMAVIEW_SCREENSHOT_EDIT",
+                "selftest-window-edit.png");
         try {
-            openMenu();
             Robot robot = new Robot();
-            Rectangle screen = new Rectangle(Toolkit.getDefaultToolkit().getScreenSize());
-            BufferedImage image = robot.createScreenCapture(screen);
+            // The application's own menu, open: the binding item is in it, and the log
+            // cannot show that.
+            openMenu(robot, MENU_TITLE);
+            BufferedImage image = robot.createScreenCapture(screen());
             ImageIO.write(image, "png", new File(target));
             System.out.println("[selftest] the screenshot is at " + target
                     + " (" + image.getWidth() + "x" + image.getHeight() + ")");
+            // The framework's Edit menu, open, so its items are in a picture too. Windows has
+            // no route for the editing commands, so they are built disabled — the stderr line
+            // says so, but a picture is a picture.
+            closeMenu(robot);
+            openMenu(robot, EDIT_TITLE);
+            BufferedImage editImage = robot.createScreenCapture(screen());
+            ImageIO.write(editImage, "png", new File(editTarget));
+            System.out.println("[selftest] the second screenshot is at " + editTarget
+                    + " (" + editImage.getWidth() + "x" + editImage.getHeight() + ")");
         } catch (Throwable t) {
             System.err.println("[selftest] the screenshot could not be taken: " + t);
         }
+    }
+
+    /** The whole screen, as the desktop is drawn on it. */
+    private static Rectangle screen() {
+        return new Rectangle(Toolkit.getDefaultToolkit().getScreenSize());
     }
 
     /**
@@ -377,7 +413,7 @@ public final class WindowsSelfTest {
      * has to be about <em>this</em> window's menu: an open menu is a window of its own, and
      * the one that is open has to belong to the window being photographed.
      */
-    private static void openMenu() {
+    private static void openMenu(Robot robot, String title) {
         try {
             MemorySegment window = Win32Menu.findWindow(WINDOW_TITLE);
             if (window == null) {
@@ -389,13 +425,13 @@ public final class WindowsSelfTest {
                 System.err.println("[selftest] the screenshot: the window has no menu");
                 return;
             }
-            int position = Win32Menu.findItem(menu, MENU_TITLE);
+            int position = Win32Menu.findItem(menu, title);
             if (position < 0) {
-                System.err.println("[selftest] the screenshot: the menu has no '" + MENU_TITLE + "'");
+                System.err.println("[selftest] the screenshot: the menu has no '" + title + "'");
                 return;
             }
             Rectangle item = Win32Menu.itemRectangle(window, menu, position);
-            System.out.println("[selftest] the screenshot: the menu item '" + MENU_TITLE
+            System.out.println("[selftest] the screenshot: the menu item '" + title
                     + "' is at " + item.x + "," + item.y + " " + item.width + "x" + item.height);
             for (int attempt = 0; attempt < 2; attempt++) {
                 // The click is in Win32's own coordinates, not in AWT's. They are not the same
@@ -415,6 +451,50 @@ public final class WindowsSelfTest {
         } catch (Throwable t) {
             System.err.println("[selftest] the screenshot: the menu could not be opened: " + t);
         }
+    }
+
+    /**
+     * Closes an open menu.
+     *
+     * <p>Escape, which the menu has while it is open. It is best effort: a menu that stayed
+     * open would not be a problem either, because clicking another item of the menu bar
+     * switches to it.
+     */
+    private static void closeMenu(Robot robot) {
+        robot.keyPress(java.awt.event.KeyEvent.VK_ESCAPE);
+        robot.keyRelease(java.awt.event.KeyEvent.VK_ESCAPE);
+        try {
+            Thread.sleep(400);
+        } catch (InterruptedException ignored) {
+            // closing anyway
+        }
+    }
+
+    /**
+     * The id the platform will report for the item that names this binding.
+     *
+     * <p>Read out of the model rather than guessed. The model numbers its items while it is
+     * built, and it numbers the separator too, so the item after a separator carries the id
+     * the model gave it and not the number of the items before it.
+     */
+    private static int idOf(MenuBar bar, String binding) {
+        for (Menu menu : bar.menus()) {
+            for (Item item : menu.items()) {
+                if (binding.equals(item.binding())) {
+                    return item.id();
+                }
+            }
+        }
+        throw new IllegalStateException("the menu has no item bound to '" + binding + "'");
+    }
+
+    /** The counter of the item that names this binding. */
+    private static AtomicInteger counterOf(String binding) {
+        return switch (binding) {
+            case PROBE -> PROBE_COUNT;
+            case OTHER -> OTHER_COUNT;
+            default -> throw new IllegalArgumentException("no menu item is bound to '" + binding + "'");
+        };
     }
 
     private static Map<String, Object> runtime() {

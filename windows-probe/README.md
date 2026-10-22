@@ -67,27 +67,40 @@ Expected output ends:
 [selftest]   PASS  hello - Hello World
 [selftest]   PASS  json round trip - {"a":1,"b":"two","c":[3,4],"d":{"nested":true},"e":null}
 [selftest]   PASS  slow handler does not block - hello answered in 1 ms while slow(600 ms) was in flight
-[selftest]   PASS  control: UI-thread handler does block - hello delayed 402 ms behind slowUi(400 ms)
+[selftest]   PASS  control: UI-thread handler does block - hello delayed 405 ms behind slowUi(400 ms)
 [selftest]   PASS  cancel actually stops the handler - handler interrupted (count 0 -> 1); page stopped waiting in 0 ms
 [selftest]   PASS  java-side deadline fires on its own - rejected after 303 ms with "no answer within 300 ms"
 [selftest]   PASS  deadline can be disabled - ran 200 ms with no deadline
-[selftest]   PASS  platform extra runs on UI thread - window 1000x700 at 49,49, onUiThread=true
+[selftest]   PASS  platform extra runs on UI thread - window 1000x700 at 441,441, onUiThread=true
 [selftest]   PASS  ordinary handler runs off the UI thread - OpenJDK 64-Bit Server VM, handler on VirtualThread
-[selftest]   PASS  200 concurrent invocations - 200 round trips in 24 ms
-[selftest]   PASS  menu item reaches its binding - the click ran the binding 1 time(s)
-[selftest] the screenshot: the menu item '文件' is at 316,107 78x38
+[selftest]   PASS  200 concurrent invocations - 200 round trips in 23 ms
+[selftest]   PASS  menu item reaches its binding - the menu item ran the binding 1 time(s), and the one after the separator 1
+[selftest] the screenshot: the menu item '文件' is at 708,499 78x38
 [selftest] the screenshot is at selftest-window.png (1920x1080)
+[selftest] the screenshot: the menu item 'Edit' is at 786,499 68x38
+[selftest] the second screenshot is at selftest-window-edit.png (1920x1080)
 [selftest] DONE
 ```
 
-That block is one run — the run the screenshot beside it came from. Two of its numbers are
+That block is one run — the run the screenshots beside it came from. Two of its numbers are
 Windows' to choose rather than the test's: the window's **position**, which `CW_USEDEFAULT`
 places where it likes and which moved on every run of that box (49,49 / 98,98 / 196,196 /
-294,294 / 392,392), and the milliseconds, which are the machine's. The verdict is the same
-either way: eleven passed, none failed, and the exit code 0.
+245,245 / 294,294 / 392,392 / 441,441), and the milliseconds, which are the machine's. The
+verdict is the same either way: eleven passed, none failed, and the exit code 0.
+
+**One line in the run's output is not the test's, and it is not a failure.** Chromium's own
+teardown says:
+
+```
+[1023/004218.638:ERROR:ui\gfx\win\window_impl.cc:172] Failed to unregister class Chrome_WidgetWin_0. Error = 1411
+```
+
+It comes after the verdict and after the exit code, and PowerShell renders a native command's
+stderr as an error, so a reader — or a log parser — can take it for one. It is the browser
+tidying up after the window closed, and it is what the run has always ended with.
 
 The two lines worth reading together are the slow-handler pair. The same work, the same
-duration, on two different threads: **1 ms** on a virtual thread, **402 ms** on the UI thread.
+duration, on two different threads: **1 ms** on a virtual thread, **405 ms** on the UI thread.
 That difference is the whole threading contract, measured.
 
 The eleventh check is the menu, and it is the one this platform owes the other one. The
@@ -98,27 +111,49 @@ the effect lives in the binding rather than in the page, because the click cross
 before it lands: the message to the window, the pump thread's `WM_COMMAND` handling, and the
 binding on a virtual thread.
 
+**Two items are clicked, not one**, and the second is the one *after* the separator. The
+model numbers the separator too, so the item after it does not shift, and the native menu
+reports 0 for a separator — so an off-by-one in the id mapping would send the second click to
+the wrong item, silently, which is what this check exists to rule out. Both counters are
+asserted, in one check: the first item's and the second's.
+
+**The bar carries the framework's Edit menu too, and its items are disabled.** Windows has no
+route for the editing commands — the browser performs them itself — so every item in that menu
+is built greyed out, and the framework says so on stderr:
+
+```
+[panamaview] these menu operations have no Windows route, so their items are disabled: [UNDO, REDO, CUT, COPY, PASTE, SELECT_ALL]
+```
+
+That line is the evidence, and it is in the run's output because the self-test declares the
+Edit menu: the disabled path was otherwise covered only by a unit test on a machine that
+cannot load `user32.dll` at all.
+
 A **watchdog** stands behind the verdict. The exit code belongs to the application, and a
 failure before the window exists — a menu whose titles do not match the model is refused at
 start-up — leaves the page with nothing to report, so the process would sit there and exit 0:
 loud on stderr, and a pass to anything reading the exit code. If the page has not reported
 within a minute, the self-test says so and exits non-zero.
 
-The verdict is in the log; the screenshot is the evidence that something was actually drawn —
-a real Windows 11 desktop, the app window, eleven PASS lines on the page, and the menu bar
-with the 文件 menu open:
+The verdict is in the log; the screenshots are the evidence that something was actually
+drawn. The first is a real Windows 11 desktop, the app window, the eleven PASS lines on the
+page, and the framework's Edit menu open with its items greyed out — the editing commands
+Windows has no route for, built and not choosable:
 
 ![the Windows self-test, eleven checks passed](../docs/screenshot-windows.png)
+
+The second is the same window a moment earlier, with the application's own 文件 menu open and
+its binding item 探测 in it — the one thing the log cannot show:
+
+![the Windows self-test's menu, magnified](../docs/screenshot-windows-menu.png)
 
 That box's display runs at 200% scaling, so a capture is the desktop at half its size: the
 window is 1000×700 in the pixels the framework asked for and 500×350 in the picture. The
 menu item's rectangle in the log is in physical pixels too — `GetMenuItemRect` answers in
-Win32's own coordinates — so `at 316,107 78x38` is at `158,53 39x19` in the picture. The same
-picture, magnified twice, is what the menu looks like at the size a person at the keyboard
-sees it — the application's own menu, its binding item 探测 in it, and the Chinese titles as
-characters rather than as mojibake:
-
-![the Windows self-test's menu, magnified](../docs/screenshot-windows-menu.png)
+Win32's own coordinates — so `at 708,499 78x38` is at `354,249 39x19` in the picture. The
+second picture is that same window magnified twice, which is what the menu looks like at the
+size a person at the keyboard sees it: the application's own menu, its binding item 探测 in
+it, and the Chinese titles as characters rather than as mojibake.
 
 It opens a window, so like the smoke it needs an interactive session — see the next section for
 running it from SSH.

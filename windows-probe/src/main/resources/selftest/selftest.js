@@ -165,10 +165,19 @@
     // three hops: the message to the window, the pump thread's WM_COMMAND handling, and the
     // binding on a virtual thread. The answer therefore arrives with the result, in one
     // round trip, and the page never has to poll.
+    //
+    // Two items, not one, and the second one is the one after the separator. The ids here
+    // are explicit rather than positional, so the trap is not a count but the separator
+    // itself: the model numbers the separator too, so the item after it does not shift,
+    // and the native menu reports 0 for a separator. An off-by-one in the id mapping would
+    // send the second click to the wrong item — silently, which is what this check exists
+    // to rule out.
     try {
-      const count = await java.invoke("menuClick", {});
-      check("menu item reaches its binding", count >= 1,
-            "the click ran the binding " + count + " time(s)");
+      const first = await java.invoke("menuClick", {});
+      const second = await java.invoke("menuClick", { item: "menuProbe2" });
+      check("menu item reaches its binding", first >= 1 && second >= 1,
+            "the menu item ran the binding " + first + " time(s), and the one after the "
+            + "separator " + second);
     } catch (error) {
       check("menu item reaches its binding", false, String(error.message));
     }
