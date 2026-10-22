@@ -31,11 +31,12 @@ import java.util.TreeSet;
  * silently, and they are the parts a build can check: the native half cannot be touched
  * outside Windows at all, because {@code Win32}'s static initializer binds {@code user32.dll}.
  *
- * <p>So the class is package-private, like the rest of this package except {@code WindowsHost}:
- * an application cannot reach the plan, and the platform seam stays the whole surface. The
- * plan's records are public inside it, which is what lets this package's own test read them —
- * the same shape the macOS package has, where {@code Cocoa} is package-private and its methods
- * are not.
+ * <p>So the class is package-private: an application cannot reach the plan, and the
+ * machinery behind it is out of reach too — {@code Com}, {@code Win32} and this class are all
+ * package-private. {@code WebView2} is the one other public class here, and it is public for
+ * one method: the version of the installed runtime. The plan's records are public inside the
+ * class, which is what lets this package's own test read them — the same shape the macOS
+ * package has, where {@code Cocoa} is package-private and its methods are not.
  *
  * <p>The flags live here rather than in {@code Win32}, whose static initializer reaches for
  * {@code user32.dll}: a constant in the class that binds the library is a subtlety nobody
@@ -68,11 +69,22 @@ final class WinMenu {
      * as a signed int. Masking that to the low word gives 65535, which is a number the
      * framework could look up by mistake, so it is named here instead of being written out
      * where it is used.
+     *
+     * <p>It is a value the system reported, not a sentinel, and it is not
+     * {@link #NO_COMMAND}: that one means "this {@code wParam} carries no command", and the
+     * two are given different values so that a reader cannot mistake one for the other.
      */
     private static final int POPUP_ID = -1;
 
-    /** No command: the {@code wParam} did not carry an id the framework may act on. */
-    public static final int NO_COMMAND = -1;
+    /**
+     * What {@link #commandId} returns when the {@code wParam} carries no command id.
+     *
+     * <p>Not {@link #POPUP_ID}'s {@code -1}: that is the id a popup reports, and comparing a
+     * reported id against "there is no id" would be a silent bug. This one is below every id
+     * the framework hands out — the ids start at 1 — and below the {@code -1} a popup reports,
+     * so no id can ever be mistaken for it.
+     */
+    public static final int NO_COMMAND = -2;
 
     /** The most characters a menu title may hold, and the buffer the read-back uses. */
     private static final int MAX_TITLE_CHARS = 512;
@@ -218,26 +230,35 @@ final class WinMenu {
 
         try (Arena scope = Arena.ofConfined()) {
             MemorySegment bar = Win32.createMenu();
+            List<MemorySegment> submenus = new ArrayList<>();
             try {
-                List<MemorySegment> submenus = new ArrayList<>();
                 for (MenuPlan menu : plan.menus()) {
                     MemorySegment submenu = Win32.createMenu();
+                    // Listed the moment it exists, so that a failure in the middle of it is
+                    // still a failure the framework can clean up after.
+                    submenus.add(submenu);
                     for (ItemPlan item : menu.items()) {
                         // A separator's text and id are both ignored, so neither is passed.
+                        // AppendMenuW's own result is not checked: the read-back below is the
+                        // check, and it says which item went missing.
                         Win32.appendMenu(scope, submenu, item.flags(), item.commandId(),
                                 item.isSeparator() ? null : item.text());
                     }
                     // A top-level menu joins the bar as an item with MF_POPUP, whose uIDNewItem
                     // is the submenu's handle rather than a command id.
                     Win32.appendMenu(scope, bar, MF_POPUP, submenu.address(), menu.title());
-                    submenus.add(submenu);
                 }
                 verify(bar, plan, submenus, scope);
             } catch (Throwable t) {
-                // The menu was never given to a window, so it is the framework's to free. A
-                // menu that did reach a window is a different matter, and is left to the
-                // process — see the host.
+                // The menu was never given to a window, so it is the framework's to free — and
+                // DestroyMenu does not free a menu's popups, so the submenus are freed one by
+                // one as well. The bar goes first, so that no live menu is ever left holding
+                // a handle to a freed one. A menu that did reach a window is a different
+                // matter, and is left to the process — see the host.
                 Win32.destroyMenu(bar);
+                for (MemorySegment submenu : submenus) {
+                    Win32.destroyMenu(submenu);
+                }
                 throw t;
             }
             return bar;

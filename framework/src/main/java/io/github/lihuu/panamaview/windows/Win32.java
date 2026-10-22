@@ -217,7 +217,13 @@ final class Win32 {
         }
     }
 
-    /** Asks the window's own procedure, from any thread, to run something on the pump thread. */
+    /**
+     * Asks the window's own procedure, from any thread, to run something on the pump thread.
+     *
+     * <p>The result is dropped on purpose, and unlike the menu's posts this one is not fatal:
+     * it is a nudge, and the queue it wakes is the source of truth. A nudge that did not
+     * arrive costs a wake-up, not a message.
+     */
     static void postRunnable(MemorySegment hwnd, long wparamForFlags) {
         postMessage(hwnd, WM_APP_RUNNABLE, wparamForFlags, 0L);
     }

@@ -268,9 +268,24 @@ public final class WindowsHost implements UiHost, MenuHost {
             return;
         }
         switch (operation) {
-            case QUIT -> Win32.postMessage(hwnd, Win32.WM_CLOSE, 0L, 0L);
+            case QUIT -> postOrFail(hwnd, Win32.WM_CLOSE, 0L, 0L);
             default -> System.err.println("[panamaview] the menu operation " + operation
                     + " has no Windows route; its item was built disabled");
+        }
+    }
+
+    /**
+     * Posts a message, and says so when the message did not arrive.
+     *
+     * <p>{@code PostMessageW} reports failure by returning zero, and a message that was not
+     * posted is a message that will never be handled. A failed Quit post means the
+     * application silently does not quit, and a failed click post means a test waits for a
+     * click that will never come — so neither is left to pass unnoticed.
+     */
+    private static void postOrFail(MemorySegment hwnd, int message, long wparam, long lparam) {
+        if (!Win32.postMessage(hwnd, message, wparam, lparam)) {
+            throw new IllegalStateException("the message 0x" + Integer.toHexString(message)
+                    + " was not posted to the window");
         }
     }
 
@@ -376,7 +391,9 @@ public final class WindowsHost implements UiHost, MenuHost {
      * refuses when there is no window to post to.
      *
      * <p>The id is the one the framework assigned, and it is readable from the declared bar —
-     * {@code Item.id()} is public — so a test knows which id to post.
+     * {@code Item.id()} is public — so a test knows which id to post. A post that fails is
+     * reported rather than swallowed: a click that was never posted is a click that will
+     * never arrive.
      *
      * <p>It is on this class and not on {@link UiHost} because {@code UiHost} is a published
      * type that may not gain abstract methods.
@@ -387,7 +404,7 @@ public final class WindowsHost implements UiHost, MenuHost {
             throw new IllegalStateException("the window does not exist yet, so there is nothing to "
                     + "post a menu command to");
         }
-        Win32.postMessage(window, Win32.WM_COMMAND, id, 0L);
+        postOrFail(window, Win32.WM_COMMAND, id, 0L);
     }
 
     /** Where the window is, as {@code widthxheight at x,y}. Registered by the composition root. */

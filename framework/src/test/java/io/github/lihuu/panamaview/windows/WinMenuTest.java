@@ -122,12 +122,19 @@ class WinMenuTest {
         // built-in menus need them. The Windows builder ignores them: a shortcut the
         // framework handled would have to take the key away from the page, which is the
         // opposite of what the measurement says, and the accelerator route is a separate
-        // piece of work. So the plan says nothing about them — there is no field for them.
-        var plan = WinMenu.plan(Menus.menu(Menus.menu("文件",
+        // piece of work.
+        //
+        // The witness is the comparison, and it is the only one that can witness it: the
+        // plan of a bar declared with a shortcut is the plan of the same bar declared
+        // without one. An assertion on the flags alone would see nothing, because every
+        // ordinary item has those flags.
+        var withShortcut = WinMenu.plan(Menus.menu(Menus.menu("文件",
                 Menus.item("export", "导出").shortcut("CmdOrCtrl+E"))), "MyApp");
+        var withoutShortcut = WinMenu.plan(Menus.menu(Menus.menu("文件",
+                Menus.item("export", "导出"))), "MyApp");
 
-        assertEquals(WinMenu.MF_STRING, plan.menus().get(0).items().get(0).flags(),
-                "the shortcut contributes no flag and no accelerator is registered");
+        assertEquals(withoutShortcut, withShortcut,
+                "the shortcut plays no part in the Windows menu: no accelerator is registered");
     }
 
     @Test
@@ -175,5 +182,33 @@ class WinMenuTest {
                         + "binding numbered 65535");
         assertEquals(WinMenu.NO_COMMAND, WinMenu.commandId(0xFFFFFFFFL),
                 "a popup's id is 0xFFFFFFFF, which is not an id either");
+    }
+
+    @Test
+    void thePlanFindsAnItemByTheCommandIdTheFrameworkAssigned() {
+        // The host dispatches every click from this table, so it is the host's whole lookup
+        // path: a lookup that answered with the wrong item would run the wrong binding.
+        var bar = Menus.menu(Menus.menu("文件",
+                Menus.item("export", "导出"),
+                Menus.platformItem(Platform.QUIT, "退出")));
+        var items = bar.menus().get(0).items();
+        var plan = WinMenu.plan(bar, "MyApp");
+
+        assertEquals("导出", plan.itemFor(items.get(0).id()).text());
+        assertEquals(Platform.QUIT, plan.itemFor(items.get(1).id()).operation(),
+                "a platform item keeps its operation, so the host knows it is the host's");
+        assertNull(plan.itemFor(items.get(0).id() + 1000),
+                "an id the menu does not have names no item");
+    }
+
+    @Test
+    void anEmptyBarBuildsNoMenu() {
+        // Windows installs nothing of its own: an application that declares no bar gets no
+        // menu, and that is the whole of the difference from macOS. The plan holds no menus,
+        // so there is nothing to build and nothing to free.
+        var plan = WinMenu.plan(Menus.menu(), "MyApp");
+
+        assertTrue(plan.menus().isEmpty());
+        assertNull(WinMenu.build(plan), "a bar with no menus is no menu at all");
     }
 }
