@@ -86,4 +86,11 @@ class CocoaMenuTest {
                 "the application menu is the framework's; an application's own menu says what it "
                         + "says");
     }
+
+    @Test
+    void anItemWithNoTitleGetsAnEmptyOne() {
+        // A separator has no title, and a null must not leave the method: the native call that
+        // takes a title would be handed one.
+        assertEquals("", Cocoa.itemTitle(Menus.appMenu(), Menus.separator(), "MyApp"));
+    }
 }

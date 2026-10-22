@@ -97,16 +97,17 @@ class MenuModelTest {
     void undoAndRedoDoNotShareAKeyEquivalent() {
         // Measured on real AppKit: among items with different actions, the second one to
         // declare the same key and the same mask loses its key equivalent entirely, and is
-        // then reachable by no chord at all. Items that share an action both keep theirs — two
-        // of the framework's binding items with the same key and the same mask both kept
-        // theirs. Undo and Redo are platform items, each with its own action, so they have to
-        // differ; the shipped menu's "z" and "Z" are what kept both of them alive.
+        // then reachable by no chord at all — and that reaches across the whole main menu, not
+        // only within one of its menus. Items that share an action both keep theirs — two of
+        // the framework's binding items with the same key and the same mask both kept theirs.
+        // Undo and Redo are platform items, each with its own action, so they have to differ;
+        // the shipped menu's "z" and "Z" are what kept both of them alive.
         var undo = Menus.editMenu().items().get(0).shortcut();
         var redo = Menus.editMenu().items().get(1).shortcut();
 
         assertFalse(undo.key().equals(redo.key()) && undo.modifiers().equals(redo.modifiers()),
                 "Undo and Redo must not declare the same key equivalent and the same mask, or "
-                        + "AppKit drops the second one's shortcut entirely");
+                        + "AppKit drops the second one's shortcut entirely — anywhere in the bar");
     }
 
     @Test

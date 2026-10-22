@@ -109,7 +109,10 @@ final class Cocoa {
         if (isAppMenu(menu) && item.platformAction() == Platform.QUIT) {
             return "Quit " + appName;
         }
-        return item.title();
+        // A separator has no title, and the null must not leave this method: the native call
+        // that takes a title would be handed one.
+        String title = item.title();
+        return title == null ? "" : title;
     }
 
     /** Whether this is the application's own menu — the one the model could not name. */

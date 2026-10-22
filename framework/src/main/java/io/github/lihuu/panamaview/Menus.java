@@ -50,8 +50,8 @@ public final class Menus {
      * with their modifier rather than as a bare character, because the platform now sets the
      * modifier mask explicitly. AppKit's default for a bare character is ⌘, but the model has
      * no such default to fall back on: the platform sets the mask always, so a declaration with
-     * no modifier means the bare key — the plain "C", not ⌘C — and the built-in menus have to
-     * say which they mean.
+     * no modifier means the bare key — the plain "c" on its own, not ⌘C — and the built-in menus
+     * have to say which they mean.
      *
      * <p>Redo keeps the shipped item's key equivalent: an uppercase "Z", with no mask set, so
      * AppKit's default mask — Command — applied, and the uppercase letter changed only the
@@ -63,8 +63,9 @@ public final class Menus {
      * <p>Redo's key stays uppercase for one more reason, measured on real AppKit: two items
      * that declare the same key and the same mask do not always both keep their shortcut. Two
      * items with different actions — which is what the platform items are, each with its own
-     * — leave the second one with no key equivalent at all, and so with no chord. Two items
-     * that share an action both keep theirs, which is how the framework's binding items, all of
+     * — leave the second one with no key equivalent at all, and so with no chord, and that
+     * reaches across the whole main menu, not only within one of its menus. Two items that
+     * share an action both keep theirs, which is how the framework's binding items, all of
      * them the same action, get away with the same shortcut. Undo already holds ("z", Command),
      * so Redo has to differ from it: the shipped menu's "z" and "Z" are what kept both of them
      * alive.
