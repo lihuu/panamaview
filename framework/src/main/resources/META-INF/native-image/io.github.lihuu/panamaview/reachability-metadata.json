@@ -27,7 +27,7 @@
     "AssetSchemeHandler serves the app's assets over a private URL scheme instead of file://, because an opaque file:// origin refuses ES modules, fetch and Workers. It adds one downcall shape -- NSHTTPURLResponse's initWithURL:statusCode:HTTPVersion:headerFields: takes four objects and an NSInteger -- and two upcalls for the WKURLSchemeHandler protocol.",
     "dataWithBytes:length: needs an object followed by an NSInteger -- the reverse of representationUsingType:properties:, so it is a separate registered shape.",
     "Notifications adds UNUserNotificationCenter: two block callbacks (handleAuthorization, handlePost) and one downcall shape -- requestAuthorizationWithOptions:completionHandler: takes an NSUInteger followed by a block.",
-    "The message send with no arguments -- void*(void*,void*) -- is alloc and +[NSMenuItem separatorItem], and a BOOL send with one object argument -- jbyte(void*,void*,void*) -- is setFrameUsingName:. The code built both, and the file registered neither.",
+    "The message send with no arguments -- void*(void*,void*) -- is alloc and +[NSMenuItem separatorItem], and a BOOL send with one object argument -- jbyte(void*,void*,void*) -- is setFrameUsingName:. The code built both, and the file registered neither -- until these two entries were added.",
     "MenuTarget's handleMenuItem is the menu item's action, reached from AppKit. It is an upcall, so it is registered by class and method rather than by shape: void(void*,void*,void*) was already registered for ObjCDispatch, and that fact covers nothing here."
   ],
   "reflection": [

@@ -22,7 +22,12 @@ What it checks:
     still matches the method's Java signature;
   * every directUpcalls entry has a matching reflection entry, and every reflection
     entry that names a framework class still names a method that exists, with the
-    parameters that method actually takes.
+    parameters that method actually takes;
+  * every descriptor the sources build is accounted for: a constant or an inline
+    construction that this check cannot place in a downcall or an upcall position is
+    reported, never dropped. A descriptor it cannot place is a descriptor it cannot
+    vouch for, and the whole point of the check is that a shape nobody registered is
+    a native build that dies on the first downcall.
 
 What it cannot check: the upcall side forwards. Some upcall sites name their class
 and method through variables -- NativeBlock builds its stub from an owner and a
@@ -78,13 +83,32 @@ KEYWORDS = {
     "instanceof", "this", "super", "null", "true", "false", "var", "synchronized",
 }
 
+# The two shapes of a descriptor: written out where it is built, or named by a
+# constant.
+INLINE = re.compile(r"FunctionDescriptor\.(of|ofVoid)\s*\(")
+
+# A type declaration. The modifiers are optional and the file's own indentation is
+# not, because a nested class is not a top-level one.
+DECLARATION = re.compile(
+    r"(?m)^[ \t]*(?:(?:public|final|abstract|sealed|non-sealed|strictfp)\s+)*"
+    r"(?:class|interface|enum|record)\s+([A-Za-z_$][A-Za-z0-9_$]*)")
+
+
+class MetadataError(Exception):
+    """The metadata file is not shaped the way this check reads it."""
+
 
 # --------------------------------------------------------------------- reading
 
 
 def strip_comments(text):
-    """The text with its comments blanked out, so a match never sees a comment."""
+    """The text with its comments blanked out, and the spans of its literals.
+
+    The blanking keeps every offset, so a span measured here is still true of the
+    text that comes back.
+    """
     out = []
+    literals = []
     i = 0
     n = len(text)
     while i < n:
@@ -93,6 +117,7 @@ def strip_comments(text):
             end = text.find('"""', i + 3)
             end = n if end < 0 else end + 3
             out.append(text[i:end])
+            literals.append((i, end))
             i = end
             continue
         if c in "\"'":
@@ -101,8 +126,10 @@ def strip_comments(text):
                 if text[end] == "\\":
                     end += 1
                 end += 1
-            out.append(text[i:end + 1])
-            i = end + 1
+            end = min(end + 1, n)
+            out.append(text[i:end])
+            literals.append((i, end))
+            i = end
             continue
         if text.startswith("//", i):
             end = text.find("\n", i)
@@ -118,7 +145,33 @@ def strip_comments(text):
             continue
         out.append(c)
         i += 1
-    return "".join(out)
+    return "".join(out), literals
+
+
+def mask_literals(text, literals):
+    """The text with the contents of its literals blanked out.
+
+    A brace inside a string is not a brace, and a file that puts one there would
+    otherwise look like it declares a type inside a method.
+    """
+    if not literals:
+        return text
+    chars = list(text)
+    for start, end in literals:
+        for i in range(start, end):
+            if chars[i] != "\n":
+                chars[i] = " "
+    return "".join(chars)
+
+
+def in_literal(literals, index):
+    """True when the character at `index` is inside a string or a character literal."""
+    for start, end in literals:
+        if start <= index < end:
+            return True
+        if index < start:
+            return False
+    return False
 
 
 def match_paren(text, start):
@@ -147,10 +200,15 @@ def match_paren(text, start):
 
 
 def split_args(text):
-    """The top-level arguments of an argument list."""
+    """The top-level arguments of an argument list.
+
+    Angle brackets are counted, so a generic parameter type with a comma in it --
+    Map<String, Integer> -- is one parameter and not two.
+    """
     args = []
     current = []
     depth = 0
+    angles = 0
     i = 0
     n = len(text)
     while i < n:
@@ -168,7 +226,13 @@ def split_args(text):
             depth += 1
         elif c in ")]}":
             depth -= 1
-        if c == "," and depth == 0:
+        elif c == "<" and i > 0 and (text[i - 1].isalnum() or text[i - 1] in "_$>"):
+            # A generic type. A comparison has a space before the sign, and a
+            # lambda's '->' has a dash before it, so neither is counted here.
+            angles += 1
+        elif c == ">" and angles > 0:
+            angles -= 1
+        if c == "," and depth == 0 and angles == 0:
             args.append("".join(current))
             current = []
             i += 1
@@ -204,25 +268,25 @@ def shape_text(shape):
     return "%s(%s)" % (return_type, ",".join(parameters))
 
 
-def layout_shape(token):
+def layout_shape(token, structs):
     """The shape of one layout, or None when the token is not a layout we know."""
     token = token.strip()
     if token in LAYOUTS:
         return LAYOUTS[token]
-    if token in STRUCTS:
-        return STRUCTS[token]
+    if token in structs:
+        return structs[token]
     # A layout named with a trailing call -- JAVA_DOUBLE.withName("x") -- still names
     # one layout, and the name is one of its parts.
     for part in token.split("."):
         part = part.strip()
         if part in LAYOUTS:
             return LAYOUTS[part]
-        if part in STRUCTS:
-            return STRUCTS[part]
+        if part in structs:
+            return structs[part]
     return None
 
 
-def descriptor_shape(args, is_void):
+def descriptor_shape(args, is_void, structs):
     """The shape of a FunctionDescriptor built from `args`, or None if unresolvable."""
     if is_void:
         return_type, parameters = "void", args
@@ -233,48 +297,80 @@ def descriptor_shape(args, is_void):
     if is_void:
         resolved_return = "void"
     else:
-        resolved_return = layout_shape(return_type)
+        resolved_return = layout_shape(return_type, structs)
         if resolved_return is None:
             return None
     resolved = []
     for parameter in parameters:
-        shape = layout_shape(parameter)
+        shape = layout_shape(parameter, structs)
         if shape is None:
             return None
         resolved.append(shape)
     return (resolved_return, tuple(resolved))
 
 
+def carrier(layout):
+    """The Java carrier type of a native layout."""
+    if layout in CARRIERS:
+        return CARRIERS[layout]
+    # A by-value aggregate arrives in a MemorySegment.
+    return "java.lang.foreign.MemorySegment"
+
+
 # ----------------------------------------------------------------- the sources
 
 
 class Source:
-    """One Java file in the macos package, with what the check needs from it."""
+    """One Java file in the package, with what the check needs from it."""
 
     def __init__(self, path):
         self.path = path
-        self.name = path.stem
-        self.text = strip_comments(path.read_text(encoding="utf-8"))
+        self.file_name = path.stem
+        self.text, self.literals = strip_comments(path.read_text(encoding="utf-8"))
+        self.masked = mask_literals(self.text, self.literals)
+        self.package = ""
+        self.types = []
+        # The descriptor constants this file declares, and their shapes. A constant
+        # whose shape cannot be read is kept with a None, because a descriptor the
+        # check cannot read is a descriptor the check must report.
         self.constants = {}
-        self.parse()
 
-    def parse(self):
+    def parse_package(self):
+        found = re.search(r"(?m)^\s*package\s+([\w.]+)\s*;", self.text)
+        if found:
+            self.package = found.group(1)
+
+    def parse_types(self):
+        """The top-level types this file declares.
+
+        The class a file declares is not the file's name: a package-private class may
+        be renamed inside its own file, and the metadata names classes, not files.
+        """
+        for match in DECLARATION.finditer(self.text):
+            if self.depth_at(match.start()) == 0:
+                self.types.append(match.group(1))
+
+    def depth_at(self, index):
+        """How many braces are open at `index`."""
+        before = self.masked[:index]
+        return before.count("{") - before.count("}")
+
+    def struct_layouts(self):
+        """The by-value aggregates this file declares, as name -> element tokens."""
+        found = {}
         for match in re.finditer(r"MemoryLayout\s+(\w+)\s*=\s*MemoryLayout\.structLayout\s*\(",
                                  self.text):
             end = match_paren(self.text, match.end() - 1)
             if end < 0:
                 continue
-            elements = []
-            for element in split_args(self.text[match.end():end - 1]):
-                shape = layout_shape(element)
-                if shape is None:
-                    elements = None
-                    break
-                elements.append(shape)
-            if elements is not None:
-                STRUCTS[match.group(1)] = "struct(%s)" % ",".join(elements)
+            found[match.group(1)] = split_args(self.text[match.end():end - 1])
+        return found
 
+    def collect_constants(self, structs):
+        """The descriptor constants this file declares."""
         for match in re.finditer(r"FunctionDescriptor\s+(\w+)\s*=\s*", self.text):
+            if in_literal(self.literals, match.start()):
+                continue
             found = re.match(r"FunctionDescriptor\.(of|ofVoid)\s*\(", self.text[match.end():])
             if not found:
                 continue
@@ -282,16 +378,15 @@ class Source:
             if end < 0:
                 continue
             args = split_args(self.text[match.end() + found.end():end - 1])
-            shape = descriptor_shape(args, found.group(1) == "ofVoid")
-            if shape is not None:
-                self.constants[match.group(1)] = shape
+            shape = descriptor_shape(args, found.group(1) == "ofVoid", structs)
+            self.constants[match.group(1)] = shape
 
-    def resolve(self, token):
+    def resolve(self, token, package):
         """The shape of a reference to a descriptor constant, or None."""
         token = token.strip()
         if "." in token:
             owner, _, name = token.rpartition(".")
-            other = BY_SIMPLE_NAME.get(owner)
+            other = package.by_type_name.get(owner)
             if other is None:
                 return None
             return other.constants.get(name)
@@ -315,26 +410,77 @@ class Source:
             return simple_name(match.group(1)), parameters
         return None
 
-    def carriers(self, shape):
-        """The Java carrier types of a shape, in the order the stub sees them."""
-        return_type, parameters = shape
-        carriers = []
-        for parameter in parameters:
-            carriers.append(carrier(parameter))
-        return carriers
+
+class Package:
+    """The macos package: its sources, its struct layouts and its type names."""
+
+    def __init__(self, directory):
+        self.sources = [Source(path) for path in sorted(directory.glob("*.java"))]
+        for source in self.sources:
+            source.parse_package()
+            source.parse_types()
+        # Two rounds: every file's struct layouts first, then every descriptor. A
+        # struct declared in a file that is read later is still a struct, and a
+        # descriptor that names it must not lose it.
+        self.structs = self.collect_structs()
+        for source in self.sources:
+            source.collect_constants(self.structs)
+        # A type is named by the class it declares, not by the file it lives in.
+        self.by_type_name = {}
+        for source in self.sources:
+            for name in source.types:
+                self.by_type_name[name] = source
+        self.by_qualified_name = {}
+        for source in self.sources:
+            for name in source.types:
+                self.by_qualified_name[qualified(source, name)] = source
+
+    def collect_structs(self):
+        """Every by-value aggregate in the package, as name -> shape.
+
+        A struct's element may be another struct, and the files are not read in
+        dependency order, so the names are collected first and the shapes resolved
+        until nothing more can be resolved.
+        """
+        pending = {}
+        for source in self.sources:
+            for name, elements in source.struct_layouts().items():
+                pending[name] = elements
+        structs = {}
+        while True:
+            progress = False
+            for name, elements in pending.items():
+                if name in structs:
+                    continue
+                resolved = []
+                for element in elements:
+                    shape = layout_shape(element, structs)
+                    if shape is None:
+                        resolved = None
+                        break
+                    resolved.append(shape)
+                if resolved is not None:
+                    structs[name] = "struct(%s)" % ",".join(resolved)
+                    progress = True
+            if not progress:
+                return structs
+
+    def qualified(self, simple):
+        """The fully qualified name of a type this package declares, or None."""
+        source = self.by_type_name.get(simple)
+        if source is None:
+            return None
+        return qualified(source, simple)
 
 
-def carrier(layout):
-    """The Java carrier type of a native layout."""
-    if layout in CARRIERS:
-        return CARRIERS[layout]
-    # A by-value aggregate arrives in a MemorySegment.
-    return "java.lang.foreign.MemorySegment"
+def qualified(source, name):
+    """The fully qualified name of a type a source declares."""
+    return "%s.%s" % (source.package, name) if source.package else name
 
 
 # ------------------------------------------------------------------ the calls
 
-CALL = re.compile(r"(?:\.\s*)?([A-Za-z_$][A-Za-z0-9_$]*(?:\s*\.\s*[A-Za-z_$][A-Za-z0-9_$]*)*)\s*\(")
+CALL = re.compile(r"([A-Za-z_$][A-Za-z0-9_$]*(?:\s*\.\s*[A-Za-z_$][A-Za-z0-9_$]*)*)\s*\(")
 
 
 def is_declaration(text, name_start):
@@ -359,19 +505,45 @@ def classify(callee):
     return None
 
 
+class Call:
+    """One call, with the arguments it passes and where they are."""
+
+    def __init__(self, source, callee, name_start, arguments, declaration):
+        self.source = source
+        self.callee = callee
+        self.name_start = name_start
+        self.arguments = arguments
+        self.declaration = declaration
+
+    @property
+    def line(self):
+        return line_of(self.source.text, self.name_start)
+
+
 def calls(source):
-    """Every call in a source, as (callee, nameStart, arguments)."""
+    """Every call in a source.
+
+    A call that begins inside a string literal is not a call: a literal that quotes
+    code is documentation, and reading it as code is how a check invents a shape
+    that nobody builds.
+    """
     found = []
     for match in CALL.finditer(source.text):
+        if in_literal(source.literals, match.start(1)):
+            continue
         callee = re.sub(r"\s+", "", match.group(1))
         name_start = match.start(1) + match.group(1).rfind(callee.split(".")[-1])
-        if is_declaration(source.text, name_start):
-            continue
+        declaration = is_declaration(source.text, name_start)
         end = match_paren(source.text, match.end() - 1)
         if end < 0:
             continue
-        found.append((callee, name_start,
-                      split_args(source.text[match.end():end - 1])))
+        arguments = []
+        start = match.end()
+        for argument in split_args(source.text[start:end - 1]):
+            offset = source.text.find(argument, start, end - 1)
+            arguments.append((argument, offset if offset >= 0 else start))
+            start = offset + len(argument)
+        found.append(Call(source, callee, name_start, arguments, declaration))
     return found
 
 
@@ -387,262 +559,407 @@ def load_metadata():
         sys.exit("%s is not valid JSON: %s" % (METADATA, error))
 
 
-def registered_shape(entry):
+def shape_of(entry, where):
+    """The shape of a metadata entry, or a message saying what is wrong with it."""
+    if not isinstance(entry, dict):
+        raise MetadataError("%s is not an object" % where)
+    if "returnType" not in entry:
+        raise MetadataError("%s has no 'returnType'" % where)
+    if "parameterTypes" not in entry:
+        raise MetadataError("%s has no 'parameterTypes'" % where)
     return (entry["returnType"], tuple(entry["parameterTypes"]))
 
 
-def source_of(class_name):
-    """The Source for a framework class, or None when it is not one of ours."""
-    if not class_name.startswith(PACKAGE + "."):
+def class_of(entry, where):
+    """The class a metadata entry names, or a message saying what is wrong with it."""
+    if not isinstance(entry, dict):
+        raise MetadataError("%s is not an object" % where)
+    if "class" not in entry:
+        raise MetadataError("%s has no 'class'" % where)
+    return entry["class"]
+
+
+def method_of(entry, where):
+    """The method a metadata entry names, or a message saying what is wrong with it."""
+    if not isinstance(entry, dict):
+        raise MetadataError("%s is not an object" % where)
+    if "method" not in entry:
+        raise MetadataError("%s has no 'method'" % where)
+    return entry["method"]
+
+
+# ----------------------------------------------------------------- the scan
+
+
+class Scan:
+    """What the sources say about the descriptors they build."""
+
+    def __init__(self, package):
+        self.package = package
+        self.downcall_shapes = {}    # shape -> (source, line, how it was written)
+        self.upcall_sites = []      # (class, method, shape, source, line)
+        self.unreadable = []        # (source, line, how, reason)
+        self.placed = set()         # the descriptors that reached a call site
+        self.marker_calls = 0       # every call to a downcall or upcall helper
+        self.call_sites = 0         # the ones that are calls and not declarations
+        self.declarations = 0       # the helpers' own declarations
+        self.scan()
+
+    def scan(self):
+        for source in self.package.sources:
+            for call in calls(source):
+                kind = classify(call.callee)
+                if kind is None:
+                    continue
+                self.marker_calls += 1
+                if call.declaration:
+                    self.declarations += 1
+                    continue
+                self.call_sites += 1
+                if kind == "downcall":
+                    for argument, offset in call.arguments:
+                        self.place(source, call, argument, offset)
+                else:
+                    self.upcall(source, call)
+
+    def place(self, source, call, argument, offset):
+        """Account for one descriptor argument of a downcall, and record its shape."""
+        shape = descriptor_of(argument, source, self.package)
+        if shape is None:
+            return
+        self.placed.add((source, offset))
+        constant = resolved_constant(argument, source, self.package)
+        if constant is not None:
+            self.placed.add(constant)
+        for match in INLINE.finditer(argument):
+            self.placed.add((source, offset + match.start()))
+        self.downcall_shapes.setdefault(shape, (source, call.line, argument))
+
+    def upcall(self, source, call):
+        """Account for one upcall site, and record what it registers."""
+        if len(call.arguments) < 3:
+            self.unreadable.append((source, call.line, call.callee,
+                                    "the call does not name a class, a method and a "
+                                    "descriptor"))
+            return
+        class_argument, _ = call.arguments[0]
+        method_argument, _ = call.arguments[1]
+        descriptor_argument, offset = call.arguments[2]
+
+        class_match = re.fullmatch(r"([A-Za-z_$][A-Za-z0-9_$]*)\s*\.\s*class",
+                                   class_argument)
+        method_match = re.fullmatch(r'"([^"]*)"', method_argument)
+        if not class_match or not method_match:
+            self.unreadable.append((source, call.line, call.callee,
+                                    "the class and the method are not written out here"))
+            return
+        class_name = self.package.qualified(class_match.group(1))
+        if class_name is None:
+            self.unreadable.append((source, call.line, call.callee,
+                                    "the class %s is not declared in %s, so it is not "
+                                    "checked here" % (class_match.group(1), PACKAGE)))
+            return
+        shape = descriptor_of(descriptor_argument, source, self.package)
+        if shape is None:
+            self.unreadable.append((source, call.line, call.callee,
+                                    "the descriptor is not written out here"))
+            return
+        self.placed.add((source, offset))
+        constant = resolved_constant(descriptor_argument, source, self.package)
+        if constant is not None:
+            self.placed.add(constant)
+        for match in INLINE.finditer(descriptor_argument):
+            self.placed.add((source, offset + match.start()))
+        self.upcall_sites.append((class_name, method_match.group(1), shape,
+                                  source, call.line))
+
+
+def named_constant(argument):
+    """The constant name an argument names, or None."""
+    argument = argument.strip()
+    if not re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*(\s*\.\s*[A-Za-z_$][A-Za-z0-9_$]*)?",
+                        argument):
         return None
-    path = PACKAGE_DIR / (class_name.rsplit(".", 1)[1] + ".java")
-    if not path.is_file():
+    return re.sub(r"\s+", "", argument)
+
+
+def resolved_constant(argument, source, package):
+    """The (source, name) of the constant an argument names, or None.
+
+    A qualified name names the constant in the class it is qualified by, so
+    'ObjC.VOID1' is the constant VOID1 of ObjC -- which is what the file that
+    declares it is asked about.
+    """
+    token = named_constant(argument)
+    if token is None:
         return None
-    for source in SOURCES:
-        if source.path == path:
-            return source
-    return None
+    if "." in token:
+        owner, _, name = token.rpartition(".")
+        other = package.by_type_name.get(owner)
+        if other is None:
+            return None
+        return (other, name)
+    return (source, token)
 
 
-# ----------------------------------------------------------------- the report
-
-
-class Report:
-    def __init__(self):
-        self.problems = []
-        self.notes = []
-
-    def fail(self, message):
-        self.problems.append(message)
-
-    def note(self, message):
-        self.notes.append(message)
-
-
-SOURCES = []
-BY_SIMPLE_NAME = {}
-STRUCTS = {}
-
-
-def main():
-    metadata = load_metadata()
-    foreign = metadata.get("foreign") or {}
-    downcalls = foreign.get("downcalls")
-    direct_upcalls = foreign.get("directUpcalls")
-    reflection = metadata.get("reflection")
-    if downcalls is None or direct_upcalls is None or reflection is None:
-        sys.exit("%s has no 'foreign.downcalls', 'foreign.directUpcalls' or 'reflection'"
-                 % METADATA)
-
-    global SOURCES, BY_SIMPLE_NAME
-    SOURCES = [Source(path) for path in sorted(PACKAGE_DIR.glob("*.java"))]
-    if not SOURCES:
-        sys.exit("no Java sources in %s" % PACKAGE_DIR)
-    BY_SIMPLE_NAME = {source.name: source for source in SOURCES}
-
-    report = Report()
-
-    # ------------------------------------------------- what the sources use
-    used_downcalls = {}          # shape -> (source, line, how it was written)
-    upcall_sites = []            # (class, method, shape, source, line)
-    unresolved = []              # (source, line, the call as written)
-
-    for source in SOURCES:
-        for callee, name_start, arguments in calls(source):
-            kind = classify(callee)
-            if kind == "downcall":
-                for argument in arguments:
-                    shape = descriptor_of(argument, source)
-                    if shape is None:
-                        continue
-                    used_downcalls.setdefault(
-                        shape, (source, line_of(source.text, name_start), argument))
-            elif kind == "upcall":
-                if callee == "NativeBlock.of" or callee.endswith(".upcall"):
-                    site, reason = upcall_site(source, name_start, arguments)
-                    if site is None:
-                        unresolved.append((source, line_of(source.text, name_start),
-                                           callee, reason))
-                    else:
-                        upcall_sites.append(site)
-
-    # ------------------------------------------------- downcalls are registered
-    registered = {registered_shape(entry): entry for entry in downcalls}
-    missing = sorted(shape for shape in used_downcalls if shape not in registered)
-    for shape in missing:
-        source, line, how = used_downcalls[shape]
-        report.fail("the sources build %s but the file does not register it "
-                    "(%s/%s:%d, %s)"
-                    % (shape_text(shape), PACKAGE, source.name, line, how))
-
-    unused = sorted(shape for shape in registered if shape not in used_downcalls)
-    for shape in unused:
-        report.note("the file registers %s and no source in %s builds it"
-                    % (shape_text(shape), PACKAGE))
-
-    # ------------------------------------------------- upcalls are registered
-    upcall_entries = {}
-    for entry in direct_upcalls:
-        upcall_entries.setdefault((entry["class"], entry["method"]), []).append(entry)
-
-    for class_name, method, shape, source, line in upcall_sites:
-        entries = upcall_entries.get((class_name, method))
-        if not entries:
-            report.fail("%s.%s is used as an upcall (%s/%s:%d) but the file has no "
-                        "directUpcalls entry for it"
-                        % (class_name, method, PACKAGE, source.name, line))
-            continue
-        for entry in entries:
-            if registered_shape(entry) != shape:
-                report.fail("the directUpcalls entry for %s.%s registers %s but the "
-                            "call site builds %s"
-                            % (class_name, method,
-                               shape_text(registered_shape(entry)), shape_text(shape)))
-
-    # ------------------------------- the registrations point at real methods
-    reflection_entries = {}
-    for entry in reflection:
-        for method in entry.get("methods", []):
-            reflection_entries.setdefault((entry["type"], method["name"]), []).append(method)
-
-    for entry in direct_upcalls:
-        class_name = entry["class"]
-        method = entry["method"]
-        shape = registered_shape(entry)
-        source = source_of(class_name)
-        if source is None:
-            if class_name.startswith(PACKAGE + "."):
-                report.fail("the directUpcalls entry for %s.%s names a class that is "
-                            "not in the sources" % (class_name, method))
-            continue
-        found = source.method(method)
-        if found is None:
-            report.fail("the directUpcalls entry for %s.%s names a method that is not "
-                        "in %s" % (class_name, method, source.name))
-            continue
-        return_type, parameters = found
-        expected = source.carriers(shape)
-        if [simple_name(p) for p in parameters] != [simple_name(p) for p in expected]:
-            report.fail("%s.%s takes (%s) but its directUpcalls entry registers (%s)"
-                        % (class_name, method,
-                           ", ".join(parameters), ", ".join(expected)))
-        if simple_name(return_type) != simple_name(carrier(shape[0])):
-            report.fail("%s.%s returns %s but its directUpcalls entry registers %s"
-                        % (class_name, method, return_type, shape[0]))
-        if (class_name, method) not in reflection_entries:
-            report.fail("%s.%s has a directUpcalls entry but no reflection entry"
-                        % (class_name, method))
-
-    # ------------------------------- the reflection entries point at real methods
-    for entry in reflection:
-        class_name = entry["type"]
-        source = source_of(class_name)
-        if source is None:
-            if class_name.startswith(PACKAGE + "."):
-                report.fail("the reflection entry for %s names a class that is not in "
-                            "the sources" % class_name)
-            continue
-        for method in entry.get("methods", []):
-            found = source.method(method["name"])
-            if found is None:
-                report.fail("the reflection entry for %s.%s names a method that is not "
-                            "in %s" % (class_name, method["name"], source.name))
-                continue
-            _, parameters = found
-            declared = [simple_name(p) for p in method.get("parameterTypes", [])]
-            if declared != [simple_name(p) for p in parameters]:
-                report.fail("%s.%s takes (%s) but the reflection entry says (%s)"
-                            % (class_name, method["name"],
-                               ", ".join(parameters), ", ".join(declared)))
-
-    # ------------------------------------------------------------- the report
-    every_shape = set(used_downcalls)
-    for _, _, shape, _, _ in upcall_sites:
-        every_shape.add(shape)
-    upcall_only = sorted(every_shape - set(used_downcalls))
-
-    print("the native-image metadata and the %s sources" % PACKAGE)
-    print()
-    print("  downcall shapes")
-    print("    the sources build %d shapes; the file registers %d"
-          % (len(every_shape), len(registered)))
-    if upcall_only:
-        print("    %d of them is only ever an upcall, so it belongs in directUpcalls and"
-              % len(upcall_only))
-        print("    not in downcalls: %s"
-              % ", ".join(shape_text(shape) for shape in upcall_only))
-    if missing:
-        print("    used but not registered:")
-        for shape in missing:
-            source, line, how = used_downcalls[shape]
-            print("      %-30s <- %s/%s:%d (%s)"
-                  % (shape_text(shape), PACKAGE, source.name, line, how))
-    else:
-        print("    every shape the sources build is registered")
-    print()
-    print("  upcall registrations")
-    print("    %d upcall sites, %d directUpcalls entries"
-          % (len(upcall_sites) + len(unresolved), len(direct_upcalls)))
-    if unresolved:
-        print("    %d site(s) cannot be resolved statically, so they are not checked:"
-              % len(unresolved))
-        for source, line, callee, reason in unresolved:
-            print("      %s/%s:%d  %s(...)  -- %s"
-                  % (PACKAGE, source.name, line, callee, reason))
-    else:
-        print("    every upcall site has a directUpcalls entry of the same shape")
-    print()
-    print("  reflection")
-    framework_entries = [e for e in reflection if e["type"].startswith(PACKAGE + ".")]
-    other_entries = [e for e in reflection if not e["type"].startswith(PACKAGE + ".")]
-    print("    %d framework entries checked; %d entries name JDK classes and are not "
-          "checked here" % (len(framework_entries), len(other_entries)))
-
-    if report.notes:
-        print()
-        print("  notes")
-        for note in report.notes:
-            print("    - %s" % note)
-
-    if report.problems:
-        print()
-        print("%d problem(s):" % len(report.problems))
-        for problem in report.problems:
-            print("  - %s" % problem)
-        sys.exit("the native-image metadata does not match the sources")
-
-
-def descriptor_of(argument, source):
+def descriptor_of(argument, source, package):
     """The shape of an argument, whether it is written out or named."""
     argument = argument.strip()
-    found = re.match(r"FunctionDescriptor\.(of|ofVoid)\s*\(", argument)
+    found = INLINE.match(argument)
     if found:
         end = match_paren(argument, found.end() - 1)
         if end < 0:
             return None
         args = split_args(argument[found.end():end - 1])
-        return descriptor_shape(args, found.group(1) == "ofVoid")
-    if re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*(\s*\.\s*[A-Za-z_$][A-Za-z0-9_$]*)?", argument):
-        return source.resolve(argument)
-    return None
+        return descriptor_shape(args, found.group(1) == "ofVoid", package.structs)
+    return source.resolve(argument, package)
 
 
-def upcall_site(source, name_start, arguments):
-    """(site, reason) for an upcall call -- the site is None when it cannot be read."""
-    if len(arguments) < 3:
-        return None, "the call does not name a class, a method and a descriptor"
-    class_match = re.fullmatch(r"([A-Za-z_$][A-Za-z0-9_$]*)\s*\.\s*class", arguments[0])
-    if not class_match:
-        return None, "the class is not written out here"
-    method_match = re.fullmatch(r'"([^"]*)"', arguments[1])
-    if not method_match:
-        return None, "the method is not written out here"
-    shape = descriptor_of(arguments[2], source)
-    if shape is None:
-        return None, "the descriptor is not written out here"
-    class_name = PACKAGE + "." + class_match.group(1)
-    return ((class_name, method_match.group(1), shape, source,
-             line_of(source.text, name_start)), None)
+# ----------------------------------------------------------------- the checks
+
+
+def check_downcalls(metadata, package, scan, problems, notes):
+    """Every shape the sources build in a downcall position is registered."""
+    registered = {}
+    for entry in metadata["foreign"]["downcalls"]:
+        shape = shape_of(entry, "a downcalls entry")
+        registered[shape] = entry
+
+    for shape, (source, line, how) in sorted(scan.downcall_shapes.items()):
+        if shape not in registered:
+            problems.append("the sources build %s but the file does not register it "
+                            "(%s/%s:%d, %s)"
+                            % (shape_text(shape), PACKAGE, source.file_name, line, how))
+
+    for shape in sorted(registered):
+        if shape not in scan.downcall_shapes:
+            notes.append("the file registers %s and no source in %s builds it"
+                         % (shape_text(shape), PACKAGE))
+
+    # Every descriptor the sources build has to be accounted for. A descriptor this
+    # check cannot place in a downcall or an upcall position is a descriptor whose
+    # shape the file may or may not register, and "may or may not" is the failure
+    # this whole task exists to prevent.
+    for source in package.sources:
+        for name, shape in sorted(source.constants.items()):
+            if (source, name) in scan.placed:
+                continue
+            problems.append(
+                "%s.%s is %s and the check cannot see where it is used: it is not an "
+                "argument of a downcall or of an upcall, so the file may not register it"
+                % (source.file_name, name,
+                   shape_text(shape) if shape else "a descriptor of an unreadable shape"))
+        for offset, shape in inline_descriptors(source, package):
+            if (source, offset) in scan.placed:
+                continue
+            problems.append(
+                "%s/%s:%d builds a descriptor the check cannot place: it is not an "
+                "argument of a downcall or of an upcall, so the file may not register it"
+                % (PACKAGE, source.file_name, line_of(source.text, offset)))
+
+
+def inline_descriptors(source, package):
+    """The FunctionDescriptor constructions in a file that are not a constant's own."""
+    found = []
+    for match in INLINE.finditer(source.text):
+        if in_literal(source.literals, match.start()):
+            continue
+        before = source.text[:match.start()]
+        # 'FunctionDescriptor NAME =' is the constant's own initializer; the
+        # constant is accounted for by name instead.
+        if re.search(r"FunctionDescriptor\s+\w+\s*=\s*$", before, re.S):
+            continue
+        end = match_paren(source.text, match.end() - 1)
+        if end < 0:
+            continue
+        args = split_args(source.text[match.end():end - 1])
+        shape = descriptor_shape(args, match.group(1) == "ofVoid", package.structs)
+        found.append((match.start(), shape))
+    return found
+
+
+def check_upcalls(metadata, package, scan, problems, notes):
+    """Every upcall site the sources spell out has a directUpcalls entry."""
+    entries = {}
+    for entry in metadata["foreign"]["directUpcalls"]:
+        key = (class_of(entry, "a directUpcalls entry"),
+               method_of(entry, "a directUpcalls entry"))
+        entries.setdefault(key, []).append(entry)
+
+    for class_name, method, shape, source, line in scan.upcall_sites:
+        found = entries.get((class_name, method))
+        if not found:
+            problems.append("%s.%s is used as an upcall (%s/%s:%d) but the file has no "
+                            "directUpcalls entry for it"
+                            % (class_name, method, PACKAGE, source.file_name, line))
+            continue
+        for entry in found:
+            if shape_of(entry, "a directUpcalls entry") != shape:
+                problems.append("the directUpcalls entry for %s.%s registers %s but the "
+                                "call site builds %s"
+                                % (class_name, method,
+                                   shape_text(shape_of(entry, "a directUpcalls entry")),
+                                   shape_text(shape)))
+
+
+def check_reflection(metadata, package, scan, problems, notes):
+    """The registrations and the reflection entries point at real methods."""
+    reflection = metadata["reflection"]
+    reflection_entries = {}
+    for entry in reflection:
+        class_name = entry.get("type")
+        if class_name is None:
+            raise MetadataError("a reflection entry has no 'type'")
+        for method in entry.get("methods", []):
+            reflection_entries.setdefault((class_name, method.get("name")), []).append(method)
+
+    for entry in metadata["foreign"]["directUpcalls"]:
+        class_name = class_of(entry, "a directUpcalls entry")
+        method = method_of(entry, "a directUpcalls entry")
+        shape = shape_of(entry, "a directUpcalls entry")
+        source = package.by_qualified_name.get(class_name)
+        if source is None:
+            if class_name.startswith(PACKAGE + "."):
+                problems.append("the directUpcalls entry for %s.%s names a class that is "
+                                "not declared in %s" % (class_name, method, PACKAGE))
+            continue
+        found = source.method(method)
+        if found is None:
+            problems.append("the directUpcalls entry for %s.%s names a method that is not "
+                            "in %s" % (class_name, method, source.file_name))
+            continue
+        return_type, parameters = found
+        expected = [carrier(parameter) for parameter in shape[1]]
+        if [simple_name(p) for p in parameters] != [simple_name(p) for p in expected]:
+            problems.append("%s.%s takes (%s) but its directUpcalls entry registers (%s)"
+                            % (class_name, method,
+                               ", ".join(parameters), ", ".join(expected)))
+        if simple_name(return_type) != simple_name(carrier(shape[0])):
+            problems.append("%s.%s returns %s but its directUpcalls entry registers %s"
+                            % (class_name, method, return_type, shape[0]))
+        if (class_name, method) not in reflection_entries:
+            problems.append("%s.%s has a directUpcalls entry but no reflection entry"
+                            % (class_name, method))
+
+    for entry in reflection:
+        class_name = entry["type"]
+        source = package.by_qualified_name.get(class_name)
+        if source is None:
+            if class_name.startswith(PACKAGE + "."):
+                problems.append("the reflection entry for %s names a class that is not "
+                                "declared in %s" % (class_name, PACKAGE))
+            continue
+        for method in entry.get("methods", []):
+            found = source.method(method.get("name"))
+            if found is None:
+                problems.append("the reflection entry for %s.%s names a method that is not "
+                                "in %s" % (class_name, method.get("name"), source.file_name))
+                continue
+            _, parameters = found
+            declared = [simple_name(p) for p in method.get("parameterTypes", [])]
+            if declared != [simple_name(p) for p in parameters]:
+                problems.append("%s.%s takes (%s) but the reflection entry says (%s)"
+                                % (class_name, method.get("name"),
+                                   ", ".join(parameters), ", ".join(declared)))
+
+
+# ----------------------------------------------------------------- the report
+
+
+def report(metadata, package, scan, problems, notes):
+    """Print what was checked, and what was found."""
+    every_shape = set(scan.downcall_shapes)
+    for _, _, shape, _, _ in scan.upcall_sites:
+        every_shape.add(shape)
+    upcall_only = sorted(every_shape - set(scan.downcall_shapes))
+    registered = len(metadata["foreign"]["downcalls"])
+
+    print("the native-image metadata and the %s sources" % PACKAGE)
+    print()
+    print("  the sources")
+    print("    %d calls to a downcall or an upcall helper: %d call sites, %d declarations"
+          % (scan.marker_calls, scan.call_sites, scan.declarations))
+    print()
+    print("  downcall shapes")
+    print("    the sources build %d downcall shapes; the file registers %d"
+          % (len(scan.downcall_shapes), registered))
+    if upcall_only:
+        print("    %d more shape is only ever an upcall, so it belongs in directUpcalls"
+              % len(upcall_only))
+        print("    and not in downcalls: %s"
+              % ", ".join(shape_text(shape) for shape in upcall_only))
+    missing = [shape for shape in scan.downcall_shapes
+               if shape not in {shape_of(e, "a downcalls entry")
+                                for e in metadata["foreign"]["downcalls"]}]
+    if missing:
+        print("    used but not registered:")
+        for shape in sorted(missing):
+            source, line, how = scan.downcall_shapes[shape]
+            print("      %-30s <- %s/%s:%d (%s)"
+                  % (shape_text(shape), PACKAGE, source.file_name, line, how))
+    else:
+        print("    every shape the sources build is registered")
+    print()
+    print("  upcall registrations")
+    print("    %d upcall sites, %d directUpcalls entries"
+          % (len(scan.upcall_sites) + len(scan.unreadable),
+             len(metadata["foreign"]["directUpcalls"])))
+    if scan.unreadable:
+        print("    %d site(s) cannot be resolved statically, so they are not checked:"
+              % len(scan.unreadable))
+        for source, line, callee, reason in scan.unreadable:
+            print("      %s/%s:%d  %s(...)  -- %s"
+                  % (PACKAGE, source.file_name, line, callee, reason))
+    else:
+        print("    every upcall site has a directUpcalls entry of the same shape")
+    print()
+    print("  reflection")
+    framework_entries = [e for e in metadata["reflection"]
+                         if e["type"].startswith(PACKAGE + ".")]
+    other_entries = [e for e in metadata["reflection"]
+                     if not e["type"].startswith(PACKAGE + ".")]
+    print("    %d framework entries checked; %d entries name JDK classes and are not "
+          "checked here" % (len(framework_entries), len(other_entries)))
+
+    if notes:
+        print()
+        print("  notes")
+        for note in notes:
+            print("    - %s" % note)
+
+    if problems:
+        print()
+        print("%d problem(s):" % len(problems))
+        for problem in problems:
+            print("  - %s" % problem)
+
+
+def main():
+    metadata = load_metadata()
+    foreign = metadata.get("foreign") or {}
+    for section in ("downcalls", "directUpcalls"):
+        if foreign.get(section) is None:
+            sys.exit("%s has no 'foreign.%s'" % (METADATA, section))
+    if metadata.get("reflection") is None:
+        sys.exit("%s has no 'reflection'" % METADATA)
+
+    package = Package(PACKAGE_DIR)
+    if not package.sources:
+        sys.exit("no Java sources in %s" % PACKAGE_DIR)
+
+    scan = Scan(package)
+    problems = []
+    notes = []
+    try:
+        check_downcalls(metadata, package, scan, problems, notes)
+        check_upcalls(metadata, package, scan, problems, notes)
+        check_reflection(metadata, package, scan, problems, notes)
+        report(metadata, package, scan, problems, notes)
+    except MetadataError as error:
+        sys.exit("%s: %s" % (METADATA, error))
+
+    if problems:
+        sys.exit("the native-image metadata does not match the sources")
 
 
 if __name__ == "__main__":
