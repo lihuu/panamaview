@@ -24,14 +24,40 @@ public final class Menus {
         return new Menu(title, Arrays.asList(items));
     }
 
+    /**
+     * A binding item: it names a binding, and it has a title.
+     *
+     * <p>A titleless item is a separator, and a separator is a kind of its own — so an item
+     * that is not one has to say what it is called. The two platforms would otherwise handle
+     * the same mistake differently: one would fail on a null title, the other would draw an
+     * empty row.
+     */
     public static Item item(String binding, String title) {
+        if (title == null) {
+            throw new IllegalArgumentException("A binding item must have a title: the binding \""
+                    + binding + "\"");
+        }
         return new Item.BindingItem(binding, title);
     }
 
+    /**
+     * A platform item: it names a platform operation, and it has a title.
+     *
+     * <p>Same rule as a binding item: a titleless item is a separator, and a separator is
+     * made by {@link #separator()}.
+     */
     public static Item platformItem(Platform action, String title) {
+        if (title == null) {
+            throw new IllegalArgumentException("A platform item must have a title: the operation "
+                    + action);
+        }
         return new Item.PlatformItem(action, title);
     }
 
+    /**
+     * A separator: the one item with no title, and the one that is not either kind of item
+     * that does something.
+     */
     public static Item separator() {
         return new Item.SeparatorItem();
     }

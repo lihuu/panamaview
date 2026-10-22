@@ -209,4 +209,28 @@ class MenusTest {
         assertTrue(thrown.getMessage().contains("null"),
                 "the message must say what is wrong: " + thrown.getMessage());
     }
+
+    @Test
+    void aBindingItemMustHaveATitle() {
+        var thrown = assertThrows(IllegalArgumentException.class, () -> Menus.item("export", null));
+        assertTrue(thrown.getMessage().contains("export"),
+                "the message must name the item: " + thrown.getMessage());
+    }
+
+    @Test
+    void aPlatformItemMustHaveATitle() {
+        var thrown = assertThrows(IllegalArgumentException.class,
+                () -> Menus.platformItem(Platform.QUIT, null));
+        assertTrue(thrown.getMessage().contains("QUIT"),
+                "the message must name the item: " + thrown.getMessage());
+    }
+
+    @Test
+    void aSeparatorStillHasNoTitle() {
+        // A separator is the one item without a title, and it is a kind of its own: nothing
+        // about it changed, and the model still makes one.
+        assertNull(Menus.separator().title());
+        assertNull(Menus.separator().binding());
+        assertNull(Menus.separator().platformAction());
+    }
 }
