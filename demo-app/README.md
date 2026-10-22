@@ -31,6 +31,10 @@ because that is the one with the WebKit check in it. A plain `./run.sh` reports 
 snapshot check being the one that only runs when the property is set. The milliseconds and the
 window number are the machine's; the verdict is the same on any of them.
 
+The page's own comments number its **sections**, and a section can make more than one check —
+the platform-extras section makes three — so the count above is the number of checks, which
+is larger than the last section number.
+
 Several of those checks exist to be able to **fail**: `slowUi` is the control experiment for
 `slow`, and the cancellation check counts interruptions on the Java side rather than timing the
 page's own promise. A test that can only pass is not evidence.

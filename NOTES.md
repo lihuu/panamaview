@@ -1114,11 +1114,13 @@ field, and it is what issue #19 was about. A target that stopped the action ther
 object, say — would break it. So a platform item must have *no* target and a binding item
 must have one, and the framework cannot offer one kind and dress it up as the other.
 
-**A binding item's target has to be kept alive by Java.** `NSMenuItem.target` is a **weak**
-reference, so a target Java's collector reclaims becomes nil — which is exactly what a
-platform item does. A binding item whose target was collected would quietly stop being one
-and start walking the responder chain, which is the failure the whole distinction exists to
-prevent. The target's instance therefore lives in a static field.
+**A binding item's target must never be released.** `NSMenuItem.target` is a *weak*
+reference, so a target that is released becomes nil — and a nil target is exactly what a
+*platform* item does. A binding item whose target had gone would quietly stop being one and
+start walking the responder chain, which is the failure the whole distinction exists to
+prevent. So the rule is: never release the target, and hold its address in a static field so
+the handle stays valid. The instance is an Objective-C object, so Java's collector was never
+going to reclaim it — a release is.
 
 ### The ids, and the two values that are not ids
 
@@ -1154,9 +1156,9 @@ is not offered. `"Ctrl+"` used to parse as the key `Ctrl` with no modifiers, and
 These are measurements, and two of them contradict what the shipped code believed.
 
 - **The modifier mask *replaces* AppKit's default rather than adding to it, and AppKit's
-  default for a bare key equivalent is ⌘.** So a declaration of "C" with no modifier means
-  the plain `c`, not ⌘C: the platform sets the mask always, and the model has to say which
-  it means.
+  default for a bare key equivalent is ⌘.** So a declaration of "c" with no modifier sets
+  the mask to nothing at all, and the key equivalent is the bare key on its own — the plain
+  "c", not ⌘C: the platform sets the mask always, and the model has to say which it means.
 - **An uppercase key equivalent does not imply Shift.** The shipped Edit menu passed "Z" for
   Redo and set no mask, so the mask that applied was AppKit's default — Command; the uppercase
   letter changed only the *displayed* key, never the mask. The comment in the source that said
@@ -1170,8 +1172,8 @@ These are measurements, and two of them contradict what the shipped code believe
   different actions — have to differ in the case of the letter ("z" and "Z") to keep both.
 
 So the rule for an application is: **two platform items anywhere in the bar must not declare
-the same key and the same mask.** Two binding items may; the second one simply shadows the
-first when the chord is pressed.
+the same key and the same mask.** Two binding items may declare the same one — both keep
+their key equivalent — but which of them the chord reaches was not measured.
 
 **What is not measured: which chord AppKit gives an uppercase key equivalent.** A synthesized
 `NSEvent` and `-[NSMenu performKeyEquivalent:]` were tried and matched nothing — an event

@@ -881,9 +881,10 @@ the framework should say so rather than run it.
 
 ## A menu's identity
 
-"Replace the built-in one" needs an identity that is not the display title: the built-in
-Edit menu is titled `"Edit"` in English (Cocoa.java:62) while an application writes
-`"编辑"`, so matching by title cannot work.
+A declared bar replaces the framework's built-in one, and the platform still has to tell the
+application menu from the rest of it — which needs an identity that is not the display title:
+the built-in Edit menu is titled `"Edit"` in English (Menus.java:74) while an application
+writes `"编辑"`, so matching by title cannot work.
 
 The built-in menus are **supplied, not declared**: `Menus.appMenu()` and `Menus.editMenu()`
 are factories, and an application that wants the built-in Edit menu puts `Menus.editMenu()`
@@ -902,8 +903,11 @@ convention was. There are no such keys: the model has factories, and a key would
 second way of saying what a factory already says. A reserved *title* is not a second way,
 because the model has nothing else to put there.
 
-**Are the built-in menus macOS-only?** They exist on macOS today. On Windows there is no
-menu at all (Win32.java:300-315, `lpszMenuName` is `NULL`).
+**Are the built-in menus macOS-only?** The framework installs them only on macOS: an
+application that declares no bar gets the Quit and Edit menus there. On Windows it installs
+none of its own — the window is born with a null `HMENU` (`lpszMenuName` is `NULL`, and a
+menu built at run time is attached afterwards rather than through the class registration) —
+and an application declares its own.
 
 **Measured on Windows 11, 2026-10-21:** the WebView2 control performs clipboard operations
 itself. The test asked the page to select its text and run `document.execCommand('copy')`

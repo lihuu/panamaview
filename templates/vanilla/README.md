@@ -142,6 +142,12 @@ Two kinds of item, and the difference is not decoration:
 - a **platform item** names an operation the platform already knows (`Platform.QUIT`,
   `Platform.UNDO`, …) and has no Java behind it.
 
+**One title is composed for you, and it is the one in the application menu.** The Quit item
+inside `appMenu()` reads "Quit \<app name\>" — the platform is the side that knows the
+application's name, because the model has no way to know it. A `platformItem(Platform.QUIT,
+"退出")` in your **own** menu keeps the title you gave it, on both platforms: the composition
+belongs to the application menu alone.
+
 `CmdOrCtrl` means ⌘ on macOS and Ctrl on Windows, so one declaration means the same
 user-visible action on both platforms — but only macOS honours it today: the Windows builder
 registers no accelerator yet, so a shortcut there does nothing until that is done.
