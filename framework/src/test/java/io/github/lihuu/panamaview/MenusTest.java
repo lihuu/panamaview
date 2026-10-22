@@ -3,6 +3,7 @@ package io.github.lihuu.panamaview;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.Set;
+import java.util.Locale;
 
 class MenusTest {
 
@@ -79,6 +80,20 @@ class MenusTest {
         var shortcut = Shortcut.parse("Ctrl+Shift+E");
         assertEquals("E", shortcut.key());
         assertEquals(Set.of(Shortcut.Modifier.CTRL, Shortcut.Modifier.SHIFT), shortcut.modifiers());
+    }
+
+    @Test
+    void parserIsLocaleInsensitive() {
+        Locale originalLocale = Locale.getDefault();
+        try {
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+            var shortcut = Shortcut.parse("Shift+E");
+            assertEquals("E", shortcut.key());
+            assertTrue(shortcut.modifiers().contains(Shortcut.Modifier.SHIFT),
+                "Parsing 'Shift' must work regardless of default locale");
+        } finally {
+            Locale.setDefault(originalLocale);
+        }
     }
 
     @Test
