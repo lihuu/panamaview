@@ -51,14 +51,21 @@ public final class Menus {
      * modifier mask explicitly: AppKit's default for a bare character is ⌘, and a mask that
      * replaces that default would turn a bare character into no shortcut at all.
      *
-     * <p>Redo states its Shift instead of relying on AppKit's rule that an uppercase key
-     * equivalent implies one, and keeps the key lowercase — AppKit matches a key equivalent
-     * against the event's shift-independent characters.
+     * <p>Redo is ⌘Z, and it stays that way. The shipped menu passed an uppercase "Z" and set no
+     * mask, so AppKit's default mask — Command — applied and the chord was ⌘Z; the uppercase
+     * letter changed only the displayed key, never the mask. The model states Command and no
+     * Shift, which is the same chord.
+     *
+     * <p>Redo's key stays uppercase for one more reason, measured on real AppKit: the main menu
+     * drops the key equivalent of an item that duplicates an earlier one in the same menu — the
+     * same key <em>and</em> the same mask — and such an item is then reachable by no chord at
+     * all. Undo already holds ("z", Command), so Redo has to differ from it, and the shipped
+     * menu's "z" and "Z" are what kept both of them alive, both bound to ⌘Z.
      */
     public static Menu editMenu() {
         return new Menu("Edit", Arrays.asList(
             platformItem(Platform.UNDO, "Undo").shortcut("CmdOrCtrl+z"),
-            platformItem(Platform.REDO, "Redo").shortcut("CmdOrCtrl+Shift+z"),
+            platformItem(Platform.REDO, "Redo").shortcut("CmdOrCtrl+Z"),
             separator(),
             platformItem(Platform.CUT, "Cut").shortcut("CmdOrCtrl+x"),
             platformItem(Platform.COPY, "Copy").shortcut("CmdOrCtrl+c"),

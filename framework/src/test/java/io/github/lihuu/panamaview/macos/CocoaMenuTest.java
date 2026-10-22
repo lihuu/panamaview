@@ -1,5 +1,6 @@
 package io.github.lihuu.panamaview.macos;
 
+import io.github.lihuu.panamaview.Menus;
 import io.github.lihuu.panamaview.Platform;
 import io.github.lihuu.panamaview.Shortcut;
 
@@ -59,5 +60,30 @@ class CocoaMenuTest {
     void theModifiersOfOneShortcutAddUp() {
         assertEquals((1L << 20) | (1L << 17),
                 Cocoa.modifierMask(Set.of(Shortcut.Modifier.CMD_OR_CTRL, Shortcut.Modifier.SHIFT)));
+    }
+
+    @Test
+    void theApplicationMenuSaysQuitWithTheApplicationName() {
+        var quit = Menus.appMenu().items().get(0);
+        assertEquals("Quit MyApp", Cocoa.itemTitle(Menus.appMenu(), quit, "MyApp"),
+                "the shipped menu titled its Quit item with the application name, and only the "
+                        + "platform knows the name");
+    }
+
+    @Test
+    void anApplicationMenuItemOfItsOwnKeepsTheModelsTitle() {
+        var about = Menus.platformItem(Platform.COPY, "About");
+        var appMenu = Menus.menu(Menus.APP_MENU_TITLE, about);
+        assertEquals("About", Cocoa.itemTitle(appMenu, about, "MyApp"),
+                "only the Quit item of the application menu is composed");
+    }
+
+    @Test
+    void aQuitItemOfAnApplicationsOwnMenuKeepsTheModelsTitle() {
+        var quit = Menus.platformItem(Platform.QUIT, "退出");
+        var own = Menus.menu("文件", quit);
+        assertEquals("退出", Cocoa.itemTitle(own, quit, "MyApp"),
+                "the application menu is the framework's; an application's own menu says what it "
+                        + "says");
     }
 }

@@ -77,7 +77,7 @@ final class Cocoa {
             // application name, so it leaves a placeholder there, and the platform is the only
             // side that knows the name. The item's own title is left unset, as it has always
             // been — AppKit then shows the application name by itself.
-            boolean appMenu = Menus.APP_MENU_TITLE.equals(menu.title());
+            boolean appMenu = isAppMenu(menu);
 
             MemorySegment menuItem = ObjC.newObject("NSMenuItem");
             if (!appMenu) {
@@ -89,11 +89,32 @@ final class Cocoa {
             ObjC.sendVoid(menuItem, ObjC.selector("setSubmenu:"), submenu);
 
             for (Item item : menu.items()) {
-                addItem(scope, submenu, item, target);
+                addItem(scope, submenu, item, itemTitle(menu, item, appName), target);
             }
         }
 
         ObjC.sendVoid(app, ObjC.selector("setMainMenu:"), mainMenu);
+    }
+
+    /**
+     * The title an item shows.
+     *
+     * <p>The application menu's Quit item carries the application's name, as it always did: the
+     * model has no application name, and the platform is the only side that knows it. Every
+     * other item keeps the title the model gave it, so an application's own menu says what it
+     * says — a {@code platformItem(Platform.QUIT, "退出")} of an application's own menu is still
+     * 退出.
+     */
+    static String itemTitle(Menu menu, Item item, String appName) {
+        if (isAppMenu(menu) && item.platformAction() == Platform.QUIT) {
+            return "Quit " + appName;
+        }
+        return item.title();
+    }
+
+    /** Whether this is the application's own menu — the one the model could not name. */
+    private static boolean isAppMenu(Menu menu) {
+        return Menus.APP_MENU_TITLE.equals(menu.title());
     }
 
     /**
@@ -105,8 +126,8 @@ final class Cocoa {
      * chain and the first responder handles the action: that is what makes ⌘C reach the web
      * view's text field, and a target that stopped the action there would break it.
      */
-    private static void addItem(ObjC.Scope scope, MemorySegment menu,
-                                Item item, MemorySegment target) {
+    private static void addItem(ObjC.Scope scope, MemorySegment menu, Item item, String title,
+                                MemorySegment target) {
         switch (item) {
             case Item.SeparatorItem ignored -> {
                 // A separator is a class-method singleton, [+NSMenuItem separatorItem].
@@ -115,7 +136,7 @@ final class Cocoa {
                 ObjC.sendVoid(menu, ObjC.selector("addItem:"), separator);
             }
             case Item.BindingItem binding -> {
-                MemorySegment menuItem = newItem(scope, binding.title(), MenuTarget.ACTION,
+                MemorySegment menuItem = newItem(scope, title, MenuTarget.ACTION,
                         binding.shortcut());
                 ObjC.sendVoid(menuItem, ObjC.selector("setTarget:"), target);
                 // The tag is the id the framework assigned, and it is how the target learns
@@ -124,7 +145,7 @@ final class Cocoa {
                 ObjC.sendVoid(menu, ObjC.selector("addItem:"), menuItem);
             }
             case Item.PlatformItem platform -> {
-                MemorySegment menuItem = newItem(scope, platform.title(),
+                MemorySegment menuItem = newItem(scope, title,
                         platformAction(platform.platformAction()), platform.shortcut());
                 // Explicit, because a nil target is the platform item's whole behaviour.
                 ObjC.sendVoid(menuItem, ObjC.selector("setTarget:"), MemorySegment.NULL);

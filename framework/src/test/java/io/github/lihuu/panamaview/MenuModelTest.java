@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -79,14 +80,30 @@ class MenuModelTest {
         var items = Menus.editMenu().items();
 
         assertEquals("z", items.get(0).shortcut().key(), "Undo");
-        assertEquals("z", items.get(1).shortcut().key(), "Redo");
-        assertTrue(items.get(1).shortcut().modifiers().contains(Shortcut.Modifier.SHIFT),
-                "Redo is ⌘⇧Z — the Shift is stated, not left to AppKit's rule that an uppercase "
-                        + "key equivalent implies it");
+        assertEquals("Z", items.get(1).shortcut().key(), "Redo");
+        assertTrue(items.get(1).shortcut().modifiers().contains(Shortcut.Modifier.CMD_OR_CTRL),
+                "Redo is ⌘Z — the chord the shipped menu bound, and the one every Mac user expects");
+        assertFalse(items.get(1).shortcut().modifiers().contains(Shortcut.Modifier.SHIFT),
+                "the shipped Redo was ⌘Z: AppKit's default mask was Command, and the uppercase key "
+                        + "equivalent changed only the displayed key, never the mask");
         assertEquals("x", items.get(3).shortcut().key(), "Cut");
         assertEquals("c", items.get(4).shortcut().key(), "Copy");
         assertEquals("v", items.get(5).shortcut().key(), "Paste");
         assertEquals("a", items.get(7).shortcut().key(), "Select All");
+    }
+
+    @Test
+    void undoAndRedoDoNotShareAKeyEquivalent() {
+        // Measured on real AppKit: the main menu drops the key equivalent of an item that
+        // duplicates an earlier one in the same menu — the same key *and* the same mask — and
+        // such an item is then reachable by no chord at all. The shipped menu's Undo and Redo
+        // differed in the letter's case, which is what kept both of them, both bound to ⌘Z.
+        var undo = Menus.editMenu().items().get(0).shortcut();
+        var redo = Menus.editMenu().items().get(1).shortcut();
+
+        assertFalse(undo.key().equals(redo.key()) && undo.modifiers().equals(redo.modifiers()),
+                "Undo and Redo must not declare the same key equivalent and the same mask, or "
+                        + "AppKit drops the second one's shortcut entirely");
     }
 
     @Test
