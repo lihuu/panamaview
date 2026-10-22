@@ -1,6 +1,14 @@
 package io.github.lihuu.panamaview.macos;
 
+import io.github.lihuu.panamaview.Item;
+import io.github.lihuu.panamaview.Menu;
+import io.github.lihuu.panamaview.MenuBar;
+import io.github.lihuu.panamaview.Menus;
+import io.github.lihuu.panamaview.Platform;
+import io.github.lihuu.panamaview.Shortcut;
+
 import java.lang.foreign.MemorySegment;
+import java.util.Set;
 
 /**
  * The sliver of AppKit this framework needs: an application object, a menu bar, one window.
@@ -24,6 +32,15 @@ final class Cocoa {
     /** NSApplicationActivationPolicyRegular — gives the process a Dock icon and a menu bar. */
     public static final long ACTIVATION_POLICY_REGULAR = 0L;
 
+    /** NSEventModifierFlagShift */
+    public static final long MODIFIER_SHIFT = 1L << 17;
+    /** NSEventModifierFlagControl */
+    public static final long MODIFIER_CONTROL = 1L << 18;
+    /** NSEventModifierFlagOption */
+    public static final long MODIFIER_OPTION = 1L << 19;
+    /** NSEventModifierFlagCommand */
+    public static final long MODIFIER_COMMAND = 1L << 20;
+
     public static MemorySegment sharedApplication() {
         return ObjC.send(ObjC.classNamed("NSApplication"), ObjC.selector("sharedApplication"));
     }
@@ -34,63 +51,144 @@ final class Cocoa {
     }
 
     /**
-     * The menu bar: an application menu containing "Quit", and an Edit menu.
+     * Builds the application's menu bar out of the model and installs it.
      *
-     * <p>Without a main menu, ⌘Q does nothing — the menu bar is the only thing that gives the
-     * app keyboard-level control. The Edit menu exists for the same reason one level down:
-     * AppKit dispatches keyboard shortcuts through <em>menu item key equivalents</em>, so ⌘C,
-     * ⌘V, ⌘X and ⌘A only reach the focused view if a menu item carries both the key
+     * <p>Without a main menu, ⌘Q does nothing and the keyboard cannot reach the web view at
+     * all: AppKit dispatches keyboard shortcuts through <em>menu item key equivalents</em>, so
+     * ⌘C, ⌘V, ⌘X and ⌘A only reach the focused view if a menu item carries both the key
      * equivalent and the responder action ({@code copy:}, {@code paste:}, {@code cut:},
      * {@code selectAll:}). With no Edit menu those actions are unreachable from the keyboard,
      * and a {@code WKWebView}'s text fields silently stop responding to them.
      *
-     * <p>Every item is added with a nil target on purpose: with no target, AppKit walks the
-     * responder chain, so the web view's content view — the first responder while typing —
-     * handles the action natively and text editing keeps working exactly as it does in Safari.
+     * <p>The shape is AppKit's own: the bar is an {@code NSMenu}, a top-level menu joins it
+     * through a menu item that holds the menu as its submenu, and the item carries the title the
+     * user sees.
+     *
+     * @param bar     the model the menu is built from
+     * @param appName the application's name, which the model has no way to know
+     * @param target  the shared target of the binding items
      */
-    public static void installMenuBar(ObjC.Scope scope, MemorySegment app, String appName) {
+    public static void installMenuBar(ObjC.Scope scope, MemorySegment app, MenuBar bar,
+                                      String appName, MemorySegment target) {
         MemorySegment mainMenu = newMenu(scope, "");
 
-        MemorySegment appMenuItem = ObjC.newObject("NSMenuItem");
-        ObjC.sendVoid(mainMenu, ObjC.selector("addItem:"), appMenuItem);
+        for (Menu menu : bar.menus()) {
+            // The application's own menu is the one the model could not name: the model has no
+            // application name, so it leaves a placeholder there, and the platform is the only
+            // side that knows the name. The item's own title is left unset, as it has always
+            // been — AppKit then shows the application name by itself.
+            boolean appMenu = Menus.APP_MENU_TITLE.equals(menu.title());
 
-        MemorySegment appMenu = newMenu(scope, appName);
-        ObjC.sendVoid(appMenuItem, ObjC.selector("setSubmenu:"), appMenu);
-        addItem(scope, appMenu, "Quit " + appName, "terminate:", "q");
+            MemorySegment menuItem = ObjC.newObject("NSMenuItem");
+            if (!appMenu) {
+                ObjC.sendVoid(menuItem, ObjC.selector("setTitle:"), ObjC.nsString(scope, menu.title()));
+            }
+            ObjC.sendVoid(mainMenu, ObjC.selector("addItem:"), menuItem);
 
-        MemorySegment editMenuItem = ObjC.newObject("NSMenuItem");
-        ObjC.sendVoid(editMenuItem, ObjC.selector("setTitle:"), ObjC.nsString(scope, "Edit"));
-        ObjC.sendVoid(mainMenu, ObjC.selector("addItem:"), editMenuItem);
+            MemorySegment submenu = newMenu(scope, appMenu ? appName : menu.title());
+            ObjC.sendVoid(menuItem, ObjC.selector("setSubmenu:"), submenu);
 
-        MemorySegment editMenu = newMenu(scope, "Edit");
-        ObjC.sendVoid(editMenuItem, ObjC.selector("setSubmenu:"), editMenu);
-        addItem(scope, editMenu, "Undo", "undo:", "z");
-        // An uppercase key equivalent implies Shift, so this is ⌘⇧Z.
-        addItem(scope, editMenu, "Redo", "redo:", "Z");
-        addSeparator(editMenu);
-        addItem(scope, editMenu, "Cut", "cut:", "x");
-        addItem(scope, editMenu, "Copy", "copy:", "c");
-        addItem(scope, editMenu, "Paste", "paste:", "v");
-        addSeparator(editMenu);
-        addItem(scope, editMenu, "Select All", "selectAll:", "a");
+            for (Item item : menu.items()) {
+                addItem(scope, submenu, item, target);
+            }
+        }
 
         ObjC.sendVoid(app, ObjC.selector("setMainMenu:"), mainMenu);
     }
 
-    /** One menu item. The target stays nil, which means "whoever is first responder". */
+    /**
+     * One menu item, built from the model.
+     *
+     * <p>The two kinds of item differ in exactly one place — the target — and that is the whole
+     * point of the distinction. A <em>binding item</em> gets the shared target, so the click
+     * reaches Java. A <em>platform item</em> gets a nil target, so AppKit walks the responder
+     * chain and the first responder handles the action: that is what makes ⌘C reach the web
+     * view's text field, and a target that stopped the action there would break it.
+     */
     private static void addItem(ObjC.Scope scope, MemorySegment menu,
-                                String title, String action, String keyEquivalent) {
-        ObjC.send(menu, ObjC.selector("addItemWithTitle:action:keyEquivalent:"),
-                ObjC.nsString(scope, title),
-                ObjC.selector(action),
-                ObjC.nsString(scope, keyEquivalent));
+                                Item item, MemorySegment target) {
+        switch (item) {
+            case Item.SeparatorItem ignored -> {
+                // A separator is a class-method singleton, [+NSMenuItem separatorItem].
+                MemorySegment separator = ObjC.send(ObjC.classNamed("NSMenuItem"),
+                        ObjC.selector("separatorItem"));
+                ObjC.sendVoid(menu, ObjC.selector("addItem:"), separator);
+            }
+            case Item.BindingItem binding -> {
+                MemorySegment menuItem = newItem(scope, binding.title(), MenuTarget.ACTION,
+                        binding.shortcut());
+                ObjC.sendVoid(menuItem, ObjC.selector("setTarget:"), target);
+                // The tag is the id the framework assigned, and it is how the target learns
+                // which item was chosen.
+                ObjC.sendVoidLong(menuItem, ObjC.selector("setTag:"), binding.id());
+                ObjC.sendVoid(menu, ObjC.selector("addItem:"), menuItem);
+            }
+            case Item.PlatformItem platform -> {
+                MemorySegment menuItem = newItem(scope, platform.title(),
+                        platformAction(platform.platformAction()), platform.shortcut());
+                // Explicit, because a nil target is the platform item's whole behaviour.
+                ObjC.sendVoid(menuItem, ObjC.selector("setTarget:"), MemorySegment.NULL);
+                ObjC.sendVoid(menu, ObjC.selector("addItem:"), menuItem);
+            }
+        }
     }
 
-    private static void addSeparator(MemorySegment menu) {
-        // A separator is a class-method singleton, [+NSMenuItem separatorItem].
-        MemorySegment separator = ObjC.send(ObjC.classNamed("NSMenuItem"),
-                ObjC.selector("separatorItem"));
-        ObjC.sendVoid(menu, ObjC.selector("addItem:"), separator);
+    /** A menu item with its title, its action and its key equivalent. */
+    private static MemorySegment newItem(ObjC.Scope scope, String title, String action,
+                                         Shortcut shortcut) {
+        MemorySegment menuItem = ObjC.send(
+                ObjC.send(ObjC.classNamed("NSMenuItem"), ObjC.selector("alloc")),
+                ObjC.selector("initWithTitle:action:keyEquivalent:"),
+                ObjC.nsString(scope, title),
+                ObjC.selector(action),
+                ObjC.nsString(scope, shortcut == null ? "" : shortcut.key()));
+
+        if (shortcut != null) {
+            // The mask replaces AppKit's default rather than adding to it, and AppKit's default
+            // for a bare key equivalent is ⌘ — so the mask is set even when it is empty.
+            // Leaving it alone would turn a declaration of "C" into ⌘C.
+            ObjC.sendVoidLong(menuItem, ObjC.selector("setKeyEquivalentModifierMask:"),
+                    modifierMask(shortcut.modifiers()));
+        }
+        return menuItem;
+    }
+
+    /**
+     * The AppKit action for a platform operation.
+     *
+     * <p>The model's operations are the framework's; the selectors are AppKit's. This is the
+     * table that translates one into the other, and it is the whole of the difference between
+     * the two platforms' vocabularies.
+     */
+    static String platformAction(Platform operation) {
+        return switch (operation) {
+            case QUIT -> "terminate:";
+            case UNDO -> "undo:";
+            case REDO -> "redo:";
+            case CUT -> "cut:";
+            case COPY -> "copy:";
+            case PASTE -> "paste:";
+            case SELECT_ALL -> "selectAll:";
+        };
+    }
+
+    /**
+     * The AppKit modifier mask for a shortcut's modifiers.
+     *
+     * <p>{@code CmdOrCtrl} is ⌘ here and Ctrl on Windows, which is the whole reason the
+     * spelling exists: the same declaration means the same user-visible action on both.
+     */
+    static long modifierMask(Set<Shortcut.Modifier> modifiers) {
+        long mask = 0;
+        for (Shortcut.Modifier modifier : modifiers) {
+            mask |= switch (modifier) {
+                case CMD_OR_CTRL -> MODIFIER_COMMAND;
+                case CTRL -> MODIFIER_CONTROL;
+                case SHIFT -> MODIFIER_SHIFT;
+                case ALT -> MODIFIER_OPTION;
+            };
+        }
+        return mask;
     }
 
     private static MemorySegment newMenu(ObjC.Scope scope, String title) {

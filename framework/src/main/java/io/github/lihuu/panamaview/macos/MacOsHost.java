@@ -1,5 +1,8 @@
 package io.github.lihuu.panamaview.macos;
 
+import io.github.lihuu.panamaview.MenuBar;
+import io.github.lihuu.panamaview.MenuHost;
+import io.github.lihuu.panamaview.Menus;
 import io.github.lihuu.panamaview.PageSource;
 import io.github.lihuu.panamaview.UiHost;
 import io.github.lihuu.panamaview.WindowSpec;
@@ -26,11 +29,26 @@ import java.util.Map;
  * cross-platform signatures for them before a second implementation exists would be a guess;
  * {@code Main} registers them as ordinary bindings instead.
  */
-public final class MacOsHost implements UiHost {
+public final class MacOsHost implements UiHost, MenuHost {
+
+    /**
+     * The bar the framework installs when the application declares none.
+     *
+     * <p>Quit and the Edit menu, in that order — the two menus the framework has always
+     * installed. An application that declares a bar replaces them; one that declares none keeps
+     * them, because an application that forgets the Edit menu must not reproduce issue #19.
+     */
+    private static final MenuBar DEFAULT_BAR = Menus.menu(Menus.appMenu(), Menus.editMenu());
 
     private Callbacks callbacks;
     private WebView webView;
     private MemorySegment window;
+    private MenuBar menuBar;
+
+    @Override
+    public void setMenu(MenuBar bar) {
+        this.menuBar = bar;
+    }
 
     @Override
     public void start(Callbacks callbacks, WindowSpec spec) {
@@ -45,7 +63,12 @@ public final class MacOsHost implements UiHost {
         try (ObjC.Scope scope = ObjC.scope()) {
             application = Cocoa.sharedApplication();
             Cocoa.setActivationPolicyRegular(application);
-            Cocoa.installMenuBar(scope, application, spec.title());
+            // The target comes first: the menu builder needs it, and a target that Java's
+            // collector reclaims would turn every binding item into a platform item.
+            MemorySegment menuTarget = MenuTarget.create(this);
+            Cocoa.installMenuBar(scope, application,
+                    menuBar != null ? menuBar : DEFAULT_BAR,
+                    spec.title(), menuTarget);
             Cocoa.finishLaunching(application);
 
             MemorySegment dispatch = ObjCDispatch.create(this);
@@ -143,6 +166,19 @@ public final class MacOsHost implements UiHost {
 
     boolean quitWhenWindowCloses() {
         return callbacks.shouldQuitWhenLastWindowCloses();
+    }
+
+    // --------------------------------------------------------------- the menu
+
+    /**
+     * A binding item was chosen.
+     *
+     * <p>Called by {@link MenuTarget} on the UI thread, with the id the framework assigned. The
+     * portable layer looks the id up in the table the same walk that numbered the items
+     * produced, so the two cannot disagree about which binding an id names.
+     */
+    void menuItem(int id) {
+        callbacks.onMenuItem(id);
     }
 
     // -------------------------------------------------------------- platform extras
