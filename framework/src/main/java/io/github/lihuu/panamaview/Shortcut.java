@@ -2,6 +2,7 @@ package io.github.lihuu.panamaview;
 
 import java.util.Set;
 import java.util.HashSet;
+import java.util.Locale;
 
 public record Shortcut(String key, Set<Modifier> modifiers) {
     public enum Modifier {
@@ -26,7 +27,7 @@ public record Shortcut(String key, Set<Modifier> modifiers) {
         Set<Modifier> modifiers = new HashSet<>();
 
         for (int i = 0; i < parts.length - 1; i++) {
-            String part = parts[i].trim().toUpperCase();
+            String part = parts[i].trim().toUpperCase(Locale.ROOT);
             switch (part) {
                 case "CMDORCTRL" -> modifiers.add(Modifier.CMD_OR_CTRL);
                 case "CTRL" -> modifiers.add(Modifier.CTRL);
@@ -37,7 +38,7 @@ public record Shortcut(String key, Set<Modifier> modifiers) {
         }
 
         // The key cannot be a known modifier name, regardless of segment count
-        String keyUpper = key.toUpperCase();
+        String keyUpper = key.toUpperCase(Locale.ROOT);
         if (keyUpper.equals("CMDORCTRL") || keyUpper.equals("CTRL") ||
             keyUpper.equals("SHIFT") || keyUpper.equals("ALT")) {
             throw new IllegalArgumentException("Modifier cannot be the key: " + s);

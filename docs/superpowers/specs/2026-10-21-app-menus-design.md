@@ -792,7 +792,7 @@ and runs:
 
 ```
 the bar holds 3 menu(s)
-  MyApp: 1 item(s)
+  MyApp: 1 item(s)  // rendered title; model uses "[Application Name]"
   文件: 3 item(s)
   Edit: 8 item(s)
 ```
