@@ -72,6 +72,14 @@ jobs:
       - name: The framework's own tests
         run: mvn -B -pl framework test
 
+      # The reachability metadata is a list of native signatures, and nothing in a normal
+      # build notices when it stops matching the code: the program compiles, and then dies on
+      # the first downcall with MissingForeignRegistrationError, on the machine that built
+      # the binary. Two shapes the code already used were missing that way, and a native
+      # build that opened a window died before it reached any menu code.
+      - name: The native-image metadata matches the sources
+        run: python3 scripts/verify-native-metadata.py
+
       # The demo used to live in this tree, so the published jar shipped the demo's classes and
       # its pages: a consumer's classpath acquired an application it never asked for, and the
       # framework's own declared entry point was the demo's main(). Nothing else here would

@@ -26,7 +26,9 @@
     "resources lists only the framework's own asset, the client bridge. It must NOT list anything else: a consumer's native build applies this file transitively, so any page named here would be embedded into every consumer's binary. The demo app in demo-app/ passes -H:IncludeResources='web/.*' on its own command line instead, which is exactly how a consumer embeds its own assets.",
     "AssetSchemeHandler serves the app's assets over a private URL scheme instead of file://, because an opaque file:// origin refuses ES modules, fetch and Workers. It adds one downcall shape -- NSHTTPURLResponse's initWithURL:statusCode:HTTPVersion:headerFields: takes four objects and an NSInteger -- and two upcalls for the WKURLSchemeHandler protocol.",
     "dataWithBytes:length: needs an object followed by an NSInteger -- the reverse of representationUsingType:properties:, so it is a separate registered shape.",
-    "Notifications adds UNUserNotificationCenter: two block callbacks (handleAuthorization, handlePost) and one downcall shape -- requestAuthorizationWithOptions:completionHandler: takes an NSUInteger followed by a block."
+    "Notifications adds UNUserNotificationCenter: two block callbacks (handleAuthorization, handlePost) and one downcall shape -- requestAuthorizationWithOptions:completionHandler: takes an NSUInteger followed by a block.",
+    "The message send with no arguments -- void*(void*,void*) -- is alloc and +[NSMenuItem separatorItem], and a BOOL send with one object argument -- jbyte(void*,void*,void*) -- is setFrameUsingName:. The code built both, and the file registered neither.",
+    "MenuTarget's handleMenuItem is the menu item's action, reached from AppKit. It is an upcall, so it is registered by class and method rather than by shape: void(void*,void*,void*) was already registered for ObjCDispatch, and that fact covers nothing here."
   ],
   "reflection": [
     {
@@ -177,6 +179,19 @@
           ]
         }
       ]
+    },
+    {
+      "type": "io.github.lihuu.panamaview.macos.MenuTarget",
+      "methods": [
+        {
+          "name": "handleMenuItem",
+          "parameterTypes": [
+            "java.lang.foreign.MemorySegment",
+            "java.lang.foreign.MemorySegment",
+            "java.lang.foreign.MemorySegment"
+          ]
+        }
+      ]
     }
   ],
   "resources": [
@@ -299,9 +314,26 @@
           "void*",
           "void*"
         ]
+      },
+      {
+        "class": "io.github.lihuu.panamaview.macos.MenuTarget",
+        "method": "handleMenuItem",
+        "returnType": "void",
+        "parameterTypes": [
+          "void*",
+          "void*",
+          "void*"
+        ]
       }
     ],
     "downcalls": [
+      {
+        "returnType": "void*",
+        "parameterTypes": [
+          "void*",
+          "void*"
+        ]
+      },
       {
         "returnType": "void",
         "parameterTypes": [
@@ -369,6 +401,14 @@
           "void*",
           "void*",
           "jbyte"
+        ]
+      },
+      {
+        "returnType": "jbyte",
+        "parameterTypes": [
+          "void*",
+          "void*",
+          "void*"
         ]
       },
       {
