@@ -14,11 +14,20 @@ public final class MenuBar {
     /**
      * Takes a copy of the menus, so the bar owns what it was given.
      *
-     * <p>Same reason as {@link Menu}: the list that comes in is the caller's, and the ids
-     * are assigned from the menus it holds. A menu moved in or out afterwards would leave the
-     * id table describing a bar that is not the one the platform is given.
+     * <p>Same reason as {@link Menu}: the list that comes in is the caller's, and a menu moved
+     * in or out afterwards would leave the bar describing a bar that is not the one the
+     * platform is given. The copy closes that.
+     *
+     * <p>It does not reach as far as the items: an item shared between two bars is still
+     * renumbered by the second bar's walk, so the first bar's table and the item it holds
+     * would disagree about its id.
      */
     public MenuBar(List<Menu> menus) {
+        for (Menu menu : menus) {
+            if (menu == null) {
+                throw new IllegalArgumentException("A bar cannot hold a null menu");
+            }
+        }
         this.menus = List.copyOf(menus);
         this.bindings = numberItems();
     }
@@ -33,9 +42,12 @@ public final class MenuBar {
      *
      * <p>An item that is in the bar twice is refused here, where the ids are handed out.
      * The ids live in the items themselves, so one item in two places would be given its
-     * second id and lose its first: both places would carry the same id, and the first would
-     * fire the second one's binding. That is the one way the table and the numbering could
-     * still disagree, so it is not left to be discovered.
+     * second id and lose its first: both places would carry the same id, and the two places
+     * would become indistinguishable — a click could no longer say which one was chosen,
+     * while the id table kept an entry for an id no item carries. The binding itself would
+     * still be the right one, because it is the same item; what stops agreeing is the
+     * places. That is the one way the table and the numbering could still disagree, so it
+     * is not left to be discovered.
      */
     private Map<Integer, String> numberItems() {
         Map<Integer, String> names = new HashMap<>();
@@ -47,14 +59,15 @@ public final class MenuBar {
             if (!seenMenus.add(menu)) {
                 throw new IllegalArgumentException("The same menu is in the bar twice: "
                         + describe(menu) + ". A menu may appear only once: its items would be "
-                        + "numbered twice, and the two copies would carry one id between them.");
+                        + "in the bar twice, and each of them would carry one id for two places.");
             }
             for (Item item : menu.items()) {
                 if (!seenItems.add(item)) {
                     throw new IllegalArgumentException("The same menu item is in the bar twice: "
                             + describe(item) + ". An item may appear only once: one id would "
-                            + "serve both places, and the first would fire the second one's "
-                            + "binding.");
+                            + "serve both places, so a click could not say which place was "
+                            + "chosen, and the id table would keep an entry for an id no item "
+                            + "carries.");
                 }
                 // Assign sequential IDs to all items to support platform mapping
                 switch (item) {

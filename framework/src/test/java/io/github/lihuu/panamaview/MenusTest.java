@@ -3,6 +3,7 @@ package io.github.lihuu.panamaview;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -191,5 +192,21 @@ class MenusTest {
         var thrown = assertThrows(IllegalArgumentException.class, () -> new MenuBar(List.of(menu, menu)));
         assertTrue(thrown.getMessage().contains("文件"),
                 "the message must name the menu: " + thrown.getMessage());
+    }
+
+    @Test
+    void aMenuRefusesANullItem() {
+        var thrown = assertThrows(IllegalArgumentException.class,
+                () -> new Menu("文件", Arrays.asList((Item) null)));
+        assertTrue(thrown.getMessage().contains("null"),
+                "the message must say what is wrong: " + thrown.getMessage());
+    }
+
+    @Test
+    void aBarRefusesANullMenu() {
+        var thrown = assertThrows(IllegalArgumentException.class,
+                () -> new MenuBar(Arrays.asList((Menu) null)));
+        assertTrue(thrown.getMessage().contains("null"),
+                "the message must say what is wrong: " + thrown.getMessage());
     }
 }
