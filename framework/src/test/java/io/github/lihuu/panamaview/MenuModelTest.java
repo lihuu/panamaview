@@ -82,9 +82,10 @@ class MenuModelTest {
         assertEquals("z", items.get(0).shortcut().key(), "Undo");
         assertEquals("Z", items.get(1).shortcut().key(), "Redo");
         assertTrue(items.get(1).shortcut().modifiers().contains(Shortcut.Modifier.CMD_OR_CTRL),
-                "Redo is ⌘Z — the chord the shipped menu bound, and the one every Mac user expects");
+                "the shipped Redo item's mask was Command: it passed \"Z\" and set no mask, so "
+                        + "AppKit's default applied");
         assertFalse(items.get(1).shortcut().modifiers().contains(Shortcut.Modifier.SHIFT),
-                "the shipped Redo was ⌘Z: AppKit's default mask was Command, and the uppercase key "
+                "the shipped Redo item's mask was Command and not Shift: the uppercase key "
                         + "equivalent changed only the displayed key, never the mask");
         assertEquals("x", items.get(3).shortcut().key(), "Cut");
         assertEquals("c", items.get(4).shortcut().key(), "Copy");
@@ -94,10 +95,12 @@ class MenuModelTest {
 
     @Test
     void undoAndRedoDoNotShareAKeyEquivalent() {
-        // Measured on real AppKit: the main menu drops the key equivalent of an item that
-        // duplicates an earlier one in the same menu — the same key *and* the same mask — and
-        // such an item is then reachable by no chord at all. The shipped menu's Undo and Redo
-        // differed in the letter's case, which is what kept both of them, both bound to ⌘Z.
+        // Measured on real AppKit: among items with different actions, the second one to
+        // declare the same key and the same mask loses its key equivalent entirely, and is
+        // then reachable by no chord at all. Items that share an action both keep theirs — two
+        // of the framework's binding items with the same key and the same mask both kept
+        // theirs. Undo and Redo are platform items, each with its own action, so they have to
+        // differ; the shipped menu's "z" and "Z" are what kept both of them alive.
         var undo = Menus.editMenu().items().get(0).shortcut();
         var redo = Menus.editMenu().items().get(1).shortcut();
 
