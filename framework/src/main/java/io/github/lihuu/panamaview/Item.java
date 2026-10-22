@@ -14,11 +14,21 @@ public sealed interface Item permits Item.BindingItem, Item.PlatformItem, Item.S
      *
      * <p>The shortcut is optional, and {@code null} is how the model says there is none: an
      * item with no shortcut gets no key equivalent, which is what the platform builds for it.
-     * So a null shortcut is allowed here, and it means "no shortcut" — the state the item
-     * starts in.
+     * So a null shortcut is allowed, and it means "no shortcut" — the state the item starts in.
+     * The plain {@code null} is ambiguous between the two overloads, so a null is passed as
+     * {@code (Shortcut) null}.
      *
      * <p>The {@link String} overload is the other way in, and it refuses a null or a blank
      * string: there is no shortcut to name, so there is nothing to set.
+     *
+     * <p>A separator refuses a shortcut: the platforms draw it as a line and carry no key
+     * equivalent for it, so a shortcut there would be accepted and do nothing. A blanket loop
+     * over a menu's items — {@code for (Item item : menu.items()) item.shortcut(...)} — would
+     * therefore throw on the first separator it reaches. A null is still allowed on a
+     * separator, and does nothing: null means "no shortcut", and a separator has none.
+     *
+     * @throws IllegalArgumentException when the item is a separator and the shortcut is not
+     *                                  null
      */
     Item shortcut(Shortcut s);
 

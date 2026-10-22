@@ -79,7 +79,8 @@ public final class Menus {
      * that does something.
      *
      * <p>Its null title is its nature, not a hole: the platform draws a separator and carries
-     * no title, no action and no key equivalent for it.
+     * no title, no action and no key equivalent for it. For the same reason it refuses a
+     * shortcut — see {@link Item#shortcut(Shortcut)}.
      */
     public static Item separator() {
         return new Item.SeparatorItem();
