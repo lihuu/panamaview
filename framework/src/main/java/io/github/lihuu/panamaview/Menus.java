@@ -48,8 +48,10 @@ public final class Menus {
      * ⌘C reach the focused text field — AppKit dispatches keyboard shortcuts through menu items,
      * so an item with no key equivalent is an item the keyboard cannot reach. They are declared
      * with their modifier rather than as a bare character, because the platform now sets the
-     * modifier mask explicitly: AppKit's default for a bare character is ⌘, and a mask that
-     * replaces that default would turn a bare character into no shortcut at all.
+     * modifier mask explicitly. AppKit's default for a bare character is ⌘, but the model has
+     * no such default to fall back on: the platform sets the mask always, so a declaration with
+     * no modifier means the bare key — the plain "C", not ⌘C — and the built-in menus have to
+     * say which they mean.
      *
      * <p>Redo keeps the shipped item's key equivalent: an uppercase "Z", with no mask set, so
      * AppKit's default mask — Command — applied, and the uppercase letter changed only the
