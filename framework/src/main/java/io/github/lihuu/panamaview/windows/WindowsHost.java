@@ -1,6 +1,9 @@
 package io.github.lihuu.panamaview.windows;
 
+import io.github.lihuu.panamaview.MenuBar;
+import io.github.lihuu.panamaview.MenuHost;
 import io.github.lihuu.panamaview.PageSource;
+import io.github.lihuu.panamaview.Platform;
 import io.github.lihuu.panamaview.UiHost;
 import io.github.lihuu.panamaview.WindowSpec;
 
@@ -40,7 +43,7 @@ import java.util.concurrent.LinkedBlockingQueue;
  * Relative URLs inside the page behave identically on both platforms; only absolute URLs
  * differ, and a page that wants its own address asks Java instead of guessing.
  */
-public final class WindowsHost implements UiHost {
+public final class WindowsHost implements UiHost, MenuHost {
 
     private static final String VIRTUAL_HOST_SUFFIX = ".panamaview";
 
@@ -50,9 +53,16 @@ public final class WindowsHost implements UiHost {
     private volatile MemorySegment hwnd;
     private volatile MemorySegment controller;
     private volatile MemorySegment webview;
+    private volatile MenuBar menuBar;
+    private volatile WinMenu.Plan menuPlan;
     private final LinkedBlockingQueue<Runnable> uiQueue = new LinkedBlockingQueue<>();
     private final CountDownLatch done = new CountDownLatch(1);
     private Arena pumpArena;
+
+    @Override
+    public void setMenu(MenuBar bar) {
+        this.menuBar = bar;
+    }
 
     @Override
     public void start(Callbacks callbacks, WindowSpec spec) {
@@ -78,10 +88,11 @@ public final class WindowsHost implements UiHost {
             Win32.coInitializeApartmentThreaded();
 
             WindowSpec.Origin origin = spec.origin();
+            MemorySegment hMenu = buildMenu(spec);
             hwnd = origin == null
-                    ? Win32.createWindow(pumpArena, spec.title(), spec.width(), spec.height(), this::onWindowMessage)
+                    ? Win32.createWindow(pumpArena, spec.title(), spec.width(), spec.height(), hMenu, this::onWindowMessage)
                     : Win32.createWindow(pumpArena, spec.title(), spec.width(), spec.height(),
-                            origin.x(), origin.y(), this::onWindowMessage);
+                            origin.x(), origin.y(), hMenu, this::onWindowMessage);
 
             // Work submitted before the window existed has no message to wake the pump, because
             // there was no window to post it to. The window exists now, so the queue is drained
@@ -164,6 +175,29 @@ public final class WindowsHost implements UiHost {
         }
     }
 
+    /**
+     * The menu the window is born with.
+     *
+     * <p>Windows installs no menu of its own: an application that declares none gets none.
+     * That is the whole of the difference from macOS, which installs the framework's Quit and
+     * Edit bar in that case. The reason is measured rather than administrative — on Windows
+     * the browser already performs the editing commands, so the Edit menu would be a second
+     * path to a capability the page has, and its shortcuts would take the key away from the
+     * page.
+     *
+     * <p>The plan is kept, because it is the host's own table of what the command ids mean:
+     * the host cannot ask the portable layer which ids are bindings, and a click that arrives
+     * has to be told apart from a platform operation the host performs itself.
+     */
+    private MemorySegment buildMenu(WindowSpec spec) {
+        MenuBar bar = menuBar;
+        if (bar == null) {
+            return null;
+        }
+        menuPlan = WinMenu.plan(bar, spec.title());
+        return WinMenu.build(menuPlan);
+    }
+
     private long onWindowMessage(MemorySegment hwndArg, int message, long wparam, long lparam) {
         switch (message) {
             case Win32.WM_SIZE -> {
@@ -171,6 +205,9 @@ public final class WindowsHost implements UiHost {
             }
             case Win32.WM_APP_RUNNABLE -> {
                 drainUiQueue();
+            }
+            case Win32.WM_COMMAND -> {
+                onMenuCommand(wparam);
             }
             case Win32.WM_DESTROY -> {
                 if (callbacks.shouldQuitWhenLastWindowCloses()) {
@@ -187,6 +224,45 @@ public final class WindowsHost implements UiHost {
         }
         // The cases above handle-or-defer; for them a zero answer is correct.
         return 0;
+    }
+
+    /**
+     * A menu item was chosen.
+     *
+     * <p>The whole {@code wParam} is the guard: its high word says where the message came
+     * from, and only 0 means a menu — an accelerator is 1, and a control notification is
+     * whatever the control defines, and the WebView2 child is full of controls, one of which
+     * may carry the same identifier as a menu item. The low word is the id, except that 0 is
+     * what a separator reports and {@code 0xFFFF} is what a popup reports, and neither is an
+     * id.
+     *
+     * <p>An id that is neither the host's own platform operation nor a binding is reported
+     * rather than dropped: the portable layer's {@code WebApp.onMenuItem} already ignores ids
+     * that name no binding, so the host is the side that says "that id is not mine".
+     */
+    private void onMenuCommand(long wparam) {
+        int id = WinMenu.commandId(wparam);
+        if (id == WinMenu.NO_COMMAND) {
+            return;
+        }
+        WinMenu.Plan plan = menuPlan;
+        WinMenu.ItemPlan item = plan == null ? null : plan.itemFor(id);
+        if (item == null) {
+            System.err.println("[panamaview] a menu command named the id " + id
+                    + ", which this menu does not have");
+            return;
+        }
+        Platform operation = item.operation();
+        if (operation == null) {
+            // A binding item: the portable layer's business, and it knows the id.
+            callbacks.onMenuItem(id);
+            return;
+        }
+        switch (operation) {
+            case QUIT -> Win32.postMessage(hwnd, Win32.WM_CLOSE, 0L, 0L);
+            default -> System.err.println("[panamaview] the menu operation " + operation
+                    + " has no Windows route; its item was built disabled");
+        }
     }
 
     /**
@@ -281,6 +357,26 @@ public final class WindowsHost implements UiHost {
     }
 
     // ---------------------------------------------------------------- platform extras
+
+    /**
+     * Posts a menu command to the window, the way a click on the item would.
+     *
+     * <p>Windows synthesizes a click with a message, so this needs no window to exist and no
+     * mouse: it is how the self-test exercises the menu without a human. The id is the one
+     * the framework assigned, and it is readable from the declared bar — {@code Item.id()} is
+     * public — so a test knows which id to post.
+     *
+     * <p>It is on this class and not on {@link UiHost} because {@code UiHost} is a published
+     * type that may not gain abstract methods.
+     */
+    public void clickMenuItem(int id) {
+        MemorySegment window = hwnd;
+        if (window == null) {
+            throw new IllegalStateException("the window does not exist yet, so there is nothing to "
+                    + "post a menu command to");
+        }
+        Win32.postMessage(window, Win32.WM_COMMAND, id, 0L);
+    }
 
     /** Where the window is, as {@code widthxheight at x,y}. Registered by the composition root. */
     public String windowRectangle() {

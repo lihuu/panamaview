@@ -46,6 +46,7 @@ final class Win32 {
     static final int WM_SIZE = 0x0005;
     static final int WM_CLOSE = 0x0010;
     static final int WM_QUIT = 0x0012;
+    static final int WM_COMMAND = 0x0111;
     static final int WM_APP_RUNNABLE = 0x8000;   // WM_APP: for the host's own use
 
     // ------------------------------------------------------------- layouts
@@ -141,6 +142,22 @@ final class Win32 {
     private static final MethodHandle DISPATCH_MESSAGE =
             bind(LOOKUPS.USER32, "DispatchMessageW", FunctionDescriptor.of(JAVA_LONG, ADDRESS));
 
+    private static final MethodHandle CREATE_MENU =
+            bind(LOOKUPS.USER32, "CreateMenu", FunctionDescriptor.of(ADDRESS));
+    private static final MethodHandle APPEND_MENU =
+            bind(LOOKUPS.USER32, "AppendMenuW", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, JAVA_LONG, ADDRESS));
+    private static final MethodHandle DESTROY_MENU =
+            bind(LOOKUPS.USER32, "DestroyMenu", FunctionDescriptor.of(JAVA_INT, ADDRESS));
+    private static final MethodHandle GET_MENU_ITEM_COUNT =
+            bind(LOOKUPS.USER32, "GetMenuItemCount", FunctionDescriptor.of(JAVA_INT, ADDRESS));
+    private static final MethodHandle GET_MENU_ITEM_ID =
+            bind(LOOKUPS.USER32, "GetMenuItemID", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT));
+    private static final MethodHandle GET_MENU_STRING =
+            bind(LOOKUPS.USER32, "GetMenuStringW",
+                    FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT));
+    private static final MethodHandle GET_SUB_MENU =
+            bind(LOOKUPS.USER32, "GetSubMenu", FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_INT));
+
     private static final MethodHandle OPEN_CLIPBOARD =
             bind(LOOKUPS.USER32, "OpenClipboard", FunctionDescriptor.of(JAVA_INT, ADDRESS));
     private static final MethodHandle CLOSE_CLIPBOARD =
@@ -202,8 +219,19 @@ final class Win32 {
 
     /** Asks the window's own procedure, from any thread, to run something on the pump thread. */
     static void postRunnable(MemorySegment hwnd, long wparamForFlags) {
+        postMessage(hwnd, WM_APP_RUNNABLE, wparamForFlags, 0L);
+    }
+
+    /**
+     * Posts a message to a window.
+     *
+     * <p>A click on a menu item is a message, so a synthesized click is one too: that is how
+     * the self-test chooses an item without a human, and how the Quit operation asks the
+     * window to close.
+     */
+    static boolean postMessage(MemorySegment hwnd, int message, long wparam, long lparam) {
         try {
-            POST_MESSAGE.invoke(hwnd, WM_APP_RUNNABLE, wparamForFlags, 0L);
+            return (int) POST_MESSAGE.invoke(hwnd, message, wparam, lparam) != 0;
         } catch (Throwable t) {
             throw new IllegalStateException("PostMessage could not be called", t);
         }
@@ -255,9 +283,15 @@ final class Win32 {
      * is an upcall stub bound to {@code procedure}: the host answers the messages it cares
      * about, and everything else goes to {@code DefWindowProcW} — a window procedure that ate a
      * message would eat the behaviour behind it.
+     *
+     * <p>The menu goes in at creation time, in {@code CreateWindowExW}'s {@code hMenu} slot,
+     * and not through {@code SetMenu} afterwards: this method shows the window before it
+     * returns, so a menu attached later would land on a window that is already on screen, and
+     * the window would flash up without its menu.
      */
-    static MemorySegment createWindow(Arena arena, String title, int width, int height, Procedure procedure) {
-        return createWindow(arena, title, width, height, CW_USEDEFAULT, CW_USEDEFAULT, procedure);
+    static MemorySegment createWindow(Arena arena, String title, int width, int height,
+                                      MemorySegment hMenu, Procedure procedure) {
+        return createWindow(arena, title, width, height, CW_USEDEFAULT, CW_USEDEFAULT, hMenu, procedure);
     }
 
     /**
@@ -269,7 +303,7 @@ final class Win32 {
      * the same numbers, in the same pass-through spirit, as {@link io.github.lihuu.panamaview.WindowSpec.Origin}.
      */
     static MemorySegment createWindow(Arena arena, String title, int width, int height,
-                                      int x, int y, Procedure procedure) {
+                                      int x, int y, MemorySegment hMenu, Procedure procedure) {
         MemorySegment wndProc = LINKER.upcallStub(
                 // Bound to the concrete adapter, by the concrete method name - the exact shape
                 // the prototype proved out. CreateWindowExW dispatches WM_NCCREATE and friends
@@ -312,7 +346,12 @@ final class Win32 {
                     classNameSeg, windowName,
                     WS_OVERLAPPEDWINDOW,  // style
                     x, y, width, height,
-                    MemorySegment.NULL, MemorySegment.NULL, instance, MemorySegment.NULL);
+                    MemorySegment.NULL,   // hWndParent
+                    // hMenu — the menu is part of the window's birth, and a null one means
+                    // the window has no menu at all. The linker wants the null address, not
+                    // a null segment.
+                    hMenu == null ? MemorySegment.NULL : hMenu,
+                    instance, MemorySegment.NULL);
             if (hwnd.equals(MemorySegment.NULL)) {
                 // CreateWindowExW reports why only through GetLastError; without it the
                 // failure is a shrug.
@@ -327,6 +366,118 @@ final class Win32 {
             throw e;
         } catch (Throwable t) {
             throw new IllegalStateException(t);
+        }
+    }
+
+    // ------------------------------------------------------------------ the menu
+
+    /**
+     * A new, empty menu.
+     *
+     * <p>The handle is an {@code HMENU}: an opaque pointer, which the FFM layer carries as an
+     * address.
+     */
+    static MemorySegment createMenu() {
+        try {
+            return (MemorySegment) CREATE_MENU.invoke();
+        } catch (Throwable t) {
+            throw new IllegalStateException("CreateMenu could not be called", t);
+        }
+    }
+
+    /**
+     * Appends an item to a menu.
+     *
+     * <p>{@code AppendMenuW}'s third parameter is a {@code UINT_PTR} — a pointer-sized
+     * <em>integer</em> — and it carries two different things: the command id of an ordinary
+     * item, and the submenu's handle when {@code MF_POPUP} is set. Both are numbers, so both
+     * travel as a long, and a handle is its own address.
+     *
+     * <p>The text is a null-terminated UTF-16 string, allocated the way the window title is:
+     * {@code allocateFrom} adds the terminator, and the terminator is two bytes wide for
+     * UTF-16, so a two-character title takes six bytes.
+     *
+     * @param text the item's title, or null for a separator, whose text is ignored
+     */
+    static boolean appendMenu(Arena arena, MemorySegment menu, int flags, long id, String text) {
+        MemorySegment label = text == null
+                ? MemorySegment.NULL
+                : arena.allocateFrom(text, StandardCharsets.UTF_16LE);
+        try {
+            return (int) APPEND_MENU.invoke(menu, flags, id, label) != 0;
+        } catch (Throwable t) {
+            throw new IllegalStateException("AppendMenuW could not be called", t);
+        }
+    }
+
+    /** Frees a menu the framework built. */
+    static boolean destroyMenu(MemorySegment menu) {
+        try {
+            return (int) DESTROY_MENU.invoke(menu) != 0;
+        } catch (Throwable t) {
+            throw new IllegalStateException("DestroyMenu could not be called", t);
+        }
+    }
+
+    /** How many items a menu holds, separators included. */
+    static int getMenuItemCount(MemorySegment menu) {
+        try {
+            return (int) GET_MENU_ITEM_COUNT.invoke(menu);
+        } catch (Throwable t) {
+            throw new IllegalStateException("GetMenuItemCount could not be called", t);
+        }
+    }
+
+    /**
+     * The command id of an item, by its position.
+     *
+     * <p>Measured against the real Win32: a separator's id is 0, and a popup's is
+     * {@code 0xFFFFFFFF}. Neither is a command id, and the caller has to expect them as such.
+     */
+    static int getMenuItemId(MemorySegment menu, int position) {
+        try {
+            return (int) GET_MENU_ITEM_ID.invoke(menu, position);
+        } catch (Throwable t) {
+            throw new IllegalStateException("GetMenuItemID could not be called", t);
+        }
+    }
+
+    /**
+     * The title of an item, by its position.
+     *
+     * <p>The flags are the caller's: {@code MF_BYPOSITION} asks for the item at that position
+     * rather than the item with that id, and the menu flags are the plan's vocabulary, not
+     * this class's.
+     *
+     * <p>{@code GetMenuStringW} returns the number of characters it wrote, so a title that
+     * fills the buffer is truncated — and a truncated title is a failure, not a pass.
+     */
+    static String getMenuString(Arena arena, MemorySegment menu, int position, int maxChars, int flags) {
+        MemorySegment buffer = arena.allocate((long) maxChars * 2);
+        int written;
+        try {
+            written = (int) GET_MENU_STRING.invoke(menu, position, buffer, maxChars, flags);
+        } catch (Throwable t) {
+            throw new IllegalStateException("GetMenuStringW could not be called", t);
+        }
+        if (written >= maxChars) {
+            throw new IllegalStateException("a menu title did not fit in " + maxChars + " characters");
+        }
+        // UTF-16, and the count is in characters: read them one code unit at a time, so a
+        // surrogate pair stays the two chars it is.
+        StringBuilder title = new StringBuilder(written);
+        for (int i = 0; i < written; i++) {
+            title.append((char) buffer.get(JAVA_SHORT, (long) i * 2));
+        }
+        return title.toString();
+    }
+
+    /** The submenu of a popup item, by its position. */
+    static MemorySegment getSubMenu(MemorySegment menu, int position) {
+        try {
+            return (MemorySegment) GET_SUB_MENU.invoke(menu, position);
+        } catch (Throwable t) {
+            throw new IllegalStateException("GetSubMenu could not be called", t);
         }
     }
 
