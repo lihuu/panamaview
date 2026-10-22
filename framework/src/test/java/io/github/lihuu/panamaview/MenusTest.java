@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -232,5 +233,73 @@ class MenusTest {
         assertNull(Menus.separator().title());
         assertNull(Menus.separator().binding());
         assertNull(Menus.separator().platformAction());
+    }
+
+    @Test
+    void aBindingItemMustHaveABinding() {
+        var thrown = assertThrows(IllegalArgumentException.class, () -> Menus.item(null, "导出"));
+        assertTrue(thrown.getMessage().contains("导出"),
+                "the message must name the item: " + thrown.getMessage());
+    }
+
+    @Test
+    void aPlatformItemMustHaveAnOperation() {
+        var thrown = assertThrows(IllegalArgumentException.class, () -> Menus.platformItem(null, "Quit"));
+        assertTrue(thrown.getMessage().contains("Quit"),
+                "the message must name the item: " + thrown.getMessage());
+    }
+
+    @Test
+    void aMenuMustHaveATitle() {
+        var thrown = assertThrows(IllegalArgumentException.class, () -> new Menu(null, List.of()));
+        assertTrue(thrown.getMessage().contains("title"),
+                "the message must say what is wrong: " + thrown.getMessage());
+    }
+
+    @Test
+    void aMenuCannotBeMadeWithANullListOfItems() {
+        var thrown = assertThrows(IllegalArgumentException.class, () -> new Menu("文件", null));
+        assertTrue(thrown.getMessage().contains("items"),
+                "the message must say what is wrong: " + thrown.getMessage());
+    }
+
+    @Test
+    void aMenuFactoryCannotBeGivenANullListOfItems() {
+        var thrown = assertThrows(IllegalArgumentException.class,
+                () -> Menus.menu("文件", (Item[]) null));
+        assertTrue(thrown.getMessage().contains("items"),
+                "the message must say what is wrong: " + thrown.getMessage());
+    }
+
+    @Test
+    void aBarCannotBeMadeWithANullListOfMenus() {
+        var thrown = assertThrows(IllegalArgumentException.class, () -> new MenuBar(null));
+        assertTrue(thrown.getMessage().contains("menus"),
+                "the message must say what is wrong: " + thrown.getMessage());
+    }
+
+    @Test
+    void aBarFactoryCannotBeGivenANullListOfMenus() {
+        var thrown = assertThrows(IllegalArgumentException.class, () -> Menus.menu((Menu[]) null));
+        assertTrue(thrown.getMessage().contains("menus"),
+                "the message must say what is wrong: " + thrown.getMessage());
+    }
+
+    @Test
+    void aShortcutCannotHaveANullModifier() {
+        var thrown = assertThrows(IllegalArgumentException.class,
+                () -> new Shortcut("E", Collections.singleton(null)));
+        assertTrue(thrown.getMessage().contains("modifier"),
+                "the message must say what is wrong: " + thrown.getMessage());
+    }
+
+    @Test
+    void aShortcutMayBeAbsent() {
+        // The shortcut is optional, and null is how the model says there is none: an item with
+        // no shortcut gets no key equivalent, which is what the platform builds for it.
+        var item = Menus.item("export", "导出");
+        assertNull(item.shortcut());
+        assertNull(item.shortcut((Shortcut) null).shortcut(),
+                "a null shortcut means no shortcut — the state the item starts in");
     }
 }

@@ -1,10 +1,22 @@
 package io.github.lihuu.panamaview;
 
 public sealed interface Item permits Item.BindingItem, Item.PlatformItem, Item.SeparatorItem {
+    /** The item's title. Null for a separator, which is the one item that has no title. */
     String title();
     String binding();          // null unless this is a BindingItem
     Platform platformAction(); // null unless this is a PlatformItem
+
+    /** The item's shortcut, or null when it has none. */
     Shortcut shortcut();
+
+    /**
+     * Sets the item's shortcut.
+     *
+     * <p>The shortcut is optional, and {@code null} is how the model says there is none: an
+     * item with no shortcut gets no key equivalent, which is what the platform builds for it.
+     * So a null shortcut is allowed here, and it means "no shortcut" — the state the item
+     * starts in.
+     */
     Item shortcut(Shortcut s);
 
     default Item shortcut(String s) {
@@ -20,6 +32,8 @@ public sealed interface Item permits Item.BindingItem, Item.PlatformItem, Item.S
         private int id;
 
         BindingItem(String binding, String title) {
+            // The factories in Menus refuse a null binding or title. This constructor is
+            // package-private, so it is not a door an application has.
             this.binding = binding;
             this.title = title;
         }
@@ -40,6 +54,8 @@ public sealed interface Item permits Item.BindingItem, Item.PlatformItem, Item.S
         private int id;
 
         PlatformItem(Platform platformAction, String title) {
+            // The factories in Menus refuse a null operation or title. This constructor is
+            // package-private, so it is not a door an application has.
             this.platformAction = platformAction;
             this.title = title;
         }

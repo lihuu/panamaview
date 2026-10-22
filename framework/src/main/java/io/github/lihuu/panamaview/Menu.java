@@ -20,12 +20,18 @@ public final class Menu {
      * shared list — and the copy does not reach it.
      */
     public Menu(String title, List<Item> items) {
-        this.title = title;
+        if (title == null) {
+            throw new IllegalArgumentException("A menu must have a title");
+        }
+        if (items == null) {
+            throw new IllegalArgumentException("A menu cannot be made with a null list of items");
+        }
         for (Item item : items) {
             if (item == null) {
                 throw new IllegalArgumentException("A menu cannot hold a null item: \"" + title + "\"");
             }
         }
+        this.title = title;
         this.items = List.copyOf(items);
     }
 

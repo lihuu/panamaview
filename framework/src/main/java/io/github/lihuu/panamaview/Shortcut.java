@@ -29,6 +29,11 @@ public record Shortcut(String key, Set<Modifier> modifiers) {
         if (modifiers == null) {
             throw new IllegalArgumentException("Shortcut modifiers cannot be null");
         }
+        for (Modifier modifier : modifiers) {
+            if (modifier == null) {
+                throw new IllegalArgumentException("A shortcut cannot have a null modifier");
+            }
+        }
         // A key that names a modifier is the other way of writing a modifier, and the shortcut
         // it makes means nothing. parse refuses it too, and compares the same way: on the
         // uppercased form, because the key keeps its own case.

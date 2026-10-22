@@ -17,10 +17,16 @@ public final class Menus {
     private Menus() {}
 
     public static MenuBar menu(Menu... menus) {
+        if (menus == null) {
+            throw new IllegalArgumentException("A bar cannot be made with a null list of menus");
+        }
         return new MenuBar(Arrays.asList(menus));
     }
 
     public static Menu menu(String title, Item... items) {
+        if (items == null) {
+            throw new IllegalArgumentException("A menu cannot be made with a null list of items");
+        }
         return new Menu(title, Arrays.asList(items));
     }
 
@@ -33,6 +39,10 @@ public final class Menus {
      * empty row.
      */
     public static Item item(String binding, String title) {
+        if (binding == null) {
+            throw new IllegalArgumentException("A binding item must have a binding: the title \""
+                    + title + "\"");
+        }
         if (title == null) {
             throw new IllegalArgumentException("A binding item must have a title: the binding \""
                     + binding + "\"");
@@ -47,6 +57,10 @@ public final class Menus {
      * made by {@link #separator()}.
      */
     public static Item platformItem(Platform action, String title) {
+        if (action == null) {
+            throw new IllegalArgumentException("A platform item must have an operation: the title \""
+                    + title + "\"");
+        }
         if (title == null) {
             throw new IllegalArgumentException("A platform item must have a title: the operation "
                     + action);
@@ -57,6 +71,9 @@ public final class Menus {
     /**
      * A separator: the one item with no title, and the one that is not either kind of item
      * that does something.
+     *
+     * <p>Its null title is its nature, not a hole: the platform draws a separator and carries
+     * no title, no action and no key equivalent for it.
      */
     public static Item separator() {
         return new Item.SeparatorItem();

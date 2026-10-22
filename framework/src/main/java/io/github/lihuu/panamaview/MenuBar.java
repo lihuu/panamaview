@@ -23,6 +23,9 @@ public final class MenuBar {
      * would disagree about its id.
      */
     public MenuBar(List<Menu> menus) {
+        if (menus == null) {
+            throw new IllegalArgumentException("A bar cannot be made with a null list of menus");
+        }
         for (Menu menu : menus) {
             if (menu == null) {
                 throw new IllegalArgumentException("A bar cannot hold a null menu");
