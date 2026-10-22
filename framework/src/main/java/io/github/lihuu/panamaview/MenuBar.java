@@ -8,8 +8,15 @@ public final class MenuBar {
     private final List<Menu> menus;
     private final Map<Integer, String> bindings;
 
+    /**
+     * Takes a copy of the menus, so the bar owns what it was given.
+     *
+     * <p>Same reason as {@link Menu}: the list that comes in is the caller's, and the ids
+     * are assigned from the menus it holds. A menu moved in or out afterwards would leave the
+     * id table describing a bar that is not the one the platform is given.
+     */
     public MenuBar(List<Menu> menus) {
-        this.menus = menus;
+        this.menus = List.copyOf(menus);
         this.bindings = numberItems();
     }
 

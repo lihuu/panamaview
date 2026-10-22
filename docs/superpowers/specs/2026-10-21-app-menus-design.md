@@ -885,10 +885,22 @@ the framework should say so rather than run it.
 Edit menu is titled `"Edit"` in English (Cocoa.java:62) while an application writes
 `"编辑"`, so matching by title cannot work.
 
-The built-in menus are identified by a **reserved name**, not by their title: `edit` and
-`quit` are keys the framework recognises, and the title is whatever the platform's
-convention is. An application that wants the built-in Edit menu asks for it by that key;
-an application that wants its own menu of its own choosing uses any other key.
+The built-in menus are **supplied, not declared**: `Menus.appMenu()` and `Menus.editMenu()`
+are factories, and an application that wants the built-in Edit menu puts `Menus.editMenu()`
+in its bar. There is nothing to identify — the application asks for what it wants by calling
+what it wants.
+
+The one menu the platform does recognise is the application menu, and it recognises it by its
+**title**: the reserved title `"[Application Name]"` — not a title an application would ever
+write, but the title the model could not fill in, because the model has no application name
+and only the platform has one. The platform never shows that title — it puts the
+application's name there instead, which is what the menu bar has always shown.
+
+**Why the design changed:** the first version gave the built-in menus a reserved *name* —
+`edit` and `quit` as keys the framework recognised, and the title was whatever the platform's
+convention was. There are no such keys: the model has factories, and a key would have been a
+second way of saying what a factory already says. A reserved *title* is not a second way,
+because the model has nothing else to put there.
 
 **Are the built-in menus macOS-only?** They exist on macOS today. On Windows there is no
 menu at all (Win32.java:300-315, `lpszMenuName` is `NULL`).

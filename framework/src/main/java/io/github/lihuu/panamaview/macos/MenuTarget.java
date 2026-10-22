@@ -14,11 +14,14 @@ import java.util.Map;
  * selector's name back out of the runtime here.
  *
  * <p>The instance lives in a static field, and that is not tidiness. {@code NSMenuItem.target}
- * is a <em>weak</em> reference, so a target Java's collector reclaims becomes nil — and a nil
- * target is exactly what a <em>platform</em> item does. A binding item whose target was
- * collected would quietly stop being one and start walking the responder chain, which is the
- * failure this whole distinction exists to prevent. {@link ObjCDispatch} keeps its instance
- * alive the same way.
+ * is a <em>weak</em> reference, so a target that is released becomes nil — and a nil target
+ * is exactly what a <em>platform</em> item does. A binding item whose target had gone would
+ * quietly stop being one and start walking the responder chain, which is the failure this
+ * whole distinction exists to prevent.
+ *
+ * <p>So the rule is: never release the target, and hold its address in a static field so the
+ * handle stays valid. The instance is an Objective-C object, so Java's collector was never
+ * going to reclaim it — a release is. {@link ObjCDispatch} keeps its instance the same way.
  */
 final class MenuTarget {
 

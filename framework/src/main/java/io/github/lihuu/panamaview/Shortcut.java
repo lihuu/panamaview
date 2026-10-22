@@ -9,6 +9,28 @@ public record Shortcut(String key, Set<Modifier> modifiers) {
         CMD_OR_CTRL, CTRL, SHIFT, ALT
     }
 
+    /**
+     * The shortcut's own checks, so that a shortcut cannot be made that means nothing.
+     *
+     * <p>{@link #parse} is the disciplined way in, and it holds this line for a string; the
+     * constructor is the other way in, and it holds it for the pieces themselves. A null or
+     * blank key, and a null modifier set, are refused here rather than failing somewhere
+     * further on — in the platform's modifier mask, which is a long way from the mistake.
+     *
+     * <p>The modifier set is copied, so the shortcut means what it meant when it was made: a
+     * set handed in and changed afterwards cannot change a shortcut that has already been
+     * given a meaning.
+     */
+    public Shortcut {
+        if (key == null || key.isBlank()) {
+            throw new IllegalArgumentException("Shortcut key cannot be null or blank: " + key);
+        }
+        if (modifiers == null) {
+            throw new IllegalArgumentException("Shortcut modifiers cannot be null");
+        }
+        modifiers = Set.copyOf(modifiers);
+    }
+
     public static Shortcut parse(String s) {
         if (s == null || s.isBlank()) {
             throw new IllegalArgumentException("Shortcut string cannot be null or blank: " + s);

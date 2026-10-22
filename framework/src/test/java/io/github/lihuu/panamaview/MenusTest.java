@@ -2,6 +2,9 @@ package io.github.lihuu.panamaview;
 
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.Locale;
 
@@ -117,5 +120,45 @@ class MenusTest {
         assertNull(menu.items().get(6).platformAction());
         assertNull(menu.items().get(6).binding());
         assertEquals(Platform.SELECT_ALL, menu.items().get(7).platformAction());
+    }
+
+    @Test
+    void aShortcutRefusesANullKey() {
+        var thrown = assertThrows(IllegalArgumentException.class, () -> new Shortcut(null, Set.of()));
+        assertTrue(thrown.getMessage().contains("key"),
+                "the message must say what is wrong: " + thrown.getMessage());
+    }
+
+    @Test
+    void aShortcutRefusesANullModifierSet() {
+        var thrown = assertThrows(IllegalArgumentException.class, () -> new Shortcut("E", null));
+        assertTrue(thrown.getMessage().contains("modifier"),
+                "the message must say what is wrong: " + thrown.getMessage());
+    }
+
+    @Test
+    void aShortcutDoesNotChangeWhenTheSetItWasGivenIsChanged() {
+        var modifiers = new HashSet<>(Set.of(Shortcut.Modifier.CMD_OR_CTRL));
+        var shortcut = new Shortcut("E", modifiers);
+
+        modifiers.add(Shortcut.Modifier.SHIFT);
+
+        assertEquals(Set.of(Shortcut.Modifier.CMD_OR_CTRL), shortcut.modifiers(),
+                "a shortcut must mean what it meant when it was made");
+    }
+
+    @Test
+    void aCallerCannotChangeTheMenuOrTheBarAfterBuildingThem() {
+        var items = new ArrayList<Item>(List.of(Menus.item("export", "导出")));
+        var menu = new Menu("文件", items);
+        var bar = new MenuBar(List.of(menu));
+
+        // The caller's list, changed after the fact.
+        items.set(0, Menus.item("other", "别的"));
+
+        assertEquals("导出", menu.items().get(0).title(),
+                "the menu owns the list it was given");
+        assertEquals("导出", bar.menus().get(0).items().get(0).title(),
+                "and so does the bar — the id table and the items must not be able to disagree");
     }
 }
