@@ -1099,10 +1099,12 @@ new WebApp(host)
     .run();
 ```
 
-A **binding item** names a Java method: choosing it calls that binding, exactly as a page's
-`java.invoke` would. A **platform item** names an operation the platform already knows —
-`Platform.QUIT`, `Platform.COPY` — and has no binding behind it. The two are different in
-kind, not in decoration.
+A **binding item** names a Java method: choosing it calls that binding — the same one a
+page's `java.invoke` would reach, though not quite the same call. A menu binding's return
+value is discarded, there being no page to hand it to, and a menu binding that exceeds its
+deadline is reported on the framework's own stderr rather than to a page. A **platform item**
+names an operation the platform already knows — `Platform.QUIT`, `Platform.COPY` — and has no
+binding behind it. The two are different in kind, not in decoration.
 
 ### Why there are two kinds, and it is not a matter of taste
 
@@ -1200,9 +1202,11 @@ from the page.
 ### A declared bar replaces the framework's bar, and that is a responsibility
 
 `.menu(...)` replaces the framework's bar; it does not merge with it. Merging has no good
-answer — AppKit expects the application menu first — so the model would have to say "your
-menus come after the app menu", and the app menu would have to be expressible in the same
-list. Replacing is simpler, and it is what the design does.
+answer: the framework finds the application menu by the placeholder title the model carries —
+the model has no application name to put there — and an application menu declared anywhere but
+first leaves an untitled item in the middle of the bar. Merging would have to make the
+application menu expressible in the same list as the application's own, and say where in it.
+Replacing is simpler, and it is what the design does.
 
 The cost is that **an application that declares a bar takes responsibility for the whole
 bar**: `appMenu()` and `editMenu()` included. On macOS, leaving the Edit menu out brings back

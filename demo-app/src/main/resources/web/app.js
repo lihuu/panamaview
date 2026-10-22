@@ -68,11 +68,16 @@
     //    answered while it is in flight. Replies are delivered *by the UI thread*, so if a
     //    slow handler still occupied the UI thread, the fast call could not return until the
     //    slow one finished — and the elapsed time below would be ~600 ms, not a few.
+    //
+    //    The elapsed time is kept, because the control below quotes it: the two numbers are
+    //    the whole point of the pair, and a typed one would be a number nobody measured.
+    let fastElapsed = null;
     try {
       const slow = java.invoke("slow", { ms: 600 });
       const started = performance.now();
       await java.invoke("hello", { name: "overtake" });
       const elapsed = performance.now() - started;
+      fastElapsed = elapsed;
       check("slow handler does not block", elapsed < 150,
             `hello answered in ${elapsed.toFixed(0)} ms while slow(600 ms) was in flight`);
       await slow;
@@ -89,8 +94,9 @@
       const started = performance.now();
       await java.invoke("hello", { name: "blocked" });
       const elapsed = performance.now() - started;
+      const contrast = fastElapsed === null ? "the fast call above" : `${fastElapsed.toFixed(0)} ms above`;
       check("control: UI-thread handler does block", elapsed >= 300,
-            `hello delayed ${elapsed.toFixed(0)} ms behind slowUi(400 ms) — contrast with 1 ms above`);
+            `hello delayed ${elapsed.toFixed(0)} ms behind slowUi(400 ms) — contrast with ${contrast}`);
       await blocking;
     } catch (error) {
       check("control: UI-thread handler does block", false, String(error.message));

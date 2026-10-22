@@ -143,8 +143,8 @@ Two kinds of item, and the difference is not decoration:
   `Platform.UNDO`, …) and has no Java behind it.
 
 `CmdOrCtrl` means ⌘ on macOS and Ctrl on Windows, so one declaration means the same
-user-visible action on both — on macOS today. The Windows builder registers no accelerator
-yet, so a shortcut there does nothing until that is done.
+user-visible action on both platforms — but only macOS honours it today: the Windows builder
+registers no accelerator yet, so a shortcut there does nothing until that is done.
 
 **A declared bar replaces the framework's bar — it does not merge with it — so the
 application takes responsibility for the whole bar, `appMenu()` and `editMenu()` included.**
