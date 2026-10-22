@@ -80,6 +80,14 @@ jobs:
       - name: The native-image metadata matches the sources
         run: python3 scripts/verify-native-metadata.py
 
+      # The check above is the last thing standing between a broken native build and a
+      # shipped binary, and a check whose failures have only ever been shown by hand is a
+      # check whose failures evaporate -- the evidence was in a reviewer's message, not in
+      # a test. This drives it: each case breaks one thing in a copy of the tree and
+      # insists the check fails, and says why.
+      - name: The native-image metadata check fails when it should
+        run: python3 scripts/verify-native-metadata-failures.py
+
       # The demo used to live in this tree, so the published jar shipped the demo's classes and
       # its pages: a consumer's classpath acquired an application it never asked for, and the
       # framework's own declared entry point was the demo's main(). Nothing else here would

@@ -323,9 +323,12 @@ def carrier(layout):
 class Source:
     """One Java file in the package, with what the check needs from it."""
 
-    def __init__(self, path):
+    def __init__(self, path, where):
         self.path = path
-        self.file_name = path.stem
+        # How the file is named in a message: its path in the package, without the
+        # extension. Two files in different subpackages can share a name, and the
+        # path says which one is meant.
+        self.where = where
         self.text, self.literals = strip_comments(path.read_text(encoding="utf-8"))
         self.masked = mask_literals(self.text, self.literals)
         self.package = ""
@@ -395,8 +398,15 @@ class Source:
     def method(self, name):
         """(returnType, [parameterTypes]) of a declared method, or None."""
         pattern = (r"(?m)^[ \t]*(?:(?:public|private|protected|static|final|abstract|"
-                   r"native|synchronized)\s+)*([\w.$<>\[\]]+)\s+" + re.escape(name) + r"\s*\(")
+                   r"native|synchronized)\s+)*([\w.$<>\[\]]+)\s+(" + re.escape(name)
+                   + r")\s*\(")
         for match in re.finditer(pattern, self.text):
+            # A call can look like a declaration: 'return handleScriptMessage(null, ...);'
+            # is a call, and reading it as one would report that the method takes four
+            # nulls. What sits in the type position must be a type, and a keyword is
+            # never a type.
+            if match.group(1).rsplit(".", 1)[-1] in KEYWORDS:
+                continue
             end = match_paren(self.text, match.end() - 1)
             if end < 0:
                 continue
@@ -415,7 +425,10 @@ class Package:
     """The macos package: its sources, its struct layouts and its type names."""
 
     def __init__(self, directory):
-        self.sources = [Source(path) for path in sorted(directory.glob("*.java"))]
+        # rglob, not glob: a subpackage under macos/ is still macOS code, and a
+        # descriptor it built would be just as unregistered as one built above.
+        self.sources = [Source(path, path.relative_to(directory).with_suffix("").as_posix())
+                        for path in sorted(directory.rglob("*.java"))]
         for source in self.sources:
             source.parse_package()
             source.parse_types()
@@ -719,17 +732,23 @@ def descriptor_of(argument, source, package):
 
 
 def check_downcalls(metadata, package, scan, problems, notes):
-    """Every shape the sources build in a downcall position is registered."""
+    """Every shape the sources build in a downcall position is registered.
+
+    Returns the shapes the file registers and the ones it does not, so that the
+    report and the check cannot disagree about what is missing.
+    """
     registered = {}
     for entry in metadata["foreign"]["downcalls"]:
         shape = shape_of(entry, "a downcalls entry")
         registered[shape] = entry
 
+    missing = []
     for shape, (source, line, how) in sorted(scan.downcall_shapes.items()):
         if shape not in registered:
+            missing.append(shape)
             problems.append("the sources build %s but the file does not register it "
                             "(%s/%s:%d, %s)"
-                            % (shape_text(shape), PACKAGE, source.file_name, line, how))
+                            % (shape_text(shape), PACKAGE, source.where, line, how))
 
     for shape in sorted(registered):
         if shape not in scan.downcall_shapes:
@@ -737,25 +756,27 @@ def check_downcalls(metadata, package, scan, problems, notes):
                          % (shape_text(shape), PACKAGE))
 
     # Every descriptor the sources build has to be accounted for. A descriptor this
-    # check cannot place in a downcall or an upcall position is a descriptor whose
-    # shape the file may or may not register, and "may or may not" is the failure
-    # this whole task exists to prevent.
+    # check cannot place in a downcall or an upcall position is one whose shape it
+    # cannot vouch for, and a shape nobody vouched for is a native build that dies on
+    # the first downcall.
     for source in package.sources:
         for name, shape in sorted(source.constants.items()):
             if (source, name) in scan.placed:
                 continue
             problems.append(
                 "%s.%s is %s and the check cannot see where it is used: it is not an "
-                "argument of a downcall or of an upcall, so the file may not register it"
-                % (source.file_name, name,
+                "argument of a downcall or of an upcall, so the check cannot vouch for it"
+                % (source.where, name,
                    shape_text(shape) if shape else "a descriptor of an unreadable shape"))
         for offset, shape in inline_descriptors(source, package):
             if (source, offset) in scan.placed:
                 continue
             problems.append(
                 "%s/%s:%d builds a descriptor the check cannot place: it is not an "
-                "argument of a downcall or of an upcall, so the file may not register it"
-                % (PACKAGE, source.file_name, line_of(source.text, offset)))
+                "argument of a downcall or of an upcall, so the check cannot vouch for it"
+                % (PACKAGE, source.where, line_of(source.text, offset)))
+
+    return set(registered), missing
 
 
 def inline_descriptors(source, package):
@@ -791,7 +812,7 @@ def check_upcalls(metadata, package, scan, problems, notes):
         if not found:
             problems.append("%s.%s is used as an upcall (%s/%s:%d) but the file has no "
                             "directUpcalls entry for it"
-                            % (class_name, method, PACKAGE, source.file_name, line))
+                            % (class_name, method, PACKAGE, source.where, line))
             continue
         for entry in found:
             if shape_of(entry, "a directUpcalls entry") != shape:
@@ -826,7 +847,7 @@ def check_reflection(metadata, package, scan, problems, notes):
         found = source.method(method)
         if found is None:
             problems.append("the directUpcalls entry for %s.%s names a method that is not "
-                            "in %s" % (class_name, method, source.file_name))
+                            "in %s" % (class_name, method, source.where))
             continue
         return_type, parameters = found
         expected = [carrier(parameter) for parameter in shape[1]]
@@ -853,7 +874,7 @@ def check_reflection(metadata, package, scan, problems, notes):
             found = source.method(method.get("name"))
             if found is None:
                 problems.append("the reflection entry for %s.%s names a method that is not "
-                                "in %s" % (class_name, method.get("name"), source.file_name))
+                                "in %s" % (class_name, method.get("name"), source.where))
                 continue
             _, parameters = found
             declared = [simple_name(p) for p in method.get("parameterTypes", [])]
@@ -866,13 +887,12 @@ def check_reflection(metadata, package, scan, problems, notes):
 # ----------------------------------------------------------------- the report
 
 
-def report(metadata, package, scan, problems, notes):
+def report(metadata, package, scan, problems, notes, registered, missing):
     """Print what was checked, and what was found."""
     every_shape = set(scan.downcall_shapes)
     for _, _, shape, _, _ in scan.upcall_sites:
         every_shape.add(shape)
     upcall_only = sorted(every_shape - set(scan.downcall_shapes))
-    registered = len(metadata["foreign"]["downcalls"])
 
     print("the native-image metadata and the %s sources" % PACKAGE)
     print()
@@ -882,21 +902,21 @@ def report(metadata, package, scan, problems, notes):
     print()
     print("  downcall shapes")
     print("    the sources build %d downcall shapes; the file registers %d"
-          % (len(scan.downcall_shapes), registered))
+          % (len(scan.downcall_shapes), len(registered)))
     if upcall_only:
-        print("    %d more shape is only ever an upcall, so it belongs in directUpcalls"
-              % len(upcall_only))
+        if len(upcall_only) == 1:
+            print("    1 more shape is only ever an upcall, so it belongs in directUpcalls")
+        else:
+            print("    %d more shapes are only ever upcalls, so they belong in "
+                  "directUpcalls" % len(upcall_only))
         print("    and not in downcalls: %s"
               % ", ".join(shape_text(shape) for shape in upcall_only))
-    missing = [shape for shape in scan.downcall_shapes
-               if shape not in {shape_of(e, "a downcalls entry")
-                                for e in metadata["foreign"]["downcalls"]}]
     if missing:
         print("    used but not registered:")
         for shape in sorted(missing):
             source, line, how = scan.downcall_shapes[shape]
             print("      %-30s <- %s/%s:%d (%s)"
-                  % (shape_text(shape), PACKAGE, source.file_name, line, how))
+                  % (shape_text(shape), PACKAGE, source.where, line, how))
     else:
         print("    every shape the sources build is registered")
     print()
@@ -909,7 +929,7 @@ def report(metadata, package, scan, problems, notes):
               % len(scan.unreadable))
         for source, line, callee, reason in scan.unreadable:
             print("      %s/%s:%d  %s(...)  -- %s"
-                  % (PACKAGE, source.file_name, line, callee, reason))
+                  % (PACKAGE, source.where, line, callee, reason))
     else:
         print("    every upcall site has a directUpcalls entry of the same shape")
     print()
@@ -951,10 +971,10 @@ def main():
     problems = []
     notes = []
     try:
-        check_downcalls(metadata, package, scan, problems, notes)
+        registered, missing = check_downcalls(metadata, package, scan, problems, notes)
         check_upcalls(metadata, package, scan, problems, notes)
         check_reflection(metadata, package, scan, problems, notes)
-        report(metadata, package, scan, problems, notes)
+        report(metadata, package, scan, problems, notes, registered, missing)
     except MetadataError as error:
         sys.exit("%s: %s" % (METADATA, error))
 

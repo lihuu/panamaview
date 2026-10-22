@@ -328,14 +328,14 @@
     ],
     "downcalls": [
       {
-        "returnType": "void*",
+        "returnType": "void",
         "parameterTypes": [
           "void*",
           "void*"
         ]
       },
       {
-        "returnType": "void",
+        "returnType": "void*",
         "parameterTypes": [
           "void*",
           "void*"
