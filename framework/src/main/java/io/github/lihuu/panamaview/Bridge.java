@@ -12,6 +12,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * The JavaScript side of the bridge: request framing, handler dispatch, reply delivery, and
@@ -64,6 +65,32 @@ final class Bridge {
     }
 
     /**
+     * Where a request came from.
+     *
+     * <p>The two kinds differ in exactly one thing — who is waiting for the answer — and that
+     * one difference settles three questions: whether a reply is sent, whether the page may
+     * cancel it, and whether a timeout is reported to the page or to the framework's own
+     * channel.
+     */
+    private enum Source {
+        /** A call the page made. The page waits for the answer, and the page may withdraw it. */
+        PAGE("js"),
+        /** A menu item that was chosen. Nobody waits for the answer. */
+        MENU("menu");
+
+        private final String label;
+
+        Source(String label) {
+            this.label = label;
+        }
+
+        /** True when somebody is waiting for the answer. */
+        boolean awaitsReply() {
+            return this == PAGE;
+        }
+    }
+
+    /**
      * One in-flight request, and the machinery to settle it exactly once.
      *
      * <p>{@link #claim} is the whole trick: a compare-and-set that only one of the four racing
@@ -75,13 +102,19 @@ final class Bridge {
      */
     private static final class Request {
         final Object id;
+        /** Where the call came from: the page, or a menu item. */
+        final Source source;
+        /** The binding's name, so that a failure can say which binding it was. */
+        final String method;
         final AtomicBoolean pending = new AtomicBoolean(true);
         volatile Thread worker;
         volatile ScheduledFuture<?> timer;
         volatile String outcome;
 
-        Request(Object id) {
+        Request(Object id, Source source, String method) {
             this.id = id;
+            this.source = source;
+            this.method = method;
         }
 
         /** Claims the single terminal outcome. False means somebody already reported this. */
@@ -101,6 +134,9 @@ final class Bridge {
     private final UiHost host;
     private final Map<String, Binding> bindings = new ConcurrentHashMap<>();
     private final Map<Object, Request> inFlight = new ConcurrentHashMap<>();
+
+    /** Names the requests a menu click makes, so two clicks of one item are two requests. */
+    private final AtomicLong menuRequests = new AtomicLong();
 
     /** Virtual threads: one per request, because a request is exactly the blocking-shaped work. */
     private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
@@ -169,7 +205,7 @@ final class Bridge {
             return;
         }
 
-        Request request = new Request(id);
+        Request request = new Request(id, Source.PAGE, method);
         inFlight.put(id, request);
         armDeadline(request, binding);
 
@@ -179,6 +215,40 @@ final class Bridge {
         } else {
             workers.execute(() -> run(request, method, params, binding.handler()));
         }
+    }
+
+    /**
+     * Runs a named binding outside the page path — a menu item was chosen.
+     *
+     * <p>Dispatched exactly as a page call is: on a virtual thread, off the UI thread, with the
+     * binding's own deadline, cancellable. A menu item is a second surface of a binding, so it
+     * should behave like the first one; the only thing that differs is who asked.
+     *
+     * <p>Nobody is waiting for the answer, so the result is discarded and no reply is sent. An
+     * unknown name, and a UI-thread binding, are both reported through the fail channel rather
+     * than thrown: a menu click has no requester to reject, and the next item clicked must
+     * still work.
+     */
+    void invokeBinding(String name, Map<String, Object> params) {
+        Binding binding = bindings.get(name);
+
+        if (binding == null) {
+            fail("no Java binding named '" + name + "'", null);
+            return;
+        }
+
+        if (binding.uiThread()) {
+            // A UI-thread handler has no deadline and runs inline on the UI thread, which is
+            // where a menu click already is. Running it there would block the window with
+            // nothing watching, so the framework refuses instead of trying.
+            fail("a menu item may not name the UI-thread binding '" + name + "'", null);
+            return;
+        }
+
+        Request request = new Request("menu-" + menuRequests.incrementAndGet(), Source.MENU, name);
+        inFlight.put(request.id, request);
+        armDeadline(request, binding);
+        workers.execute(() -> run(request, name, params, binding.handler()));
     }
 
     private void armDeadline(Request request, Binding binding) {
@@ -198,44 +268,81 @@ final class Bridge {
         cancel(id, reason == null ? "cancelled by the page" : String.valueOf(reason), notify);
     }
 
-    /** Stops one request. Returns true when this call is the one that ended it. */
+    /**
+     * Stops one request the page asked for. Returns true when this call is the one that ended
+     * it.
+     *
+     * <p>The page may withdraw its own requests and nothing else: a menu binding belongs to
+     * the application, and the page has no authority over it — it never even heard of it.
+     */
     boolean cancel(Object id, String reason, boolean notify) {
         Request request = inFlight.get(id);
-        if (request == null || !request.claim(reason)) {
+        if (request == null || request.source != Source.PAGE) {
             return false;
         }
-        inFlight.remove(id);
+        return cancel(request, reason, notify);
+    }
+
+    /** Stops one request. Returns true when this call is the one that ended it. */
+    private boolean cancel(Request request, String reason, boolean notify) {
+        if (!request.claim(reason)) {
+            return false;
+        }
+        inFlight.remove(request.id);
         Thread worker = request.worker;
         if (worker != null) {
             worker.interrupt();
         }
         if (verbose) {
-            System.out.println("[panamaview] cancel   " + reason + "  (id " + id + ")");
+            System.out.println("[panamaview] cancel   " + reason + "  (id " + request.id + ")");
         }
         if (notify) {
-            reply(id, false, null, reason);
+            reply(request, false, null, reason);
         }
         return true;
     }
 
     /**
-     * Abandons everything in flight.
+     * Abandons the requests the page made.
      *
      * <p>Called when the page navigates away: requests belong to the page that made them, so
      * they are meaningless the moment it is gone. No replies are sent — there is nothing left
      * to receive them, and asking a departing web view to evaluate a script is worse than
      * useless.
+     *
+     * <p>A menu binding was not made by the page, so that reasoning does not reach it, and this
+     * sweep leaves it alone. An application whose "Save" writes to disk must not have that
+     * save interrupted by a navigation: the page went away, the application did not.
+     */
+    void cancelPageRequests(String reason) {
+        List<Request> requests = new ArrayList<>();
+        for (Request request : inFlight.values()) {
+            if (request.source == Source.PAGE) {
+                requests.add(request);
+            }
+        }
+        cancel(requests, reason);
+    }
+
+    /**
+     * Abandons everything in flight, the page's requests and the menu's alike.
+     *
+     * <p>This is the application's own sweep — it asked for everything to stop — so unlike
+     * {@link #cancelPageRequests} it reaches the menu bindings too.
      */
     void cancelAll(String reason) {
-        List<Object> ids = new ArrayList<>(inFlight.keySet());
-        if (ids.isEmpty()) {
+        cancel(new ArrayList<>(inFlight.values()), reason);
+    }
+
+    private void cancel(List<Request> requests, String reason) {
+        if (requests.isEmpty()) {
             return;
         }
         if (verbose) {
-            System.out.println("[panamaview] cancel   " + ids.size() + " request(s): " + reason);
+            System.out.println("[panamaview] cancel   " + requests.size() + " request(s): " + reason);
         }
-        for (Object id : ids) {
-            cancel(id, reason, false);
+        for (Request request : requests) {
+            cancel(request, reason, false);
         }
     }
 
@@ -258,10 +365,10 @@ final class Bridge {
             if (request.claim(null)) {
                 inFlight.remove(request.id);
                 if (verbose) {
-                    System.out.println("[panamaview] js → java  " + method + " → " + Json.write(result)
-                            + "   [" + Thread.currentThread() + "]");
+                    System.out.println("[panamaview] " + request.source.label + " → java  " + method
+                            + " → " + Json.write(result) + "   [" + Thread.currentThread() + "]");
                 }
-                reply(request.id, true, result, null);
+                reply(request, true, result, null);
             } else {
                 logAbandoned(method, request.outcome);
             }
@@ -275,11 +382,11 @@ final class Bridge {
             inFlight.remove(request.id);
             if (Thread.interrupted()) {
                 // Clearing the flag here keeps it from leaking onto a pooled carrier thread.
-                reply(request.id, false, null, request.outcome);
+                reply(request, false, null, request.outcome);
                 return;
             }
             fail("binding '" + method + "' failed", e);
-            reply(request.id, false, null, String.valueOf(e.getMessage()));
+            reply(request, false, null, String.valueOf(e.getMessage()));
         }
     }
 
@@ -296,7 +403,14 @@ final class Bridge {
         if (verbose) {
             System.out.println("[panamaview] timeout  " + reason + "  (id " + request.id + ")");
         }
-        reply(request.id, false, null, reason);
+        if (request.source == Source.MENU) {
+            // A page call reports its timeout to the page, which is waiting for it. A menu
+            // click has no page, so the framework's own channel is the only place this failure
+            // can surface — without it, an application whose menu binding times out has
+            // nothing to debug.
+            fail("binding '" + request.method + "' timed out: " + reason, null);
+        }
+        reply(request, false, null, reason);
     }
 
     private void logAbandoned(String method, String outcome) {
@@ -317,6 +431,20 @@ final class Bridge {
         // A JSON document is already a valid JavaScript expression, so the reply needs no
         // escaping on the way into the page.
         evaluate("window.__pvResolve(" + Json.write(out) + ")");
+    }
+
+    /**
+     * Sends the outcome back to whoever asked for it.
+     *
+     * <p>A request nobody is waiting on — a menu click, which has no page behind it — gets no
+     * reply: there is nowhere to send it, and the page would be resolving a request it never
+     * made.
+     */
+    private void reply(Request request, boolean ok, Object result, String error) {
+        if (!request.source.awaitsReply()) {
+            return;
+        }
+        reply(request.id, ok, result, error);
     }
 
     private void evaluate(String script) {

@@ -74,6 +74,14 @@ try {
     $state  = (Get-ScheduledTask -TaskName $task).State
     $result = $info.LastTaskResult
 
+    # The echo speaks UTF-8, like the log it is echoing.
+    #
+    # The log file is written by the run, in the encoding the run wrote it in, and this script
+    # reads it back and prints it. Printing it is a second encoding decision, and the console
+    # would make it in the machine's own code page: the file was right and the echo was
+    # mojibake, so the two disagreed in exactly the place a person reads the run.
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
     if (Test-Path $log) {
         Get-Content $log
     } else {

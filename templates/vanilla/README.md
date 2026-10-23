@@ -112,6 +112,71 @@ window.onJavaMessage = (payload) => { … };
 at startup, straight out of the panamaview jar, so it always matches the version you are
 running. It is a reserved name there.
 
+## The menu bar
+
+An application can declare its own menu bar, and the framework builds it on both platforms.
+
+```java
+import io.github.lihuu.panamaview.Menus;
+import io.github.lihuu.panamaview.Platform;
+
+new WebApp(host)
+    .title("My App")
+    .size(900, 620)
+    .load("/web/index.html")
+    .menu(Menus.menu(
+            Menus.appMenu(),
+            Menus.menu("File",
+                    Menus.item("export", "Export").shortcut("CmdOrCtrl+E"),
+                    Menus.separator(),
+                    Menus.platformItem(Platform.QUIT, "Quit")),
+            Menus.editMenu()))
+    .bind("export", params -> { … do the export … })
+    .run();
+```
+
+Two kinds of item, and the difference is not decoration:
+
+- a **binding item** names a method bound with `bind` — choosing it calls that method, the
+  same one a page's `java.invoke` would reach;
+- a **platform item** names an operation the platform already knows (`Platform.QUIT`,
+  `Platform.UNDO`, …) and has no Java behind it.
+
+**One title is composed for you, and it is the one in the application menu.** The Quit item
+inside `appMenu()` reads "Quit \<app name\>" — the platform is the side that knows the
+application's name, because the model has no way to know it. A `platformItem(Platform.QUIT,
+"退出")` in your **own** menu keeps the title you gave it, on both platforms: the composition
+belongs to the application menu alone.
+
+`CmdOrCtrl` means ⌘ on macOS and Ctrl on Windows, so one declaration means the same
+user-visible action on both platforms — but only macOS honours it today: the Windows builder
+registers no accelerator yet, so a shortcut there does nothing until that is done.
+
+**A declared bar replaces the framework's bar — it does not merge with it — so the
+application takes responsibility for the whole bar, `appMenu()` and `editMenu()` included.**
+The built-in menus are supplied for the application to include; the framework does not add
+them behind your back, because an application that cannot choose them cannot be helped by
+one that chooses for it.
+
+The two platforms do not offer the same built-in menus, so this is not a formality:
+
+- **On macOS the Edit menu is the framework's and it is not optional.** AppKit routes the
+  keyboard through menu items, so ⌘C reaches the web view's text field only because the Edit
+  menu carries it. Leave `editMenu()` out and ⌘C stops working, with a symptom that mentions
+  nothing about menus.
+- **On Windows the framework installs no Edit menu of its own.** The WebView2 control performs
+  the clipboard operations itself — `document.execCommand('copy')` inside a real user gesture
+  puts the text on the clipboard with no framework involved, and that is the code path
+  Chromium's own Ctrl+C runs. The browser already does the editing commands there, so the
+  Windows bar is for *application* items. A declared `editMenu()` is still built — with every
+  editing item **disabled**, so the user sees that it exists and cannot have it, and the
+  framework says so once on stderr.
+
+**Windows keyboard shortcuts are not part of this.** The menu bar is clickable on both
+platforms, and macOS additionally gets shortcuts, because its menu item already carries them.
+A Windows shortcut handled by the framework would have to take the key away from the page,
+which is the opposite of what the browser is doing with it.
+
 ## The two flags you must not drop
 
 Both are already in `pom.xml` and `run.sh`, and both bite in ways that do not name the cause:

@@ -30,6 +30,9 @@
     if (payload.autotest) {
       await selfTest(payload.snapshot, payload.navigateAway === true);
     }
+    if (payload.menuChosen) {
+      markChosen(payload.menuChosen, payload.clicks);
+    }
   };
 
   // ------------------------------------------------------------- the self test
@@ -65,11 +68,16 @@
     //    answered while it is in flight. Replies are delivered *by the UI thread*, so if a
     //    slow handler still occupied the UI thread, the fast call could not return until the
     //    slow one finished — and the elapsed time below would be ~600 ms, not a few.
+    //
+    //    The elapsed time is kept, because the control below quotes it: the two numbers are
+    //    the whole point of the pair, and a typed one would be a number nobody measured.
+    let fastElapsed = null;
     try {
       const slow = java.invoke("slow", { ms: 600 });
       const started = performance.now();
       await java.invoke("hello", { name: "overtake" });
       const elapsed = performance.now() - started;
+      fastElapsed = elapsed;
       check("slow handler does not block", elapsed < 150,
             `hello answered in ${elapsed.toFixed(0)} ms while slow(600 ms) was in flight`);
       await slow;
@@ -86,8 +94,9 @@
       const started = performance.now();
       await java.invoke("hello", { name: "blocked" });
       const elapsed = performance.now() - started;
+      const contrast = fastElapsed === null ? "the fast call above" : `${fastElapsed.toFixed(0)} ms above`;
       check("control: UI-thread handler does block", elapsed >= 300,
-            `hello delayed ${elapsed.toFixed(0)} ms behind slowUi(400 ms) — contrast with 1 ms above`);
+            `hello delayed ${elapsed.toFixed(0)} ms behind slowUi(400 ms) — contrast with ${contrast}`);
       await blocking;
     } catch (error) {
       check("control: UI-thread handler does block", false, String(error.message));
@@ -212,6 +221,27 @@
       }
     }
 
+    // 11. A menu item, chosen.
+    //
+    // The check asserts the effect, not the absence of an exception: a menu item that
+    // reaches nobody does not throw — it does nothing, silently, which is the failure this
+    // whole feature is exposed to. The count is the only evidence that the click reached
+    // the binding, and the binding waits for the effect so there is no race here.
+    //
+    // Two items, not one, and the second one is the one after the separator. An item's
+    // position in a menu is not the number of the items before it, so a click that counted
+    // only the items would land on the separator and reach nothing — which is exactly the
+    // failure this check would then report.
+    try {
+      const first = await java.invoke("menuClick", {});
+      const second = await java.invoke("menuClick", { item: "menuProbe2" });
+      check("menu item reaches its binding", first >= 1 && second >= 1,
+            "the menu item ran the binding " + first + " time(s), and the one after the "
+            + "separator " + second);
+    } catch (error) {
+      check("menu item reaches its binding", false, String(error.message));
+    }
+
     // Hand the verdict to Java so it lands in stdout. A test whose result can only be read by
     // looking at a screenshot is not a test you can run in CI.
     const passed = results.filter((r) => r.ok).length;
@@ -235,6 +265,56 @@
       }, 150);
     }
   }
+
+  // ------------------------------------------------------------- the menu bar
+  //
+  // The bar the application declared, and how many times each of its items has been chosen.
+  // A person clicking an item in the real menu bar sees the count move — the other half of
+  // what a menu is for, and the half a check cannot show. The count arrives as a message
+  // from Java, because a menu click does not go through the page at all.
+
+  const menuCounts = new Map();
+  const announced = new Map();
+
+  const renderMenu = (state) => {
+    const list = $("menu-items");
+    list.textContent = "";
+    menuCounts.clear();
+    for (const menu of state.menus) {
+      for (const item of menu.items) {
+        const title = document.createElement("dt");
+        title.textContent = `${menu.title} › ${item.kind === "separator" ? "—" : item.title}`;
+        const detail = document.createElement("dd");
+        detail.textContent = item.kind === "binding"
+          ? `${announced.get(item.binding) ?? item.clicks} time(s) chosen`
+          : item.kind;
+        list.append(title, detail);
+        if (item.binding) {
+          menuCounts.set(item.binding, detail);
+        }
+      }
+    }
+  };
+
+  const markChosen = (binding, clicks) => {
+    // The announcement wins over the count the state carried: a click that lands between the
+    // two would otherwise leave the page showing a count that is already out of date.
+    announced.set(binding, clicks);
+    const detail = menuCounts.get(binding);
+    if (detail) {
+      detail.textContent = `${clicks} time(s) chosen`;
+    }
+  };
+
+  const refreshMenu = async () => {
+    try {
+      renderMenu(await java.invoke("menuState", {}));
+    } catch (error) {
+      log(`error    menuState: ${error.message}`);
+    }
+  };
+
+  refreshMenu();
 
   // ------------------------------------------------------------- interactions
 

@@ -1,5 +1,8 @@
 package io.github.lihuu.panamaview.macos;
 
+import io.github.lihuu.panamaview.MenuBar;
+import io.github.lihuu.panamaview.MenuHost;
+import io.github.lihuu.panamaview.Menus;
 import io.github.lihuu.panamaview.PageSource;
 import io.github.lihuu.panamaview.UiHost;
 import io.github.lihuu.panamaview.WindowSpec;
@@ -8,6 +11,7 @@ import java.lang.foreign.MemorySegment;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -26,11 +30,29 @@ import java.util.Map;
  * cross-platform signatures for them before a second implementation exists would be a guess;
  * {@code Main} registers them as ordinary bindings instead.
  */
-public final class MacOsHost implements UiHost {
+public final class MacOsHost implements UiHost, MenuHost {
+
+    /**
+     * The bar the framework installs when the application declares none.
+     *
+     * <p>Quit and the Edit menu, in that order — the two menus the framework has always
+     * installed. An application that declares a bar replaces them; one that declares none keeps
+     * them, because an application that forgets the Edit menu must not reproduce issue #19.
+     */
+    private static final MenuBar DEFAULT_BAR = Menus.menu(Menus.appMenu(), Menus.editMenu());
 
     private Callbacks callbacks;
     private WebView webView;
     private MemorySegment window;
+    private MenuBar menuBar;
+    /** The bar the native menu was built from, and the menus that were built out of it. */
+    private MenuBar builtFrom;
+    private List<MemorySegment> builtMenus;
+
+    @Override
+    public void setMenu(MenuBar bar) {
+        this.menuBar = bar;
+    }
 
     @Override
     public void start(Callbacks callbacks, WindowSpec spec) {
@@ -45,7 +67,12 @@ public final class MacOsHost implements UiHost {
         try (ObjC.Scope scope = ObjC.scope()) {
             application = Cocoa.sharedApplication();
             Cocoa.setActivationPolicyRegular(application);
-            Cocoa.installMenuBar(scope, application, spec.title());
+            // The target comes first: the menu builder needs it, and a target that Java's
+            // collector reclaims would turn every binding item into a platform item.
+            MemorySegment menuTarget = MenuTarget.create(this);
+            MenuBar bar = menuBar != null ? menuBar : DEFAULT_BAR;
+            builtFrom = bar;
+            builtMenus = Cocoa.installMenuBar(scope, application, bar, spec.title(), menuTarget);
             Cocoa.finishLaunching(application);
 
             MemorySegment dispatch = ObjCDispatch.create(this);
@@ -145,7 +172,58 @@ public final class MacOsHost implements UiHost {
         return callbacks.shouldQuitWhenLastWindowCloses();
     }
 
+    // --------------------------------------------------------------- the menu
+
+    /**
+     * A binding item was chosen.
+     *
+     * <p>Called by {@link MenuTarget} on the UI thread, with the id the framework assigned. The
+     * portable layer looks the id up in the table the same walk that numbered the items
+     * produced, so the two cannot disagree about which binding an id names.
+     */
+    void menuItem(int id) {
+        callbacks.onMenuItem(id);
+    }
+
     // -------------------------------------------------------------- platform extras
+
+    /**
+     * Activates a menu item, the way choosing it would.
+     *
+     * <p>There is no way to choose a menu item without a human, so this is how a test chooses
+     * one: it activates the item the way AppKit does when the item is clicked, and the binding
+     * behind it runs.
+     *
+     * <p>AppKit has no "click" for a menu item — {@code NSMenuItem} has no {@code performClick}
+     * at all, that is {@code NSButton}'s method — so the activation goes through the menu:
+     * {@code -[NSMenu performActionForItemAtIndex:]}, which takes the item's <em>position</em>
+     * and not its identity. The position is the item's index in the model's own list, and the
+     * separators count: a separator occupies a position of its own, so the item after one is
+     * not where it looks to be.
+     *
+     * <p>The activation is posted to the UI thread rather than run inline, because that is where
+     * a menu lives and the only thread AppKit will answer on; a caller on a worker thread does
+     * not have to know which thread it is on. The binding behind the item runs on a thread of
+     * its own, so the effect is not there yet when this returns.
+     *
+     * <p>The id is the framework's own — the one {@code Item.id()} hands out — so a caller reads
+     * it out of the declared bar instead of counting items, which would break the moment a
+     * separator came before the one it meant.
+     */
+    public void clickMenuItem(int id) {
+        MenuBar bar = builtFrom;
+        List<MemorySegment> menus = builtMenus;
+        if (bar == null || menus == null) {
+            throw new IllegalStateException("the menu does not exist yet, so there is no item to "
+                    + "activate");
+        }
+        Cocoa.Position position = Cocoa.positionOf(bar, id);
+        MemorySegment menu = menus.get(position.menu());
+        // No scope: the call takes an integer, so there is no arena-allocated buffer to
+        // invalidate, and the run loop's own pool is where anything AppKit autoreleases goes.
+        onUiThread(() -> ObjC.sendVoidLong(menu, ObjC.selector("performActionForItemAtIndex:"),
+                position.index()));
+    }
 
     /**
      * Reads the web view's frame, writes it straight back, and reports the window number.

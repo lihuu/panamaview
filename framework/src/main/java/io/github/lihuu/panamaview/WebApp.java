@@ -57,6 +57,8 @@ public final class WebApp {
     private boolean spaFallback = true;
     private Path stagedRoot;
     private WindowSpec.Origin origin;
+    private MenuBar menuBar;
+    private Map<Integer, String> menuBindings = Map.of();
 
     public WebApp(UiHost host) {
         this.host = host;
@@ -251,7 +253,13 @@ public final class WebApp {
         host.evaluate("window.location.reload()");
     }
 
-    /** Stops every request still in flight. Called automatically when the page goes away. */
+    /**
+     * Stops every request still in flight — the page's and the menu's alike.
+     *
+     * <p>This is the application's own sweep, so it reaches everything. The page going away is
+     * a different matter: that ends the requests the page made and leaves the menu bindings
+     * alone.
+     */
     public void cancelInFlight(String reason) {
         bridge.cancelAll(reason);
     }
@@ -338,6 +346,51 @@ public final class WebApp {
         }
     }
 
+    /**
+     * Declares the menu bar.
+     *
+     * <p>The bar is handed to the host when {@link #run()} starts, before the platform opens
+     * its window: a platform builds its native menu during start-up, so a bar handed over
+     * afterwards would arrive too late to appear in either menu.
+     *
+     * <p>A host that does not implement {@link MenuHost} simply has no menu. The application
+     * still runs — a host that cannot take a menu is still usable.
+     *
+     * <p>A <em>null</em> bar means the same thing as never declaring one: on macOS the
+     * framework's own Quit and Edit bar, and on Windows no bar at all. The null is noticed
+     * here, where the bindings would have been read from it, and acted on at the run, where
+     * the host is simply not given a menu. The door does not refuse what the rest of the
+     * class accepts.
+     *
+     * <p>That is a cost worth naming: a null arriving from a bug is now silent where it used
+     * to be a {@code NullPointerException}, and on macOS the visible symptom is the
+     * <em>wrong</em> menu rather than an error. The branch has decided to pay that cost
+     * elsewhere too — a null shortcut is silent as well — so it is said here rather than left
+     * for a reader to find.
+     */
+    public WebApp menu(MenuBar bar) {
+        this.menuBar = bar;
+        this.menuBindings = bar == null ? Map.of() : bar.bindings();
+        return this;
+    }
+
+    /**
+     * A menu item was chosen.
+     *
+     * <p>The id names an item of the declared bar. An id that names no binding — a platform
+     * item, a separator, or an id the host made up — is ignored: there is nothing for the
+     * portable layer to do about it, and the platform's own items are its own business.
+     */
+    private void onMenuItem(int id) {
+        String name = menuBindings.get(id);
+        if (name == null) {
+            return;
+        }
+        // A click carries no parameters, so the binding is called with an empty map — the
+        // same params a page call would get if it passed nothing.
+        bridge.invokeBinding(name, Map.of());
+    }
+
     /** Runs the platform event loop. Blocks until the application quits. */
     public void run() throws IOException {
         String directory = entry.substring(0, entry.lastIndexOf('/'));
@@ -346,6 +399,12 @@ public final class WebApp {
         PageSource page = resolvePage(directory, fileName);
 
         bridge.verbose(verbose);
+
+        if (menuBar != null && host instanceof MenuHost menuHost) {
+            // Before start(): both platforms build their native menu during start-up, so a bar
+            // handed over afterwards would come too late to be in either menu.
+            menuHost.setMenu(menuBar);
+        }
 
         host.start(new UiHost.Callbacks() {
 
@@ -372,8 +431,14 @@ public final class WebApp {
             @Override
             public void onPageUnloading() {
                 // Requests belong to the page that made them; when it navigates away they are
-                // over. Any reply would be addressed to a document that no longer exists.
-                bridge.cancelAll("the page navigated away");
+                // over. Any reply would be addressed to a document that no longer exists. A
+                // menu binding was not made by the page, so it is not among them.
+                bridge.cancelPageRequests("the page navigated away");
+            }
+
+            @Override
+            public void onMenuItem(int id) {
+                WebApp.this.onMenuItem(id);
             }
 
             @Override

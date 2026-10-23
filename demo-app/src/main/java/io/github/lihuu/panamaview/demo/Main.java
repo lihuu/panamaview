@@ -35,7 +35,9 @@ public final class Main {
         }
 
         MacOsHost host = new MacOsHost();
-        App app = new App(host).install();
+        // The menu's activation is the platform's own call, so the portable half of the demo
+        // takes it as a port and this is where it is supplied.
+        App app = new App(host, id -> host.clickMenuItem(id)).install();
 
         app.web()
                 .bindUi("geometry", params -> host.geometry())

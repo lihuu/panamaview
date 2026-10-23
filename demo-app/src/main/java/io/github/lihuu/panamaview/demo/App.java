@@ -1,9 +1,16 @@
 package io.github.lihuu.panamaview.demo;
 
+import io.github.lihuu.panamaview.Item;
+import io.github.lihuu.panamaview.Menu;
+import io.github.lihuu.panamaview.MenuBar;
+import io.github.lihuu.panamaview.Menus;
 import io.github.lihuu.panamaview.UiHost;
 import io.github.lihuu.panamaview.WebApp;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -21,7 +28,53 @@ public final class App {
     /** Where the page should write its self-portrait, if the caller asked for one. */
     public static final String SNAPSHOT_PROPERTY = "panamaview.snapshot";
 
+    /** The application's name, which the menu model has no way to know. */
+    private static final String APP_NAME = "panamaview";
+
+    /** The binding the application's own first menu item names. */
+    private static final String PROBE = "menuProbe";
+
+    /** The binding the application's own second menu item names. */
+    private static final String OTHER = "menuProbe2";
+
+    /**
+     * How a menu item is chosen without a human choosing it.
+     *
+     * <p>The activation is a platform call, and this file is portable, so the demo takes it as
+     * a port and the composition root supplies the platform's own. Nothing here knows what a
+     * menu is on the other side.
+     */
+    public interface MenuClicker {
+        /**
+         * Activates the menu item with this id.
+         *
+         * <p>The id is the framework's own, so the caller reads it out of the declared bar
+         * rather than counting items.
+         */
+        void click(int id);
+    }
+
     private final WebApp web;
+    private final MenuClicker clicker;
+
+    /**
+     * The menu bar the demo declares.
+     *
+     * <p>A declared bar <em>replaces</em> the framework's own, so it has to carry the
+     * framework's built-in menus too: on macOS the Edit menu is what puts ⌘C into the web
+     * view's text field, and leaving it out brings back issue #19.
+     *
+     * <p>The application's own menu has a separator in it on purpose — the position of an
+     * item in a menu is not the number of the items before it, and a menu with a separator in
+     * it is where that shows.
+     */
+    private final MenuBar bar = Menus.menu(
+            Menus.appMenu(),
+            Menus.menu("文件",
+                    Menus.item(PROBE, "探测"),
+                    Menus.separator(),
+                    Menus.item(OTHER, "另一个")),
+            Menus.editMenu());
 
     /**
      * How many times a handler has actually been interrupted.
@@ -33,11 +86,17 @@ public final class App {
      */
     private final AtomicInteger interrupts = new AtomicInteger();
 
-    public App(UiHost host) {
+    /** How many times each of the menu's bindings ran — the effect the menu check asserts. */
+    private final AtomicInteger probeClicks = new AtomicInteger();
+    private final AtomicInteger otherClicks = new AtomicInteger();
+
+    public App(UiHost host, MenuClicker clicker) {
+        this.clicker = clicker;
         this.web = new WebApp(host)
-                .title("panamaview")
+                .title(APP_NAME)
                 .size(1000, 700)
-                .load("/web/index.html");
+                .load("/web/index.html")
+                .menu(bar);
     }
 
     /** The underlying app, for wiring platform-specific extras onto. */
@@ -90,6 +149,44 @@ public final class App {
         // Lets the page read that counter back, so the assertion lives in the test.
         web.bind("interrupts", params -> interrupts.get());
 
+        // The two bindings the demo's own menu items name. The count is the effect: a menu
+        // item that reaches nobody does not throw, it does nothing, silently, and that is
+        // the failure this whole feature is exposed to.
+        web.bind(PROBE, params -> {
+            announce(PROBE, probeClicks.incrementAndGet());
+            return "the first item ran";
+        });
+        web.bind(OTHER, params -> {
+            announce(OTHER, otherClicks.incrementAndGet());
+            return "the second item ran";
+        });
+
+        // Chooses an item of the demo's own menu, the way a click would, and waits for the
+        // binding behind it to run.
+        //
+        // The wait belongs here rather than in the page: the activation crosses three hops —
+        // the menu item's action, the target's upcall, and the binding on a virtual thread —
+        // so the effect is not there the instant the call returns. Waiting here makes the
+        // answer arrive with the result, in one round trip, with no polling in the page and
+        // no race in the check. Two seconds is generous for an activation that has already
+        // happened.
+        web.bind("menuClick", params -> {
+            String which = String.valueOf(params.getOrDefault("item", PROBE));
+            AtomicInteger counter = counterOf(which);
+            int before = counter.get();
+            clicker.click(idOf(which));
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+            while (counter.get() == before && System.nanoTime() < deadline) {
+                Thread.sleep(10);
+            }
+            return counter.get();
+        });
+
+        // What the bar holds, and how many times each of its items has been chosen — so the
+        // page can show the menu a person uses, and a person clicking an item in the real
+        // menu bar sees the count move.
+        web.bind("menuState", params -> menuState());
+
         // No deadline at all. This is the escape hatch for work that is honestly unbounded —
         // the agent-run case — where a fixed number would be a guess that eventually fails a
         // real request.
@@ -131,6 +228,89 @@ public final class App {
         web.onReady(app -> app.postToJs(handshake()));
 
         return this;
+    }
+
+    /**
+     * The id of the item that names a binding.
+     *
+     * <p>The framework numbers the items when the bar is built, and the number is what the
+     * platform reports when the item is chosen — so the id is read out of the model rather
+     * than counted, which would break the moment a separator came before the item meant.
+     */
+    private int idOf(String binding) {
+        for (Menu menu : bar.menus()) {
+            for (Item item : menu.items()) {
+                if (binding.equals(item.binding())) {
+                    return item.id();
+                }
+            }
+        }
+        throw new IllegalStateException("the menu has no item bound to '" + binding + "'");
+    }
+
+    /** How many times a menu item's binding has run. */
+    private int clicksOf(String binding) {
+        return counterOf(binding).get();
+    }
+
+    /** The counter of the item that names this binding. */
+    private AtomicInteger counterOf(String binding) {
+        return switch (binding) {
+            case PROBE -> probeClicks;
+            case OTHER -> otherClicks;
+            default -> throw new IllegalArgumentException("no menu item is bound to '" + binding + "'");
+        };
+    }
+
+    /**
+     * Tells the page that an item was chosen.
+     *
+     * <p>The page shows the menu a person uses, and a person clicking an item in the real
+     * menu bar has to be able to see that it did something. The message is the only way the
+     * page learns of it: a menu click does not go through the page at all.
+     */
+    private void announce(String binding, int clicks) {
+        web.postToJs(Map.of("menuChosen", binding, "clicks", clicks));
+    }
+
+    /**
+     * The bar, as the page shows it.
+     *
+     * <p>The model as it was declared, with one substitution: the application menu is titled
+     * with the application's name, because the model has no way to know it. The Quit item
+     * keeps the model's own title — the platform composes the application's name into it,
+     * and that composition is the platform's business.
+     */
+    private Map<String, Object> menuState() {
+        List<Map<String, Object>> menus = new ArrayList<>();
+        for (Menu menu : bar.menus()) {
+            List<Map<String, Object>> items = new ArrayList<>();
+            for (Item item : menu.items()) {
+                Map<String, Object> entry = new LinkedHashMap<>();
+                entry.put("title", item.title() == null ? "" : item.title());
+                entry.put("kind", kindOf(item));
+                if (item.binding() != null) {
+                    entry.put("binding", item.binding());
+                    entry.put("clicks", clicksOf(item.binding()));
+                }
+                items.add(entry);
+            }
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("title", Menus.APP_MENU_TITLE.equals(menu.title()) ? APP_NAME : menu.title());
+            entry.put("items", items);
+            menus.add(entry);
+        }
+        Map<String, Object> state = new LinkedHashMap<>();
+        state.put("menus", menus);
+        return state;
+    }
+
+    /** What kind of item this is: the two kinds differ in more than their decoration. */
+    private static String kindOf(Item item) {
+        if (item.binding() != null) {
+            return "binding";
+        }
+        return item.platformAction() != null ? "platform" : "separator";
     }
 
     private Map<String, Object> runtimeReport() {

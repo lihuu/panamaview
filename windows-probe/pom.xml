@@ -63,6 +63,17 @@
           <executable>${java.home}/bin/java</executable>
           <arguments>
             <argument>--enable-native-access=ALL-UNNAMED</argument>
+            <!--
+              The output encoding, so the run's log can carry the menu's Chinese titles.
+
+              The JVM's default here is the machine's native encoding (GBK on the Windows
+              box), and the log is written by whatever reads this process's output, which
+              decodes it as UTF-8. The bytes come apart in between, and the log says the
+              title is broken when the picture shows it is not. UTF-8 on both sides is the
+              one encoding the whole path agrees on, on any machine.
+            -->
+            <argument>-Dstdout.encoding=UTF-8</argument>
+            <argument>-Dstderr.encoding=UTF-8</argument>
             <argument>-cp</argument>
             <classpath/>
             <argument>${main.class}</argument>

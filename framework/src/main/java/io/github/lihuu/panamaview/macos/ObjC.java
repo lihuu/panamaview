@@ -266,7 +266,15 @@ final class ObjC {
     private static final FunctionDescriptor ID2 = FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, ADDRESS, ADDRESS);
     private static final FunctionDescriptor ID3 = FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, ADDRESS, ADDRESS, ADDRESS);
     private static final FunctionDescriptor VOID0 = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS);
-    private static final FunctionDescriptor VOID1 = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, ADDRESS);
+    /**
+     * A void message with one object argument — receiver, selector, object.
+     *
+     * <p>Package-private because the menu target's upcall has exactly this shape: an AppKit
+     * action is {@code - (void)panamaviewMenuItem:(id)sender}, which is three pointers. A
+     * four-pointer stub called with three reads a garbage argument, and on a 64-bit ABI that
+     * garbage is a pointer — a wild read rather than an error.
+     */
+    static final FunctionDescriptor VOID1 = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, ADDRESS);
     private static final FunctionDescriptor VOID2 = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, ADDRESS, ADDRESS);
     private static final FunctionDescriptor VOID3 = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, ADDRESS, ADDRESS, ADDRESS);
     private static final FunctionDescriptor BOOL1 = FunctionDescriptor.of(JAVA_BYTE, ADDRESS, ADDRESS, JAVA_BYTE);

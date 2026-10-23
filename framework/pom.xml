@@ -119,6 +119,27 @@ Move those sources into framework/src/... to match this module, then rebuild.
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.5.2</version>
+        <configuration>
+          <!--
+            The tests call into java.lang.foreign, and the JVM says so on every run:
+
+              WARNING: A restricted method in java.lang.foreign.Linker has been called
+              WARNING: Restricted methods will be blocked in a future release unless
+                       native access is enabled
+
+            The warning is not noise. It names a future release in which the call is refused
+            outright, so a suite that runs with it today is a suite that will fail later for a
+            reason that has nothing to do with the change under test. And a warning that is
+            always there is a warning nobody reads twice — which is how the next real one goes
+            unnoticed.
+
+            Every consumer of this framework already asks for native access with the
+            ALL-UNNAMED scope: the templates, the probe and scripts/make-dev-app.sh all carry
+            the flag, because the framework's own calls are the restricted ones. The framework's
+            own tests were the one place that did not, and this is that place.
+          -->
+          <argLine>--enable-native-access=ALL-UNNAMED</argLine>
+        </configuration>
       </plugin>
     </plugins>
   </build>
