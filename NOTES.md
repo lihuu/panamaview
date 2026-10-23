@@ -1308,3 +1308,35 @@ is titled with the *window's* title — "Quit panamaview" — because that is th
 framework has, and the platform composes it (`Cocoa.itemTitle`); the app menu is closed in the
 picture, so that one is from the code rather than from the capture. A bundled `.app` shows
 its own name in the same place.
+
+---
+
+## 19. Linux, so far
+
+There is no Linux host: the WebKitGTK one is still on the roadmap, so **nothing can run on
+Linux yet** — not the demo, not a template, not an application. What *can* be run is the
+framework's own test suite, because the portable half and the decisions the platform layers
+make are pure.
+
+Measured on 2026-10-23, in WSL2 on the Windows box (Ubuntu 26.04, JDK 25, Maven 3.9.12):
+
+```
+Tests run: 83, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+```
+
+All of it, including the parts that look platform-bound and are not: the shortcut parser,
+the model's own refusals, the `wParam` guard, and the id → position lookup. Those are the
+decisions, and a decision is a decision on every platform.
+
+**What is missing is the CI job that keeps them passing there.** The `framework` job runs on
+macOS and the `scripts` job on Ubuntu, so on Linux the suite runs nowhere — a portable-layer
+regression would be found on macOS or not at all. Adding the job is a matrix change, and the
+suite is known to pass on Linux, so it is a small piece of work with a measured answer
+behind it.
+
+**And the desktop question is downstream of the host.** WSLg can give a Linux process a
+display, so a Linux *window* is possible in WSL — but there is no Linux host to put in it
+yet, and a WebKitGTK host needs a WebKitGTK runtime, which is the work the roadmap's
+"Linux host via WebKitGTK" line is. The menu's Linux story is the same story: the model is
+portable, and the builder for a third platform comes with its host.

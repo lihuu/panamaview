@@ -203,7 +203,7 @@ if (devServer != null) {
 - **Operating Systems**:
   - **macOS**: macOS 14+ on Apple Silicon (arm64), utilizing system WebKit.
   - **Windows**: Windows 10/11 x64, utilizing Microsoft Edge WebView2.
-  - **Linux**: Linux WebKitGTK support is in progress.
+  - **Linux**: not yet — there is no Linux host, and the WebKitGTK one is still on the roadmap. The framework's own tests do pass on Linux (measured in WSL2, Ubuntu 26.04), but nothing can *run* there yet, and a CI job that keeps them passing there is still missing.
 - **Native Image**: GraalVM CE 25+ (optional, required only for native binary builds).
 
 ---
@@ -240,6 +240,7 @@ docs/                  Deep-dive architecture and maintenance documentation
 - [ ] System tray integration
 - [ ] Multi-window management
 - [ ] Linux host via WebKitGTK
+- [ ] The framework's own tests running on Linux in CI
 - [ ] Distribution packaging (`.app` bundle, `.dmg`, Windows `.msi` installers)
 
 ---
