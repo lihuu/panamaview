@@ -227,21 +227,35 @@ docs/                  Deep-dive architecture and maintenance documentation
 
 ## 🗺️ Roadmap & Current Status
 
-`panamaview` is transitioning from foundational runtime validation to an application framework:
+`panamaview` is transitioning from foundational runtime validation to an application framework.
+
+**Shipped**
 
 - [x] macOS native host via FFM & Cocoa WebKit
-- [x] Windows native host via FFM, Win32 & WebView2
+- [x] Windows native host via FFM, Win32 & WebView2, exercised by a self-test of its own (`windows-probe`)
 - [x] Virtual thread-backed JSON RPC & cooperative cancellation
 - [x] Private asset URL schemes with SPA routing fallback
-- [x] GraalVM Native Image reachability metadata & standalone builds
+- [x] GraalVM Native Image reachability metadata & standalone builds — macOS today; the Windows shapes are tracked in [#34](https://github.com/lihuu/panamaview/issues/34)
 - [x] Maven Central publishing & npm scaffolder (`create-panamaview`)
 - [x] Application menu bar (macOS & Windows)
-- [ ] Native file/directory dialogs (`NSOpenPanel` / `IFileDialog`)
+- [x] System notifications via `UNUserNotificationCenter` (macOS)
+- [x] Native clipboard bindings on both hosts — read, write, and a change counter
+- [x] Window position memory: the window reopens where the user last put it (macOS)
+- [x] Live reload on Windows
+- [x] A reachability-metadata check in CI, so the sources and the metadata cannot drift apart again ([#31](https://github.com/lihuu/panamaview/issues/31))
+
+**Next up — the features the next phase is shaped around**
+
+- [ ] Native file/directory dialogs (`NSOpenPanel` / `IFileOpenDialog`)
 - [ ] System tray integration
 - [ ] Multi-window management
-- [ ] Linux host via WebKitGTK
-- [ ] The framework's own tests running on Linux in CI
 - [ ] Distribution packaging (`.app` bundle, `.dmg`, Windows `.msi` installers)
+- [ ] Linux host via WebKitGTK
+
+**Ready to start — no design question stands between here and the first commit**
+
+- [ ] Register the Windows package's FFM shapes, and give a Windows native build the guarantee a macOS one already has ([#34](https://github.com/lihuu/panamaview/issues/34))
+- [ ] A Linux CI job for the framework's own tests — they already pass there, measured in WSL2; only the job is missing
 
 ---
 
