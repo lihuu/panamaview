@@ -1,5 +1,7 @@
 package io.github.lihuu.panamaview.windows;
 
+import io.github.lihuu.panamaview.DialogHost;
+import io.github.lihuu.panamaview.FileDialog;
 import io.github.lihuu.panamaview.MenuBar;
 import io.github.lihuu.panamaview.MenuHost;
 import io.github.lihuu.panamaview.PageSource;
@@ -48,7 +50,7 @@ import java.util.concurrent.LinkedBlockingQueue;
  * Relative URLs inside the page behave identically on both platforms; only absolute URLs
  * differ, and a page that wants its own address asks Java instead of guessing.
  */
-public final class WindowsHost implements UiHost, MenuHost {
+public final class WindowsHost implements UiHost, MenuHost, DialogHost {
 
     private static final String VIRTUAL_HOST_SUFFIX = ".panamaview";
 
@@ -438,6 +440,34 @@ public final class WindowsHost implements UiHost, MenuHost {
      */
     public long clipboardChangeCount() {
         return Win32.clipboardChangeCount();
+    }
+
+    // -------------------------------------------------------------- file dialogs
+
+    /**
+     * Opens the dialog {@code spec} describes and returns when the user has decided.
+     *
+     * <p>The Common Item Dialog ({@code IFileOpenDialog}/{@code IFileSaveDialog}), run modally:
+     * this blocks the pump thread until the user confirms or cancels, which is why the handler
+     * that calls it belongs to {@code bindUi} — see the {@code DialogHost} contract. While it is
+     * up, the dialog's own loop pumps this thread's messages, so queued UI work still runs and
+     * other handlers' replies still arrive. A cancellation is an answer
+     * ({@code accepted == false}), not an error.
+     */
+    @Override
+    public FileDialog.Result open(FileDialog spec) {
+        return WinDialog.show(spec, hwnd);
+    }
+
+    /**
+     * Dismisses the file dialog that is currently open, if one is.
+     *
+     * <p>For tests, the way {@link #clickMenuItem(int)} is for menus: a self-test has no human
+     * to click Cancel, so this is how it dismisses the dialog. It is reached through
+     * {@link #onUiThread} in the caller, and the dialog's own modal loop is what delivers it.
+     */
+    public void cancelActiveDialog() {
+        WinDialog.cancelActive();
     }
 
     // ---------------------------------------------------------------- paths
