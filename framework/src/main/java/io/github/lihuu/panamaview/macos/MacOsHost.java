@@ -1,5 +1,7 @@
 package io.github.lihuu.panamaview.macos;
 
+import io.github.lihuu.panamaview.DialogHost;
+import io.github.lihuu.panamaview.FileDialog;
 import io.github.lihuu.panamaview.MenuBar;
 import io.github.lihuu.panamaview.MenuHost;
 import io.github.lihuu.panamaview.Menus;
@@ -30,7 +32,7 @@ import java.util.Map;
  * cross-platform signatures for them before a second implementation exists would be a guess;
  * {@code Main} registers them as ordinary bindings instead.
  */
-public final class MacOsHost implements UiHost, MenuHost {
+public final class MacOsHost implements UiHost, MenuHost, DialogHost {
 
     /**
      * The bar the framework installs when the application declares none.
@@ -283,6 +285,33 @@ public final class MacOsHost implements UiHost, MenuHost {
     public String snapshot(String path) {
         webView.snapshotToPng(path);
         return path;
+    }
+
+    // -------------------------------------------------------------- file dialogs
+
+    /**
+     * Opens the dialog {@code spec} describes and returns when the user has decided.
+     *
+     * <p>{@code NSOpenPanel} or {@code NSSavePanel}, run modally: this blocks the UI thread
+     * until the user confirms or cancels, which is why the handler that calls it belongs to
+     * {@code bindUi} — see {@link DialogHost}. A cancellation is an answer
+     * ({@code accepted == false}), not an error.
+     */
+    @Override
+    public FileDialog.Result open(FileDialog spec) {
+        return FilePanels.open(spec);
+    }
+
+    /**
+     * Dismisses the file dialog that is currently open, if one is.
+     *
+     * <p>For tests, the way {@link #clickMenuItem(int)} is for menus: a self-test has no human
+     * to click Cancel, so this is how it dismisses the panel — the panel's own Cancel action,
+     * delivered through the modal loop. It reaches the UI thread by {@code UiThread.run} in
+     * the caller; the modal loop is what delivers it.
+     */
+    public void cancelActiveDialog() {
+        FilePanels.cancelActive();
     }
 
     // ------------------------------------------------------------------- clipboard

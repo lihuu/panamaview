@@ -1,5 +1,6 @@
 package io.github.lihuu.panamaview.demo;
 
+import io.github.lihuu.panamaview.FileDialog;
 import io.github.lihuu.panamaview.Resources;
 import io.github.lihuu.panamaview.macos.MacOsHost;
 
@@ -55,7 +56,15 @@ public final class Main {
                 // navigator.clipboard, but only while the user's click is still fresh; behind an
                 // await it is refused. This binding has no such rule.
                 .bind("copyText", params -> copyText(host, params))
-                .bind("clipboard", params -> clipboard(host));
+                .bind("clipboard", params -> clipboard(host))
+                // The native file dialog. Bound to the UI thread, not a virtual one: the
+                // dialog is modal to the window, it blocks until the user decides, and the
+                // 30-second default deadline would interrupt a user who was still choosing.
+                .bindUi("pickFile", params -> host.open(FileDialog.of(params)).toMap())
+                // Dismisses the dialog a test is about to open, from no human at all. The
+                // sleep happens on a second virtual thread so this binding answers "armed"
+                // immediately — the dismissal is what happens later, mid-dialog.
+                .bind("cancelDialogSoon", params -> cancelDialogSoon(host, params));
 
         app.web().run();
     }
@@ -105,6 +114,27 @@ public final class Main {
         result.put("text", host.readClipboard());
         result.put("changeCount", host.clipboardChangeCount());
         return result;
+    }
+
+    /**
+     * Arms a one-shot dismissal of the file dialog a test is about to open.
+     *
+     * <p>The reply goes out before the wait: a binding that slept here would only answer after
+     * the dialog it meant to catch had been open for half the delay. The dismissal happens on
+     * the UI thread because that is where the modal loop is blocked — {@code runModal} keeps
+     * the main queue draining, which is exactly what this needs to be delivered mid-dialog.
+     */
+    private static String cancelDialogSoon(MacOsHost host, Map<String, Object> params) {
+        long ms = ((Number) params.getOrDefault("ms", 800)).longValue();
+        Thread.ofVirtual().start(() -> {
+            try {
+                Thread.sleep(ms);
+            } catch (InterruptedException e) {
+                return;
+            }
+            host.onUiThread(host::cancelActiveDialog);
+        });
+        return "armed";
     }
 
     /** Stages the assets and confirms the pieces a page cannot work without are there. */
