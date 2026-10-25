@@ -1,5 +1,6 @@
 package io.github.lihuu.panamaview.probe;
 
+import io.github.lihuu.panamaview.FileDialog;
 import io.github.lihuu.panamaview.Item;
 import io.github.lihuu.panamaview.Menu;
 import io.github.lihuu.panamaview.MenuBar;
@@ -215,6 +216,29 @@ public final class WindowsSelfTest {
                 .bindUi("windowInfo", params -> Map.of(
                         "window", host.windowRectangle(),
                         "onUiThread", host.isUiThread()))
+
+                // 12. A native file dialog, opened and dismissed without a human. bindUi,
+                // because the dialog is modal to the window: it blocks the pump thread until
+                // the user decides, and the queue the modal loop keeps pumping is what
+                // delivers the dismissal below. A cancellation is an answer, not an error.
+                .bindUi("pickFile", params -> host.open(FileDialog.of(params)).toMap())
+
+                // The dismissal, armed to fire mid-dialog. The reply goes out before the
+                // wait — a binding that slept here would answer after the dialog it meant to
+                // catch had been open for half the delay — and the hop is to the UI thread,
+                // because that is where the modal loop is blocked.
+                .bind("cancelDialogSoon", params -> {
+                    long ms = ((Number) params.getOrDefault("ms", 800)).longValue();
+                    Thread.ofVirtual().start(() -> {
+                        try {
+                            Thread.sleep(ms);
+                        } catch (InterruptedException e) {
+                            return;
+                        }
+                        host.onUiThread(host::cancelActiveDialog);
+                    });
+                    return "armed";
+                })
 
                 // 9. Runtime facts only Java can supply, including which thread answered.
                 .bind("runtime", params -> runtime())

@@ -19,6 +19,7 @@ No Electron bloat. No bundled Chromium. Zero JNI, JNA, or C/C++ shims.
 - 🌐 **Modern Frontend Toolchains**: Built-in private URL scheme (`panamaview://app/` on macOS, `https://app.panamaview/` on Windows) supporting ES modules, CORS, `fetch()`, Web Workers, and SPA History-mode routers.
 - 🧵 **High-Concurrency Virtual Thread IPC**: IPC handlers run on Java Virtual Threads off the UI thread without freezing the window; built-in request cancellation and watchdog deadlines.
 - 🍽️ **Native Application Menus**: Declare a menu bar in Java — items, separators, and shortcuts — and get a native one on macOS and Windows. Only macOS binds the keyboard shortcuts today, and the framework installs no Edit menu of its own on Windows — there the browser already owns the editing commands.
+- 📂 **Native File Dialogs**: Open-file, open-multiple, open-directory and save dialogs (`NSOpenPanel`/`NSSavePanel` on macOS, `IFileOpenDialog`/`IFileSaveDialog` on Windows) declared once as a portable `FileDialog` spec — with file-type filters, a start directory and a save name — and bound as an ordinary `bindUi` handler whose cancellation is an answer, not an error.
 - 🛠️ **Out-of-the-Box Scaffolder & Templates**: First-class templates for React, Vue 3, Angular, Tailwind CSS, and Vanilla JS.
 
 ---
@@ -243,10 +244,10 @@ docs/                  Deep-dive architecture and maintenance documentation
 - [x] Window position memory: the window reopens where the user last put it (macOS)
 - [x] Live reload on Windows
 - [x] A reachability-metadata check in CI, so the sources and the metadata cannot drift apart again ([#31](https://github.com/lihuu/panamaview/issues/31))
+- [x] Native file dialogs (`NSOpenPanel`/`NSSavePanel`, `IFileOpenDialog`/`IFileSaveDialog`) — a portable `FileDialog` spec behind the optional `DialogHost` seam
 
 **Next up — the features the next phase is shaped around**
 
-- [ ] Native file/directory dialogs (`NSOpenPanel` / `IFileOpenDialog`)
 - [ ] System tray integration
 - [ ] Multi-window management
 - [ ] Distribution packaging (`.app` bundle, `.dmg`, Windows `.msi` installers)
