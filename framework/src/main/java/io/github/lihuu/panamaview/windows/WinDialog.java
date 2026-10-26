@@ -244,23 +244,15 @@ final class WinDialog {
             return false;
         }
         // The HRESULT argument is what Show's caller receives, so handing it the cancellation
-        // makes Show answer exactly what the Cancel button would have.
-        callForHresult(dialog, CLOSE, FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT),
-                "Close", ERROR_CANCELLED);
-        return true;
-    }
-
-    /** The raw HRESULT of a vtable call — for the one caller that logs it instead of throwing. */
-    private static int callForHresult(MemorySegment object, int slot, FunctionDescriptor descriptor,
-                                      String what, Object... args) {
-        Object[] all = new Object[args.length + 1];
-        all[0] = object;
-        System.arraycopy(args, 0, all, 1, args.length);
+        // makes Show answer exactly what the Cancel button would have. Close fails on purpose
+        // here, so this call does not go through call(), which throws on a failed HRESULT.
         try {
-            return (int) Com.bind(object, slot, descriptor).invokeWithArguments(all);
+            Com.bind(dialog, CLOSE, FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT))
+                    .invoke(dialog, ERROR_CANCELLED);
         } catch (Throwable t) {
-            throw new IllegalStateException(what + " could not be called", t);
+            throw new IllegalStateException("Close could not be called", t);
         }
+        return true;
     }
 
     // ------------------------------------------------------------------ native pieces

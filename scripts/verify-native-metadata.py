@@ -9,15 +9,18 @@ when it drifts from the code -- the program still compiles, and then dies on the
 first downcall with MissingForeignRegistrationError, on the machine that built the
 binary. This script is that complaint, and CI runs it.
 
-It covers the macos package only. The native image this file serves is the macOS
-one; the windows package's downcalls are NOT registered here, so a Windows
-consumer's native build would need its own shapes -- a separate piece of work, and
-this script does not pretend it is done.
+It covers both platform packages, macos and windows. One metadata file serves both:
+a native image is built for one platform, and shapes are a union -- a macOS build
+never calls a Windows shape and the reverse -- so the file lists every shape either
+side may build, and this check insists that each side's shapes are in it.
 
 What it checks:
 
-  * every downcall shape the macos sources build is registered in foreign.downcalls;
-  * every upcall site the sources spell out has a directUpcalls entry of the same shape;
+  * every downcall shape the sources build is registered in foreign.downcalls;
+  * every upcall site the sources spell out has a directUpcalls entry of the same shape
+    when its target is a named static method, and a generic upcalls entry when it is
+    not: a bound or dynamic MethodHandle cannot be named by class and method, and
+    GraalVM registers those by descriptor alone;
   * every directUpcalls entry names a class and method that still exist, and the shape
     still matches the method's Java signature;
   * every directUpcalls entry has a matching reflection entry, and every reflection
@@ -46,8 +49,17 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 METADATA = ROOT / ("framework/src/main/resources/META-INF/native-image/"
                    "io.github.lihuu/panamaview/reachability-metadata.json")
 SOURCE_ROOT = ROOT / "framework/src/main/java"
-PACKAGE = "io.github.lihuu.panamaview.macos"
-PACKAGE_DIR = SOURCE_ROOT / "io/github/lihuu/panamaview/macos"
+
+# The platform packages this file serves, as (package name, directory). Two packages,
+# one metadata file -- see the docstring.
+PACKAGES = [
+    ("io.github.lihuu.panamaview.macos",
+     SOURCE_ROOT / "io/github/lihuu/panamaview/macos"),
+    ("io.github.lihuu.panamaview.windows",
+     SOURCE_ROOT / "io/github/lihuu/panamaview/windows"),
+]
+PACKAGE_NAMES = [name for name, _ in PACKAGES]
+PACKAGE_DIRS = [directory for _, directory in PACKAGES]
 
 # The metadata's own vocabulary: 'void*' is a pointer, the j-prefixed names are the
 # scalar carriers, and 'struct(...)' is a by-value aggregate.
@@ -323,11 +335,12 @@ def carrier(layout):
 class Source:
     """One Java file in the package, with what the check needs from it."""
 
-    def __init__(self, path, where):
+    def __init__(self, path, where, label):
         self.path = path
-        # How the file is named in a message: its path in the package, without the
-        # extension. Two files in different subpackages can share a name, and the
-        # path says which one is meant.
+        # How the file is named in a message: its package's directory name and its path
+        # inside that package, without the extension. Two files in different packages can
+        # share a name, and the label says which package is meant.
+        self.label = label
         self.where = where
         self.text, self.literals = strip_comments(path.read_text(encoding="utf-8"))
         self.masked = mask_literals(self.text, self.literals)
@@ -422,13 +435,17 @@ class Source:
 
 
 class Package:
-    """The macos package: its sources, its struct layouts and its type names."""
+    """The platform packages: their sources, struct layouts and type names."""
 
-    def __init__(self, directory):
+    def __init__(self, directories):
         # rglob, not glob: a subpackage under macos/ is still macOS code, and a
         # descriptor it built would be just as unregistered as one built above.
-        self.sources = [Source(path, path.relative_to(directory).with_suffix("").as_posix())
-                        for path in sorted(directory.rglob("*.java"))]
+        self.sources = []
+        for directory in directories:
+            label = directory.name
+            self.sources.extend(
+                Source(path, path.relative_to(directory).with_suffix("").as_posix(), label)
+                for path in sorted(directory.rglob("*.java")))
         for source in self.sources:
             source.parse_package()
             source.parse_types()
@@ -484,6 +501,10 @@ class Package:
         if source is None:
             return None
         return qualified(source, simple)
+
+    def is_framework_class(self, class_name):
+        """True when `class_name` names a class in one of the scanned packages."""
+        return any(class_name.startswith(name + ".") for name in PACKAGE_NAMES)
 
 
 def qualified(source, name):
@@ -611,16 +632,24 @@ class Scan:
         self.package = package
         self.downcall_shapes = {}    # shape -> (source, line, how it was written)
         self.upcall_sites = []      # (class, method, shape, source, line)
+        self.generic_upcall_shapes = {}   # shape -> (source, line, how) for stubs
+                                          # whose target is not a named static method
         self.unreadable = []        # (source, line, how, reason)
         self.placed = set()         # the descriptors that reached a call site
         self.marker_calls = 0       # every call to a downcall or upcall helper
         self.call_sites = 0         # the ones that are calls and not declarations
         self.declarations = 0       # the helpers' own declarations
+        self.stub_sites = 0         # every Linker.upcallStub call
         self.scan()
 
     def scan(self):
         for source in self.package.sources:
             for call in calls(source):
+                if call.callee == "upcallStub" or call.callee.endswith(".upcallStub"):
+                    if not call.declaration:
+                        self.stub_sites += 1
+                        self.stub(source, call)
+                    continue
                 kind = classify(call.callee)
                 if kind is None:
                     continue
@@ -670,7 +699,7 @@ class Scan:
         if class_name is None:
             self.unreadable.append((source, call.line, call.callee,
                                     "the class %s is not declared in %s, so it is not "
-                                    "checked here" % (class_match.group(1), PACKAGE)))
+                                    "checked here" % (class_match.group(1), source.label)))
             return
         shape = descriptor_of(descriptor_argument, source, self.package)
         if shape is None:
@@ -685,6 +714,44 @@ class Scan:
             self.placed.add((source, offset + match.start()))
         self.upcall_sites.append((class_name, method_match.group(1), shape,
                                   source, call.line))
+
+    def stub(self, source, call):
+        """Account for one Linker.upcallStub call: its descriptor and its target.
+
+        Two kinds of target exist, and GraalVM registers them differently. A named
+        static method becomes a directUpcalls entry -- class, method and shape, the
+        optimized form. Anything else (a bound instance method, a lambda, a handle
+        that arrived as a parameter) cannot be named by class and method, so the
+        metadata registers the shape alone in foreign.upcalls.
+        """
+        if len(call.arguments) < 2:
+            self.unreadable.append((source, call.line, call.callee,
+                                    "the call does not take a target and a descriptor"))
+            return
+        target_argument, _ = call.arguments[0]
+        descriptor_argument, offset = call.arguments[1]
+
+        shape = descriptor_of(descriptor_argument, source, self.package)
+        if shape is None:
+            # A stub built inside a helper from the descriptor it was handed:
+            # NativeBlock.of and ObjC.upcall do exactly this. Their call sites are the
+            # marker calls this check reads by class and method, so there is nothing
+            # to read here.
+            return
+        self.placed.add((source, offset))
+        constant = resolved_constant(descriptor_argument, source, self.package)
+        if constant is not None:
+            self.placed.add(constant)
+        for match in INLINE.finditer(descriptor_argument):
+            self.placed.add((source, offset + match.start()))
+
+        target = handle_target(target_argument, source, self.package)
+        if target is not None and target[0] == "static" and target[1]:
+            class_name = self.package.qualified(target[1])
+            if class_name is not None:
+                self.upcall_sites.append((class_name, target[2], shape, source, call.line))
+                return
+        self.generic_upcall_shapes.setdefault(shape, (source, call.line, target_argument))
 
 
 def named_constant(argument):
@@ -728,6 +795,68 @@ def descriptor_of(argument, source, package):
     return source.resolve(argument, package)
 
 
+def handle_target(argument, source, package):
+    """('static'|'virtual', class simple name or None, method or None) for a handle.
+
+    The target of an upcallStub is written one of two ways: a MethodHandle constant
+    assigned from LOOKUP.findStatic/findVirtual, or a call to a local helper that
+    wraps one of them (Com.mh and Win32.mh both wrap findVirtual). Following both is
+    what decides whether the stub can be registered by class and method or only by
+    shape.
+    """
+    expression = argument.strip()
+    token = named_constant(expression)
+    if token is not None:
+        expression = assigned_expression(token, source, package) or ""
+
+    kind = handle_kind(expression, source)
+    class_match = re.search(r"([A-Za-z_$][A-Za-z0-9_$]*)\s*\.\s*class", expression)
+    method_match = re.search(r'"([^"]*)"', expression)
+    if kind is None:
+        return None
+    if class_match is not None and method_match is not None:
+        return (kind, class_match.group(1), method_match.group(1))
+    return (kind, None, None)
+
+
+def assigned_expression(token, source, package):
+    """The expression a MethodHandle constant is assigned from, or None."""
+    owner = source
+    name = token
+    if "." in token:
+        qualifier, _, name = token.rpartition(".")
+        owner = package.by_type_name.get(qualifier)
+        if owner is None:
+            return None
+    match = re.search(r"\b" + re.escape(name) + r"\s*=\s*(.*?);", owner.text, re.S)
+    return match.group(1).strip() if match else None
+
+
+def handle_kind(expression, source):
+    """'static', 'virtual', or None, for the expression a handle is built from."""
+    if "findStatic" in expression:
+        return "static"
+    if "findVirtual" in expression:
+        return "virtual"
+    helper = re.match(r"\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*\(", expression)
+    if helper:
+        body = helper_body(helper.group(1), source)
+        if body is not None:
+            if "findStatic" in body:
+                return "static"
+            if "findVirtual" in body:
+                return "virtual"
+    return None
+
+
+def helper_body(name, source):
+    """The declared body of a MethodHandle helper, near enough to see its lookup."""
+    match = re.search(r"MethodHandle\s+" + re.escape(name) + r"\s*\(", source.text)
+    if match is None:
+        return None
+    return source.text[match.start():match.start() + 1200]
+
+
 # ----------------------------------------------------------------- the checks
 
 
@@ -748,12 +877,12 @@ def check_downcalls(metadata, package, scan, problems, notes):
             missing.append(shape)
             problems.append("the sources build %s but the file does not register it "
                             "(%s/%s:%d, %s)"
-                            % (shape_text(shape), PACKAGE, source.where, line, how))
+                            % (shape_text(shape), source.label, source.where, line, how))
 
     for shape in sorted(registered):
         if shape not in scan.downcall_shapes:
-            notes.append("the file registers %s and no source in %s builds it"
-                         % (shape_text(shape), PACKAGE))
+            notes.append("the file registers %s and no source in the scanned packages "
+                         "builds it" % shape_text(shape))
 
     # Every descriptor the sources build has to be accounted for. A descriptor this
     # check cannot place in a downcall or an upcall position is one whose shape it
@@ -764,9 +893,9 @@ def check_downcalls(metadata, package, scan, problems, notes):
             if (source, name) in scan.placed:
                 continue
             problems.append(
-                "%s.%s is %s and the check cannot see where it is used: it is not an "
+                "%s/%s.%s is %s and the check cannot see where it is used: it is not an "
                 "argument of a downcall or of an upcall, so the check cannot vouch for it"
-                % (source.where, name,
+                % (source.label, source.where, name,
                    shape_text(shape) if shape else "a descriptor of an unreadable shape"))
         for offset, shape in inline_descriptors(source, package):
             if (source, offset) in scan.placed:
@@ -774,7 +903,7 @@ def check_downcalls(metadata, package, scan, problems, notes):
             problems.append(
                 "%s/%s:%d builds a descriptor the check cannot place: it is not an "
                 "argument of a downcall or of an upcall, so the check cannot vouch for it"
-                % (PACKAGE, source.where, line_of(source.text, offset)))
+                % (source.label, source.where, line_of(source.text, offset)))
 
     return set(registered), missing
 
@@ -812,7 +941,7 @@ def check_upcalls(metadata, package, scan, problems, notes):
         if not found:
             problems.append("%s.%s is used as an upcall (%s/%s:%d) but the file has no "
                             "directUpcalls entry for it"
-                            % (class_name, method, PACKAGE, source.where, line))
+                            % (class_name, method, source.label, source.where, line))
             continue
         for entry in found:
             if shape_of(entry, "a directUpcalls entry") != shape:
@@ -821,6 +950,32 @@ def check_upcalls(metadata, package, scan, problems, notes):
                                 % (class_name, method,
                                    shape_text(shape_of(entry, "a directUpcalls entry")),
                                    shape_text(shape)))
+
+
+def check_generic_upcalls(metadata, scan, problems, notes):
+    """Every upcall whose target is not a named static method has a shape entry.
+
+    A bound instance method, a lambda and a MethodHandle that arrived as a parameter
+    cannot be named in the metadata; GraalVM registers those stubs by descriptor in
+    foreign.upcalls. A shape missing there fails at run time exactly like a missing
+    downcall, so it is checked exactly like one.
+    """
+    registered = set()
+    for entry in metadata["foreign"].get("upcalls", []):
+        registered.add(shape_of(entry, "an upcalls entry"))
+
+    for shape, (source, line, how) in sorted(scan.generic_upcall_shapes.items()):
+        if shape not in registered:
+            problems.append(
+                "the sources build %s for an upcall whose target is not a named static "
+                "method, and the file does not register it in foreign.upcalls "
+                "(%s/%s:%d, %s)"
+                % (shape_text(shape), source.label, source.where, line, how))
+
+    for shape in sorted(registered):
+        if shape not in scan.generic_upcall_shapes:
+            notes.append("the file registers the upcall shape %s and no source in the "
+                         "scanned packages builds it" % shape_text(shape))
 
 
 def check_reflection(metadata, package, scan, problems, notes):
@@ -840,9 +995,9 @@ def check_reflection(metadata, package, scan, problems, notes):
         shape = shape_of(entry, "a directUpcalls entry")
         source = package.by_qualified_name.get(class_name)
         if source is None:
-            if class_name.startswith(PACKAGE + "."):
+            if package.is_framework_class(class_name):
                 problems.append("the directUpcalls entry for %s.%s names a class that is "
-                                "not declared in %s" % (class_name, method, PACKAGE))
+                                "not declared in the scanned packages" % (class_name, method))
             continue
         found = source.method(method)
         if found is None:
@@ -866,9 +1021,9 @@ def check_reflection(metadata, package, scan, problems, notes):
         class_name = entry["type"]
         source = package.by_qualified_name.get(class_name)
         if source is None:
-            if class_name.startswith(PACKAGE + "."):
+            if package.is_framework_class(class_name):
                 problems.append("the reflection entry for %s names a class that is not "
-                                "declared in %s" % (class_name, PACKAGE))
+                                "declared in the scanned packages" % class_name)
             continue
         for method in entry.get("methods", []):
             found = source.method(method.get("name"))
@@ -889,55 +1044,56 @@ def check_reflection(metadata, package, scan, problems, notes):
 
 def report(metadata, package, scan, problems, notes, registered, missing):
     """Print what was checked, and what was found."""
-    every_shape = set(scan.downcall_shapes)
-    for _, _, shape, _, _ in scan.upcall_sites:
-        every_shape.add(shape)
-    upcall_only = sorted(every_shape - set(scan.downcall_shapes))
+    direct_only = {shape for _, _, shape, _, _ in scan.upcall_sites} - set(scan.downcall_shapes)
+    generic_only = set(scan.generic_upcall_shapes) - set(scan.downcall_shapes) - direct_only
 
-    print("the native-image metadata and the %s sources" % PACKAGE)
+    print("the native-image metadata and the %s sources" % ", ".join(PACKAGE_NAMES))
     print()
     print("  the sources")
     print("    %d calls to a downcall or an upcall helper: %d call sites, %d declarations"
           % (scan.marker_calls, scan.call_sites, scan.declarations))
+    print("    %d Linker.upcallStub sites" % scan.stub_sites)
     print()
     print("  downcall shapes")
     print("    the sources build %d downcall shapes; the file registers %d"
           % (len(scan.downcall_shapes), len(registered)))
-    if upcall_only:
-        if len(upcall_only) == 1:
-            print("    1 more shape is only ever an upcall, so it belongs in directUpcalls")
-        else:
-            print("    %d more shapes are only ever upcalls, so they belong in "
-                  "directUpcalls" % len(upcall_only))
-        print("    and not in downcalls: %s"
-              % ", ".join(shape_text(shape) for shape in upcall_only))
+    if direct_only:
+        print("    %d more shape(s) are only ever direct upcalls, so they belong in "
+              "directUpcalls and not in downcalls: %s"
+              % (len(direct_only), ", ".join(shape_text(s) for s in sorted(direct_only))))
+    if generic_only:
+        print("    %d more shape(s) are only ever generic upcalls, so they belong in "
+              "upcalls: %s"
+              % (len(generic_only), ", ".join(shape_text(s) for s in sorted(generic_only))))
     if missing:
         print("    used but not registered:")
         for shape in sorted(missing):
             source, line, how = scan.downcall_shapes[shape]
             print("      %-30s <- %s/%s:%d (%s)"
-                  % (shape_text(shape), PACKAGE, source.where, line, how))
+                  % (shape_text(shape), source.label, source.where, line, how))
     else:
         print("    every shape the sources build is registered")
     print()
     print("  upcall registrations")
-    print("    %d upcall sites, %d directUpcalls entries"
-          % (len(scan.upcall_sites) + len(scan.unreadable),
-             len(metadata["foreign"]["directUpcalls"])))
+    print("    %d direct upcall sites, %d generic upcall shapes; the file registers "
+          "%d directUpcalls entries and %d upcalls entries"
+          % (len(scan.upcall_sites), len(scan.generic_upcall_shapes),
+             len(metadata["foreign"]["directUpcalls"]),
+             len(metadata["foreign"].get("upcalls", []))))
     if scan.unreadable:
         print("    %d site(s) cannot be resolved statically, so they are not checked:"
               % len(scan.unreadable))
         for source, line, callee, reason in scan.unreadable:
             print("      %s/%s:%d  %s(...)  -- %s"
-                  % (PACKAGE, source.where, line, callee, reason))
+                  % (source.label, source.where, line, callee, reason))
     else:
-        print("    every upcall site has a directUpcalls entry of the same shape")
+        print("    every upcall site has a registration of the same shape")
     print()
     print("  reflection")
     framework_entries = [e for e in metadata["reflection"]
-                         if e["type"].startswith(PACKAGE + ".")]
+                         if package.is_framework_class(e["type"])]
     other_entries = [e for e in metadata["reflection"]
-                     if not e["type"].startswith(PACKAGE + ".")]
+                     if not package.is_framework_class(e["type"])]
     print("    %d framework entries checked; %d entries name JDK classes and are not "
           "checked here" % (len(framework_entries), len(other_entries)))
 
@@ -957,15 +1113,15 @@ def report(metadata, package, scan, problems, notes, registered, missing):
 def main():
     metadata = load_metadata()
     foreign = metadata.get("foreign") or {}
-    for section in ("downcalls", "directUpcalls"):
+    for section in ("downcalls", "directUpcalls", "upcalls"):
         if foreign.get(section) is None:
             sys.exit("%s has no 'foreign.%s'" % (METADATA, section))
     if metadata.get("reflection") is None:
         sys.exit("%s has no 'reflection'" % METADATA)
 
-    package = Package(PACKAGE_DIR)
+    package = Package(PACKAGE_DIRS)
     if not package.sources:
-        sys.exit("no Java sources in %s" % PACKAGE_DIR)
+        sys.exit("no Java sources in %s" % ", ".join(str(d) for d in PACKAGE_DIRS))
 
     scan = Scan(package)
     problems = []
@@ -973,6 +1129,7 @@ def main():
     try:
         registered, missing = check_downcalls(metadata, package, scan, problems, notes)
         check_upcalls(metadata, package, scan, problems, notes)
+        check_generic_upcalls(metadata, scan, problems, notes)
         check_reflection(metadata, package, scan, problems, notes)
         report(metadata, package, scan, problems, notes, registered, missing)
     except MetadataError as error:

@@ -167,13 +167,17 @@ final class Com {
      * memory lives as long as the process, the same call the macOS side makes for everything.
      */
     static MemorySegment completed(Completed body) {
-        return build(COMPLETED_INVOKE, mh(Completed.class, "invoke",
-                MethodType.methodType(int.class, MemorySegment.class, int.class, MemorySegment.class), body));
+        return build(LINKER.upcallStub(
+                mh(Completed.class, "invoke",
+                        MethodType.methodType(int.class, MemorySegment.class, int.class, MemorySegment.class), body),
+                COMPLETED_INVOKE, Arena.global()));
     }
 
     static MemorySegment event(Event body) {
-        return build(EVENT_INVOKE, mh(Event.class, "invoke",
-                MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, MemorySegment.class), body));
+        return build(LINKER.upcallStub(
+                mh(Event.class, "invoke",
+                        MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, MemorySegment.class), body),
+                EVENT_INVOKE, Arena.global()));
     }
 
     /** A completed handler that only cares about the HRESULT — fire-and-forget calls. */
@@ -192,14 +196,22 @@ final class Com {
         }
     }
 
-    private static MemorySegment build(FunctionDescriptor invokeDescriptor, MethodHandle invoke) {
+    /**
+     * Assembles the object around an invoke stub the caller already built.
+     *
+     * <p>The invoke stub is built by the caller, next to the {@code FunctionDescriptor} that
+     * describes it, because that is the only place the descriptor and the stub can be seen
+     * together -- the native-image registration check reads descriptors where they are
+     * built, and a descriptor passed through a helper is a descriptor it cannot vouch for.
+     */
+    private static MemorySegment build(MemorySegment invoke) {
         Arena arena = Arena.global();   // handler objects live as long as the process; see the class comment on Release
         MemorySegment object = arena.allocate(OBJECT);
         MemorySegment vtbl = arena.allocate(ADDRESS, 4);
         vtbl.setAtIndex(ADDRESS, QUERY_INTERFACE, LINKER.upcallStub(QI_MH, QI_DESCRIPTOR, arena));
         vtbl.setAtIndex(ADDRESS, ADD_REF, LINKER.upcallStub(ADD_REF_MH, COUNT_DESCRIPTOR, arena));
         vtbl.setAtIndex(ADDRESS, RELEASE, LINKER.upcallStub(RELEASE_MH, COUNT_DESCRIPTOR, arena));
-        vtbl.setAtIndex(ADDRESS, 3, LINKER.upcallStub(invoke, invokeDescriptor, arena));
+        vtbl.setAtIndex(ADDRESS, 3, invoke);
         object.setAtIndex(ADDRESS, 0, vtbl);
         REF_COUNT.set(object, 0L, 0);
         return object;
