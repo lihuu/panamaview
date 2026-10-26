@@ -49,7 +49,9 @@ DMG="$PROJECT/target/dist/sample-app-0.1.0.dmg"
 
 say "packaging (./package.sh, which builds the native binary first)"
 export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home -v 25 2>/dev/null || /usr/libexec/java_home)}"
-(cd "$PROJECT" && ./package.sh)
+# --title on purpose: it is the flag that decides the bundle's display name, and the default
+# (the artifactId) would leave it untested.
+(cd "$PROJECT" && ./package.sh --title "Sample Application")
 
 say "the bundle has an identity"
 [ -d "$APP" ] || fail "no $APP"

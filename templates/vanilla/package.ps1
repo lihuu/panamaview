@@ -149,8 +149,10 @@ Or pass -NoMsi to produce only the portable zip.
 "@
     }
 
-    $exePath = XmlEscape (Resolve-Path $Exe).Path
-    $loaderPath = XmlEscape (Resolve-Path $Loader).Path
+    # The staged copies, not the inputs: they carry the product's own file names, which is what
+    # the zip contains and what the shortcut has to launch.
+    $exePath = XmlEscape (Resolve-Path (Join-Path $stage "$Name.exe")).Path
+    $loaderPath = XmlEscape (Resolve-Path (Join-Path $stage "WebView2Loader.dll")).Path
     # The WiX source and its debug symbols are build intermediates; only the MSI belongs in the
     # output directory beside the zip.
     $wixDir = Join-Path $Output "wix"
