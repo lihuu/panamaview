@@ -251,7 +251,7 @@
     // was open: the dismissal is delivered through the same modal loop the real Cancel button
     // uses, so a panel that never opened cannot pass this.
     try {
-      const armed = await java.invoke("cancelDialogSoon", { ms: 800 });
+      const armed = await java.invoke("cancelDialogSoon", {});
       const picked = await java.invoke("pickFile",
             { kind: "file", title: "panamaview self-test", extensions: ["txt"] });
       const after = await java.invoke("hello", { name: "after the dialog" });

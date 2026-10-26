@@ -136,10 +136,26 @@ final class FilePanels {
      * <p>Must be called on the UI thread — the same thread {@code runModal} is blocking —
      * which a caller reaches through {@code UiThread.run}; the modal loop delivers it.
      */
-    static void cancelActive() {
+    static boolean cancelActive() {
+        // The panel may not be open yet when the cancellation is asked for — opening it
+        // takes longer than the hop that got here. So the wait for it to appear is part of
+        // the dismissal, bounded, and the answer says whether there was one to dismiss.
+        long deadline = System.nanoTime() + 2_500_000_000L;
         MemorySegment panel = active;
-        if (panel != null && !ObjC.isNull(panel)) {
-            ObjC.sendVoid(panel, ObjC.selector("cancel:"));
+        while ((panel == null || ObjC.isNull(panel)) && System.nanoTime() < deadline) {
+            try {
+                Thread.sleep(25);
+            } catch (InterruptedException e) {
+                return false;
+            }
+            panel = active;
         }
+        if (panel == null || ObjC.isNull(panel)) {
+            return false;
+        }
+        // `cancel:` is the panel's own Cancel-button action, so `runModal` answers exactly
+        // what a click on Cancel would have.
+        ObjC.sendVoid(panel, ObjC.selector("cancel:"));
+        return true;
     }
 }

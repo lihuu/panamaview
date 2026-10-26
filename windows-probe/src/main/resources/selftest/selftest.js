@@ -191,7 +191,7 @@
     // travels through the queue the modal loop keeps pumping, so a dialog that never opened,
     // or a loop that does not pump, cannot pass this.
     try {
-      const armed = await java.invoke("cancelDialogSoon", { ms: 800 });
+      const armed = await java.invoke("cancelDialogSoon", {});
       const picked = await java.invoke("pickFile",
             { kind: "file", title: "panamaview self-test", extensions: ["txt"] });
       const after = await java.invoke("hello", { name: "after the dialog" });

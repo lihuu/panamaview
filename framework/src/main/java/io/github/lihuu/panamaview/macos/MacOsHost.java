@@ -303,15 +303,19 @@ public final class MacOsHost implements UiHost, MenuHost, DialogHost {
     }
 
     /**
-     * Dismisses the file dialog that is currently open, if one is.
+     * Dismisses the file dialog that is currently open, waiting up to 2.5 seconds for one
+     * to appear first.
      *
      * <p>For tests, the way {@link #clickMenuItem(int)} is for menus: a self-test has no human
      * to click Cancel, so this is how it dismisses the panel — the panel's own Cancel action,
      * delivered through the modal loop. It reaches the UI thread by {@code UiThread.run} in
-     * the caller; the modal loop is what delivers it.
+     * the caller; the modal loop is what delivers it. The wait is why arming the dismissal
+     * before opening the dialog is not a race.
+     *
+     * @return whether there was a dialog to dismiss
      */
-    public void cancelActiveDialog() {
-        FilePanels.cancelActive();
+    public boolean cancelActiveDialog() {
+        return FilePanels.cancelActive();
     }
 
     // ------------------------------------------------------------------- clipboard

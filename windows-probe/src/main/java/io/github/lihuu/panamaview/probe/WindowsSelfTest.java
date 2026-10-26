@@ -223,19 +223,13 @@ public final class WindowsSelfTest {
                 // delivers the dismissal below. A cancellation is an answer, not an error.
                 .bindUi("pickFile", params -> host.open(FileDialog.of(params)).toMap())
 
-                // The dismissal, armed to fire mid-dialog. The reply goes out before the
-                // wait — a binding that slept here would answer after the dialog it meant to
-                // catch had been open for half the delay — and the hop is to the UI thread,
-                // because that is where the modal loop is blocked. The picture before the
-                // hop is the diagnostic a log cannot be: whether the dialog is on screen.
+                // The dismissal, armed to fire mid-dialog. The wait for the dialog to
+                // appear is the host's own (cancelActiveDialog), so arming before opening is
+                // not a race. The hop is to the UI thread, because that is where the modal
+                // loop is blocked. The picture before the hop is the diagnostic a log cannot
+                // be: whether the dialog is on screen at all.
                 .bind("cancelDialogSoon", params -> {
-                    long ms = ((Number) params.getOrDefault("ms", 800)).longValue();
                     Thread.ofVirtual().start(() -> {
-                        try {
-                            Thread.sleep(ms);
-                        } catch (InterruptedException e) {
-                            return;
-                        }
                         try {
                             Robot robot = new Robot();
                             BufferedImage image = robot.createScreenCapture(new Rectangle(
@@ -245,7 +239,7 @@ public final class WindowsSelfTest {
                         } catch (Throwable t) {
                             System.err.println("[selftest] the dialog screenshot failed: " + t);
                         }
-                        host.onUiThread(host::cancelActiveDialog);
+                        host.onUiThread(() -> host.cancelActiveDialog());
                     });
                     return "armed";
                 })

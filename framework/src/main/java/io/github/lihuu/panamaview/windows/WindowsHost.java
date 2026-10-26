@@ -460,14 +460,18 @@ public final class WindowsHost implements UiHost, MenuHost, DialogHost {
     }
 
     /**
-     * Dismisses the file dialog that is currently open, if one is.
+     * Dismisses the file dialog that is currently open, waiting up to 2.5 seconds for one
+     * to appear first.
      *
      * <p>For tests, the way {@link #clickMenuItem(int)} is for menus: a self-test has no human
      * to click Cancel, so this is how it dismisses the dialog. It is reached through
      * {@link #onUiThread} in the caller, and the dialog's own modal loop is what delivers it.
+     * The wait is why arming the dismissal before opening the dialog is not a race.
+     *
+     * @return whether there was a dialog to dismiss
      */
-    public void cancelActiveDialog() {
-        WinDialog.cancelActive();
+    public boolean cancelActiveDialog() {
+        return WinDialog.cancelActive();
     }
 
     // ---------------------------------------------------------------- paths

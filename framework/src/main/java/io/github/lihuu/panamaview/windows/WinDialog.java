@@ -228,14 +228,43 @@ final class WinDialog {
      * <p>Reaches the pump thread through {@code onUiThread} in the caller; the modal loop is
      * what delivers it.
      */
-    static void cancelActive() {
+    static boolean cancelActive() {
+        // The dialog may not be open yet when the cancellation is asked for — creating it
+        // takes longer than the hop that got here. So the wait for it to appear is part of
+        // the dismissal, bounded, and the answer says whether there was one to dismiss.
+        long deadline = System.nanoTime() + 2_500_000_000L;
         MemorySegment dialog = active;
-        System.out.println("[panamaview] cancelActive: active=" + (dialog == null ? "null"
-                : "0x" + Long.toHexString(dialog.address())));
-        if (dialog != null && dialog.address() != 0) {
-            int closeResult = (int) call(dialog, CLOSE,
-                    FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT), "Close", ERROR_CANCELLED);
-            System.out.println("[panamaview] Close answered 0x" + Integer.toHexString(closeResult));
+        while ((dialog == null || dialog.address() == 0) && System.nanoTime() < deadline) {
+            try {
+                Thread.sleep(25);
+            } catch (InterruptedException e) {
+                return false;
+            }
+            dialog = active;
+        }
+        if (dialog == null || dialog.address() == 0) {
+            System.out.println("[panamaview] cancelActive: no dialog opened within the wait");
+            return false;
+        }
+        System.out.println("[panamaview] cancelActive: dialog 0x" + Long.toHexString(dialog.address()));
+        // The HRESULT argument is what Show's caller receives, so handing it the cancellation
+        // makes Show answer exactly what the Cancel button would have.
+        int closeResult = callForHresult(dialog, CLOSE,
+                FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT), "Close", ERROR_CANCELLED);
+        System.out.println("[panamaview] Close answered 0x" + Integer.toHexString(closeResult));
+        return true;
+    }
+
+    /** The raw HRESULT of a vtable call — for the one caller that logs it instead of throwing. */
+    private static int callForHresult(MemorySegment object, int slot, FunctionDescriptor descriptor,
+                                      String what, Object... args) {
+        Object[] all = new Object[args.length + 1];
+        all[0] = object;
+        System.arraycopy(args, 0, all, 1, args.length);
+        try {
+            return (int) Com.bind(object, slot, descriptor).invokeWithArguments(all);
+        } catch (Throwable t) {
+            throw new IllegalStateException(what + " could not be called", t);
         }
     }
 
