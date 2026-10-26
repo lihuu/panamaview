@@ -35,6 +35,30 @@ jobs:
       - name: Check the deploy script's decisions
         run: ./scripts/verify-deploy.sh
 
+  linux:
+    name: linux — the framework's own tests
+    # The portable layer is most of the framework, and its tests are decisions: no window server,
+    # no native call, nothing a runner cannot provide. They pass on Linux -- which is the premise a
+    # Linux host would rest on -- and this job is the only thing that keeps them passing there.
+    #
+    # Temurin, not GraalVM: nothing here builds a native image, and the tests only need the
+    # language version. The macOS jobs use GraalVM because that is where native builds happen.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      # The same command the macOS job runs. Running it on both is the point: a test that only
+      # passes because of where it runs is not a test of the portable layer.
+      - name: The framework's own tests
+        run: mvn -B -pl framework test
+
   framework:
     name: framework — the artifact carries no application
     runs-on: macos-latest

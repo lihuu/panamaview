@@ -1329,11 +1329,11 @@ All of it, including the parts that look platform-bound and are not: the shortcu
 the model's own refusals, the `wParam` guard, and the id → position lookup. Those are the
 decisions, and a decision is a decision on every platform.
 
-**What is missing is the CI job that keeps them passing there.** The `framework` job runs on
-macOS and the `scripts` job on Ubuntu, so on Linux the suite runs nowhere — a portable-layer
-regression would be found on macOS or not at all. Adding the job is a matrix change, and the
-suite is known to pass on Linux, so it is a small piece of work with a measured answer
-behind it.
+**The CI job that keeps them passing there now exists** (2026-10-26): the `linux` job runs
+`mvn -B -pl framework test` on `ubuntu-latest` with Temurin 25. Before adding it the same
+command was run in a `maven:3.9-eclipse-temurin-25` container — 102 tests, 0 failures — so
+the job had a measured answer behind it. A portable-layer regression now fails on Linux as
+well, which matters because Linux is where the next host goes.
 
 **And the desktop question is downstream of the host.** WSLg can give a Linux process a
 display, so a Linux *window* is possible in WSL — but there is no Linux host to put in it
