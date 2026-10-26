@@ -173,6 +173,7 @@ final class WinDialog {
                     save ? CLSID_FILE_SAVE : CLSID_FILE_OPEN,
                     save ? IID_FILE_DIALOG : IID_FILE_OPEN_DIALOG,
                     save ? "CoCreateInstance(CLSID_FileSaveDialog)" : "CoCreateInstance(CLSID_FileOpenDialog)");
+            System.out.println("[panamaview] dialog 0x" + Long.toHexString(dialog.address()) + " created");
 
             setOptionsWithReadBack(dialog, plan.options());
 
@@ -191,9 +192,11 @@ final class WinDialog {
             active = dialog;
             int shown;
             try {
+                System.out.println("[panamaview] Show entering on 0x" + Long.toHexString(dialog.address()));
                 shown = (int) Com.bind(dialog, SHOW,
                                 FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS))
                         .invoke(dialog, hwnd);
+                System.out.println("[panamaview] Show returned 0x" + Integer.toHexString(shown));
             } catch (Throwable t) {
                 throw new IllegalStateException("Show could not be called", t);
             } finally {
@@ -227,6 +230,8 @@ final class WinDialog {
      */
     static void cancelActive() {
         MemorySegment dialog = active;
+        System.out.println("[panamaview] cancelActive: active=" + (dialog == null ? "null"
+                : "0x" + Long.toHexString(dialog.address())));
         if (dialog != null && dialog.address() != 0) {
             call(dialog, CLOSE, FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT),
                     "Close", ERROR_CANCELLED);
