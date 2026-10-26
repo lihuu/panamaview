@@ -226,7 +226,8 @@ public final class WindowsSelfTest {
                 // The dismissal, armed to fire mid-dialog. The reply goes out before the
                 // wait — a binding that slept here would answer after the dialog it meant to
                 // catch had been open for half the delay — and the hop is to the UI thread,
-                // because that is where the modal loop is blocked.
+                // because that is where the modal loop is blocked. The picture before the
+                // hop is the diagnostic a log cannot be: whether the dialog is on screen.
                 .bind("cancelDialogSoon", params -> {
                     long ms = ((Number) params.getOrDefault("ms", 800)).longValue();
                     Thread.ofVirtual().start(() -> {
@@ -234,6 +235,15 @@ public final class WindowsSelfTest {
                             Thread.sleep(ms);
                         } catch (InterruptedException e) {
                             return;
+                        }
+                        try {
+                            Robot robot = new Robot();
+                            BufferedImage image = robot.createScreenCapture(new Rectangle(
+                                    Toolkit.getDefaultToolkit().getScreenSize()));
+                            ImageIO.write(image, "png", new File("dialog-open.png"));
+                            System.out.println("[selftest] the dialog screenshot is at dialog-open.png");
+                        } catch (Throwable t) {
+                            System.err.println("[selftest] the dialog screenshot failed: " + t);
                         }
                         host.onUiThread(host::cancelActiveDialog);
                     });

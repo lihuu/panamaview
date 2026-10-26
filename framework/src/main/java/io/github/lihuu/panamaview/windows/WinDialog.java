@@ -233,8 +233,9 @@ final class WinDialog {
         System.out.println("[panamaview] cancelActive: active=" + (dialog == null ? "null"
                 : "0x" + Long.toHexString(dialog.address())));
         if (dialog != null && dialog.address() != 0) {
-            call(dialog, CLOSE, FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT),
-                    "Close", ERROR_CANCELLED);
+            int closeResult = (int) call(dialog, CLOSE,
+                    FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT), "Close", ERROR_CANCELLED);
+            System.out.println("[panamaview] Close answered 0x" + Integer.toHexString(closeResult));
         }
     }
 
@@ -249,6 +250,8 @@ final class WinDialog {
             call(dialog, GET_OPTIONS, FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS),
                     "GetOptions", out);
             int read = out.get(JAVA_INT, 0);
+            System.out.println("[panamaview] options set 0x" + Integer.toHexString(options)
+                    + ", read back 0x" + Integer.toHexString(read));
             if ((read & options) != options) {
                 throw new IllegalStateException("the dialog kept options 0x"
                         + Integer.toHexString(read) + ", which do not contain the 0x"
