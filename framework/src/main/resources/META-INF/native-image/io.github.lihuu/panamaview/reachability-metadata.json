@@ -30,7 +30,8 @@
     "The message send with no arguments -- void*(void*,void*) -- is alloc and +[NSMenuItem separatorItem], and a BOOL send with one object argument -- jbyte(void*,void*,void*) -- is setFrameUsingName:. The code built both, and the file registered neither -- until these two entries were added.",
     "MenuTarget's handleMenuItem is the menu item's action, reached from AppKit. It is an upcall, so it is registered by class and method rather than by shape: void(void*,void*,void*) was already registered for ObjCDispatch, and that fact covers nothing here.",
     "Windows shares this file. A native image is built for one platform, so the shapes are a union -- a macOS build never calls a Windows shape and the reverse -- and verify-native-metadata.py checks both platform packages against this one file.",
-    "Windows upcalls come in two forms. Com.queryInterface, addRef and release are static methods, so they are directUpcalls like the macOS ones. The COM event handlers and the window procedure are bound instance methods (a lambda, a per-window adapter), which no class-and-method entry can name, so they are registered by shape in foreign.upcalls -- the form GraalVM uses for non-static upcall targets."
+    "Windows upcalls come in two forms. Com.queryInterface, addRef and release are static methods, so they are directUpcalls like the macOS ones. The COM event handlers and the window procedure are bound instance methods (a lambda, a per-window adapter), which no class-and-method entry can name, so they are registered by shape in foreign.upcalls -- the form GraalVM uses for non-static upcall targets.",
+    "The handler methods behind those bound upcalls are reached with MethodHandles.lookup().findVirtual, so the methods themselves need reflection entries (Com$Completed.invoke, Com$Event.invoke, Win32$ProcedureAdapter.dispatch). Missing these does not fail on the JVM; the native executable dies while creating its first handler, with NoSuchMethodException."
   ],
   "reflection": [
     {
@@ -216,6 +217,46 @@
           "name": "release",
           "parameterTypes": [
             "java.lang.foreign.MemorySegment"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "io.github.lihuu.panamaview.windows.Com$Completed",
+      "methods": [
+        {
+          "name": "invoke",
+          "parameterTypes": [
+            "java.lang.foreign.MemorySegment",
+            "int",
+            "java.lang.foreign.MemorySegment"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "io.github.lihuu.panamaview.windows.Com$Event",
+      "methods": [
+        {
+          "name": "invoke",
+          "parameterTypes": [
+            "java.lang.foreign.MemorySegment",
+            "java.lang.foreign.MemorySegment",
+            "java.lang.foreign.MemorySegment"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "io.github.lihuu.panamaview.windows.Win32$ProcedureAdapter",
+      "methods": [
+        {
+          "name": "dispatch",
+          "parameterTypes": [
+            "java.lang.foreign.MemorySegment",
+            "int",
+            "long",
+            "long"
           ]
         }
       ]

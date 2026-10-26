@@ -102,8 +102,8 @@ INLINE = re.compile(r"FunctionDescriptor\.(of|ofVoid)\s*\(")
 # A type declaration. The modifiers are optional and the file's own indentation is
 # not, because a nested class is not a top-level one.
 DECLARATION = re.compile(
-    r"(?m)^[ \t]*(?:(?:public|final|abstract|sealed|non-sealed|strictfp)\s+)*"
-    r"(?:class|interface|enum|record)\s+([A-Za-z_$][A-Za-z0-9_$]*)")
+    r"(?m)^[ \t]*(?:(?:public|protected|private|static|final|abstract|sealed|non-sealed|"
+    r"strictfp)\s+)*(?:class|interface|enum|record)\s+([A-Za-z_$][A-Za-z0-9_$]*)")
 
 
 class MetadataError(Exception):
@@ -346,6 +346,8 @@ class Source:
         self.masked = mask_literals(self.text, self.literals)
         self.package = ""
         self.types = []
+        # Every type this file declares, nested ones included, as (Outer$Inner, match).
+        self.all_types = []
         # The descriptor constants this file declares, and their shapes. A constant
         # whose shape cannot be read is kept with a None, because a descriptor the
         # check cannot read is a descriptor the check must report.
@@ -357,14 +359,26 @@ class Source:
             self.package = found.group(1)
 
     def parse_types(self):
-        """The top-level types this file declares.
+        """The types this file declares, top-level and nested.
 
         The class a file declares is not the file's name: a package-private class may
         be renamed inside its own file, and the metadata names classes, not files.
+
+        Nested types are named the way the JVM names them -- Outer$Inner -- because
+        that is how the metadata names them, and a method named there has to be looked
+        up inside that type and not in its sibling. Com$Completed and Com$Event both
+        declare invoke, with different signatures.
         """
+        stack = []
         for match in DECLARATION.finditer(self.text):
-            if self.depth_at(match.start()) == 0:
+            depth = self.depth_at(match.start())
+            while len(stack) > depth:
+                stack.pop()
+            local = "$".join(stack + [match.group(1)])
+            self.all_types.append((local, match))
+            if depth == 0:
                 self.types.append(match.group(1))
+            stack.append(match.group(1))
 
     def depth_at(self, index):
         """How many braces are open at `index`."""
@@ -408,23 +422,36 @@ class Source:
             return other.constants.get(name)
         return self.constants.get(token)
 
-    def method(self, name):
-        """(returnType, [parameterTypes]) of a declared method, or None."""
+    def method(self, name, owner=None):
+        """(returnType, [parameterTypes]) of a declared method, or None.
+
+        With `owner`, the search is confined to that type's body -- so Com$Completed's
+        invoke and Com$Event's invoke are each found in their own type. Without it, the
+        first declaration in the file wins, which is what a top-level class wants.
+        """
+        text = self.text
+        start = 0
+        if owner is not None:
+            span = self.type_span(owner)
+            if span is None:
+                return None
+            start, stop = span
+            text = self.text[start:stop]
         pattern = (r"(?m)^[ \t]*(?:(?:public|private|protected|static|final|abstract|"
                    r"native|synchronized)\s+)*([\w.$<>\[\]]+)\s+(" + re.escape(name)
                    + r")\s*\(")
-        for match in re.finditer(pattern, self.text):
+        for match in re.finditer(pattern, text):
             # A call can look like a declaration: 'return handleScriptMessage(null, ...);'
             # is a call, and reading it as one would report that the method takes four
             # nulls. What sits in the type position must be a type, and a keyword is
             # never a type.
             if match.group(1).rsplit(".", 1)[-1] in KEYWORDS:
                 continue
-            end = match_paren(self.text, match.end() - 1)
+            end = match_paren(text, match.end() - 1)
             if end < 0:
                 continue
             parameters = []
-            for parameter in split_args(self.text[match.end():end - 1]):
+            for parameter in split_args(text[match.end():end - 1]):
                 words = parameter.replace("final ", "").split()
                 if len(words) >= 2:
                     parameters.append(simple_name(" ".join(words[:-1])))
@@ -432,6 +459,30 @@ class Source:
                     parameters.append(simple_name(parameter))
             return simple_name(match.group(1)), parameters
         return None
+
+    def type_span(self, local):
+        """(start, end) of a type's declaration, or None when it is not declared here."""
+        for name, match in self.all_types:
+            if name != local:
+                continue
+            opening = self.masked.find("{", match.end())
+            if opening < 0:
+                return None
+            closing = self.matching_brace(opening)
+            return (match.start(), closing + 1 if closing >= 0 else len(self.text))
+        return None
+
+    def matching_brace(self, start):
+        """The index of the '}' closing the '{' at `start`, or -1."""
+        depth = 0
+        for i in range(start, len(self.masked)):
+            if self.masked[i] == "{":
+                depth += 1
+            elif self.masked[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    return i
+        return -1
 
 
 class Package:
@@ -460,10 +511,14 @@ class Package:
         for source in self.sources:
             for name in source.types:
                 self.by_type_name[name] = source
+        # Every declared type, nested ones included. The value carries the local name
+        # because a method entry has to be looked up inside that type, not its sibling.
         self.by_qualified_name = {}
+        self.by_simple_name = {}
         for source in self.sources:
-            for name in source.types:
-                self.by_qualified_name[qualified(source, name)] = source
+            for local, _ in source.all_types:
+                self.by_qualified_name[qualified(source, local)] = (source, local)
+                self.by_simple_name[local.rsplit("$", 1)[-1]] = (source, local)
 
     def collect_structs(self):
         """Every by-value aggregate in the package, as name -> shape.
@@ -496,11 +551,12 @@ class Package:
                 return structs
 
     def qualified(self, simple):
-        """The fully qualified name of a type this package declares, or None."""
-        source = self.by_type_name.get(simple)
-        if source is None:
+        """The fully qualified name of a type these packages declare, or None."""
+        found = self.by_simple_name.get(simple)
+        if found is None:
             return None
-        return qualified(source, simple)
+        source, local = found
+        return qualified(source, local)
 
     def is_framework_class(self, class_name):
         """True when `class_name` names a class in one of the scanned packages."""
@@ -993,13 +1049,14 @@ def check_reflection(metadata, package, scan, problems, notes):
         class_name = class_of(entry, "a directUpcalls entry")
         method = method_of(entry, "a directUpcalls entry")
         shape = shape_of(entry, "a directUpcalls entry")
-        source = package.by_qualified_name.get(class_name)
-        if source is None:
+        declared = package.by_qualified_name.get(class_name)
+        if declared is None:
             if package.is_framework_class(class_name):
                 problems.append("the directUpcalls entry for %s.%s names a class that is "
                                 "not declared in the scanned packages" % (class_name, method))
             continue
-        found = source.method(method)
+        source, local = declared
+        found = source.method(method, local)
         if found is None:
             problems.append("the directUpcalls entry for %s.%s names a method that is not "
                             "in %s" % (class_name, method, source.where))
@@ -1019,14 +1076,15 @@ def check_reflection(metadata, package, scan, problems, notes):
 
     for entry in reflection:
         class_name = entry["type"]
-        source = package.by_qualified_name.get(class_name)
-        if source is None:
+        declared = package.by_qualified_name.get(class_name)
+        if declared is None:
             if package.is_framework_class(class_name):
                 problems.append("the reflection entry for %s names a class that is not "
                                 "declared in the scanned packages" % class_name)
             continue
+        source, local = declared
         for method in entry.get("methods", []):
-            found = source.method(method.get("name"))
+            found = source.method(method.get("name"), local)
             if found is None:
                 problems.append("the reflection entry for %s.%s names a method that is not "
                                 "in %s" % (class_name, method.get("name"), source.where))
