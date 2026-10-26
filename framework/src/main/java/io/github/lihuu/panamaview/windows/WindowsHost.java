@@ -477,21 +477,51 @@ public final class WindowsHost implements UiHost, MenuHost, DialogHost {
     // ---------------------------------------------------------------- paths
 
     /**
-     * The loader DLL beside the running application: {@code loader/WebView2Loader.dll} under
-     * the working directory, or the directory the binary lives in. The probe module's fetch
-     * script stages it; a packaged application ships it beside itself.
+     * The loader DLL, beside the executable or under the working directory.
+     *
+     * <p>The executable's own directory is searched first: an installed application is started
+     * by a shortcut or the shell, and the working directory it inherits is not guaranteed to be
+     * the install directory. The working-directory lookups remain for development, where
+     * {@code fetch-loader.ps1} stages the DLL under {@code loader/} in the project.
      */
     private static Path findLoader() {
-        Path staged = Path.of("loader", "WebView2Loader.dll");
-        if (java.nio.file.Files.isRegularFile(staged)) {
-            return staged.toAbsolutePath();
+        Path beside = ProcessHandle.current().info().command()
+                .map(Path::of)
+                .map(Path::getParent)
+                .orElse(null);
+        Path workingDirectory = Path.of("").toAbsolutePath();
+        Path found = locateLoader(beside, workingDirectory);
+        if (found != null) {
+            return found;
         }
-        Path beside = Path.of("WebView2Loader.dll");
-        if (java.nio.file.Files.isRegularFile(beside)) {
-            return beside.toAbsolutePath();
+        throw new IllegalStateException("WebView2Loader.dll not found beside " + beside
+                + " or under " + workingDirectory
+                + " — stage it with fetch-loader.ps1, or ship it beside the application");
+    }
+
+    /**
+     * The loader in {@code beside} or {@code workingDirectory}, or null.
+     *
+     * <p>Each directory is searched the same way: the DLL itself first, then a
+     * {@code loader/} subdirectory. Both spellings exist because both are in use — a packaged
+     * application ships the DLL next to its executable, while the probe's fetch script stages
+     * it under {@code loader/}.
+     */
+    static Path locateLoader(Path beside, Path workingDirectory) {
+        for (Path directory : new Path[]{beside, workingDirectory}) {
+            if (directory == null) {
+                continue;
+            }
+            Path dll = directory.resolve("WebView2Loader.dll");
+            if (java.nio.file.Files.isRegularFile(dll)) {
+                return dll.toAbsolutePath();
+            }
+            Path staged = directory.resolve("loader").resolve("WebView2Loader.dll");
+            if (java.nio.file.Files.isRegularFile(staged)) {
+                return staged.toAbsolutePath();
+            }
         }
-        throw new IllegalStateException("WebView2Loader.dll not found — stage it with windows-probe/fetch-loader.ps1, "
-                + "or ship it beside the application");
+        return null;
     }
 
     /** Browser state lives here rather than wherever the exe happens to be. */

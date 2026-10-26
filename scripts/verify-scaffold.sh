@@ -218,7 +218,7 @@ LINKS
     # into the tarball, and by the scaffolder onto the generated project. A template whose bit was
     # lost on the way generates a project that says "permission denied" and looks otherwise
     # complete, so it is checked on the far end rather than at the source.
-    for script in run.sh build-native.sh; do
+    for script in run.sh build-native.sh package.sh; do
         [ -x "$TARGET/$script" ] || {
             echo "  $script is not executable — the mode was dropped somewhere between the" >&2
             echo "  template and the generated project; without it './$script' fails in a project" >&2

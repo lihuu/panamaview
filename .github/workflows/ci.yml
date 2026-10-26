@@ -221,6 +221,64 @@ jobs:
           WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: --disable-gpu
         run: .\target\panamaview-selftest.exe
 
+      # The check above proves the native shapes; these steps prove the packaging path end to
+      # end. The MSI is per-user, so installing and uninstalling need no elevation. Running the
+      # installed executable from C:\ is the part that matters: the loader must be found beside
+      # the executable, not because the shortcut happened to set the working directory.
+      - name: Install WiX
+        run: |
+          # WiX 6 and later require accepting the Open Source Maintenance Fee EULA inside the
+          # build; 5.x is the last line that does not, and it speaks the same v4 schema. Pinned,
+          # so a new major version cannot fail this job for a licensing reason.
+          dotnet tool install --global wix --version 5.0.2
+          "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+      - name: Package the native self-test as a per-user MSI
+        run: |
+          $pom = Get-Content framework\pom.xml -Raw
+          $version = [regex]::Match($pom, '<version>([^<]+)</version>').Groups[1].Value
+          scripts\packaging\package.ps1 -Exe windows-probe\target\panamaview-selftest.exe `
+            -Name PanamaviewSelfTest -Title "Panamaview Self Test" `
+            -BundleId io.github.lihuu.panamaview.selftest -Version $version `
+            -Loader windows-probe\loader\WebView2Loader.dll -Output target\dist
+
+      - name: Install, run from another directory, and uninstall the MSI
+        env:
+          WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: --disable-gpu
+        run: |
+          $ErrorActionPreference = "Continue"
+          $msi = Get-ChildItem target\dist\*.msi | Select-Object -First 1
+          if (-not $msi) { throw "no MSI was produced" }
+          $install = Start-Process msiexec.exe -Wait -PassThru -ArgumentList @(
+            "/i", "`"$($msi.FullName)`"", "/qn", "/norestart", "/l*v", "target\dist\install.log")
+          if ($install.ExitCode -ne 0) {
+            Get-Content target\dist\install.log -Tail 40
+            throw "msiexec /i failed with $($install.ExitCode)"
+          }
+
+          $installed = Join-Path $env:LOCALAPPDATA "PanamaviewSelfTest\PanamaviewSelfTest.exe"
+          if (-not (Test-Path $installed)) {
+            Get-Content target\dist\install.log -Tail 40
+            throw "the MSI did not install $installed"
+          }
+
+          Push-Location C:\
+          $output = & $installed 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          Pop-Location
+          Write-Output $output
+          if ($code -ne 0) { throw "the installed self-test exited $code" }
+          if ($output -notmatch "12 passed, 0 failed") {
+            throw "the installed self-test did not report a full pass"
+          }
+
+          $uninstall = Start-Process msiexec.exe -Wait -PassThru -ArgumentList @(
+            "/x", "`"$($msi.FullName)`"", "/qn", "/norestart")
+          if ($uninstall.ExitCode -ne 0) { throw "msiexec /x failed with $($uninstall.ExitCode)" }
+          if (Test-Path (Join-Path $env:LOCALAPPDATA "PanamaviewSelfTest")) {
+            throw "uninstall left its install directory behind"
+          }
+
       - name: Self-test screenshots on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -228,6 +286,33 @@ jobs:
           name: windows-native-screenshots
           path: windows-probe/*.png
           if-no-files-found: ignore
+
+  macos-packaging:
+    name: macOS installers — a scaffolded app becomes a .app and a .dmg
+    # The packaging script is one file copied into every template, so one template through the
+    # real consumer path is enough: stage the npm package, generate, and run the project's own
+    # ./package.sh. What is checked is what a user notices -- the bundle identity, the signature,
+    # a binary that runs from another working directory, and a dmg that mounts with the app.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up GraalVM
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '25'
+          distribution: 'graalvm-community'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Toolchain
+        run: |
+          java --version
+          native-image --version
+          mvn --version
+          node --version
+
+      - name: Package a generated project and inspect the artifacts
+        run: ./scripts/verify-packaging.sh vanilla
 
   templates:
     name: ${{ matrix.template }} — template and scaffolded project, JVM + native

@@ -23,7 +23,7 @@ VERSION=0.11.0
 
 # Which files CI lints. Kept in one place so this script and the workflow cannot drift: if a glob
 # is added to the workflow, add it here too, or the local run is a smaller claim than the CI run.
-FILES="scripts/*.sh npm/scripts/*.sh templates/*/*.sh templates/*/scripts/*.sh"
+FILES="scripts/*.sh scripts/packaging/*.sh npm/scripts/*.sh templates/*/*.sh templates/*/scripts/*.sh"
 
 if [ -n "${SHELLCHECK:-}" ]; then
     BIN="$SHELLCHECK"
