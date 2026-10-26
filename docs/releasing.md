@@ -4,23 +4,58 @@ This document explains the release process and the strict version invariants mai
 
 ---
 
-## 1. Triggering a Release
+## 1. The Release Checklist
 
-Releases are executed via `scripts/release.sh`:
+A release is three acts in this order: **a tag**, **a Maven Central publication**, and **an npm publication**. The first two are scripted; the third is the maintainer's, because npm's second factor is a passkey.
 
-```sh
-./scripts/release.sh patch          # Or minor, major, or an explicit x.y.z
-./scripts/release.sh --dry-run patch
-```
+0. **Decide the version.** Semver from the last tag; new features mean a minor.
 
-The script enforces verification before making any modifications:
-1. Runs `scripts/verify-templates.sh` and `scripts/verify-scaffold.sh`.
-2. Verifies that every template can be generated and built to a native executable.
-3. Bumps versions across all relevant configuration files.
-4. Commits, tags (`vX.Y.Z`), and pushes to origin.
-5. GitHub Actions (`.github/workflows/release.yml`) triggers on the tag to verify agreement across files.
+1. **Commit `<scm><tag>` before cutting.** `release.sh` deliberately does not rewrite it — the tag names a commit that does not exist yet — and a published pom is permanent. In the root `pom.xml`, set `<tag>vX.Y.Z</tag>`, commit, push.
 
-A release is not finished at the tag. Publishing the scaffolder is a separate, manual act — `cd npm && npm publish` — because no credential for the registry lives in this repository. See [Publishing to npm](publishing.md#3-publishing-to-npm) for the two commands, the `prepack` hook they trigger, and the `--ignore-scripts` trap that ships a package which cannot scaffold.
+2. **Cut it.**
+
+   ```sh
+   ./scripts/release.sh minor          # or patch / major / x.y.z
+   ./scripts/release.sh --dry-run patch
+   ```
+
+   It requires `main` and a clean tree, runs `scripts/verify-templates.sh` (all five templates) and `scripts/verify-scaffold.sh` (generated project → native executable), bumps the ten version fields, commits `Release vX.Y.Z`, creates the annotated tag and pushes main + tag. **Destination: GitHub — source only, no artifacts.**
+
+3. **The tag workflow.** `.github/workflows/release.yml` checks the tag against every version field and runs the scaffolder selftest. Nothing is uploaded.
+
+4. **Upload to Central, validation only.** `./scripts/publish-central.sh` builds and GPG-signs, assembles the bundle, uploads it to the Sonatype Central Portal and polls to `VALIDATED`. It stops there and prints the deployment id. **Destination: a Central Portal deployment, not yet public.**
+
+5. **Publish that deployment — irreversible.** POST `https://central.sonatype.com/api/v1/publisher/deployment/<id>` with the token from `~/.m2/settings.xml`, or run `publish-central.sh --release` to upload a fresh bundle and publish it. A published version cannot be withdrawn. **Destination: Maven Central (`repo1.maven.org`).**
+
+6. **Publish the scaffolder — the maintainer's step.**
+
+   ```sh
+   cd npm && npm publish
+   ```
+
+   It must come after Central: generated projects pin the framework version and have to resolve it. The `prepack` hook rebuilds the framework and stages `lib/` and `templates/`. It is manual because npm's 2FA is a passkey, which no script can answer. **Destination: npm (`create-panamaview`).**
+
+7. **Verify.** `repo1.maven.org` serves the pom, jar, sources, javadoc and signatures; `npm view create-panamaview version` is the new version; and a generated project runs:
+
+   ```sh
+   cd /tmp && npx --yes create-panamaview@X.Y.Z create probe --template vanilla
+   cd probe && ./run.sh
+   ```
+
+   A fresh npm version can answer `404`/`ETARGET` for about three minutes; that is propagation, not a failed publish.
+
+### What is automatic, and what is not
+
+| Step | Who | Why |
+| --- | --- | --- |
+| 0–1 choose the version, set the tag | maintainer | a decision, and a published pom is permanent |
+| 2–3 tag, verify | scripts + CI | gated, and reversible until the tag is pushed |
+| 4 upload to Central | script | validation only |
+| 5 publish | maintainer's explicit go-ahead, then a script/API call | irreversible |
+| 6 npm | **maintainer only** | passkey 2FA is interactive |
+| 7 verify | anyone | read-only |
+
+Details for each destination: [Publishing to Maven Central](publishing.md#2-publishing-to-maven-central) and [Publishing to npm](publishing.md#3-publishing-to-npm).
 
 ---
 
