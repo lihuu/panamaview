@@ -149,8 +149,6 @@ public final class WebView2 {
     /** {@code COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_DENY_CORS}: same origin works, the rest refused. */
     private static final int HOST_RESOURCE_ACCESS_DENY_CORS = 2;
 
-    private static final FunctionDescriptor HR_THIS =
-            FunctionDescriptor.of(JAVA_INT, ADDRESS);
     private static final FunctionDescriptor HR_THIS_PTR =
             FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS);
     private static final FunctionDescriptor HR_THIS_PTR_INT =

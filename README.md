@@ -236,7 +236,7 @@ docs/                  Deep-dive architecture and maintenance documentation
 - [x] Windows native host via FFM, Win32 & WebView2, exercised by a self-test of its own (`windows-probe`)
 - [x] Virtual thread-backed JSON RPC & cooperative cancellation
 - [x] Private asset URL schemes with SPA routing fallback
-- [x] GraalVM Native Image reachability metadata & standalone builds — macOS today; the Windows shapes are tracked in [#34](https://github.com/lihuu/panamaview/issues/34)
+- [x] GraalVM Native Image reachability metadata & standalone builds — one metadata file serves both platforms, CI checks it against both platform packages, and a Windows native self-test proves the shapes at run time ([#34](https://github.com/lihuu/panamaview/issues/34))
 - [x] Maven Central publishing & npm scaffolder (`create-panamaview`)
 - [x] Application menu bar (macOS & Windows)
 - [x] System notifications via `UNUserNotificationCenter` (macOS)
@@ -255,7 +255,6 @@ docs/                  Deep-dive architecture and maintenance documentation
 
 **Ready to start — no design question stands between here and the first commit**
 
-- [ ] Register the Windows package's FFM shapes, and give a Windows native build the guarantee a macOS one already has ([#34](https://github.com/lihuu/panamaview/issues/34))
 - [ ] A Linux CI job for the framework's own tests — they already pass there, measured in WSL2; only the job is missing
 
 ---

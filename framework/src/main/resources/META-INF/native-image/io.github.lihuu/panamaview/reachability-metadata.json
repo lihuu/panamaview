@@ -28,7 +28,10 @@
     "dataWithBytes:length: needs an object followed by an NSInteger -- the reverse of representationUsingType:properties:, so it is a separate registered shape.",
     "Notifications adds UNUserNotificationCenter: two block callbacks (handleAuthorization, handlePost) and one downcall shape -- requestAuthorizationWithOptions:completionHandler: takes an NSUInteger followed by a block.",
     "The message send with no arguments -- void*(void*,void*) -- is alloc and +[NSMenuItem separatorItem], and a BOOL send with one object argument -- jbyte(void*,void*,void*) -- is setFrameUsingName:. The code built both, and the file registered neither -- until these two entries were added.",
-    "MenuTarget's handleMenuItem is the menu item's action, reached from AppKit. It is an upcall, so it is registered by class and method rather than by shape: void(void*,void*,void*) was already registered for ObjCDispatch, and that fact covers nothing here."
+    "MenuTarget's handleMenuItem is the menu item's action, reached from AppKit. It is an upcall, so it is registered by class and method rather than by shape: void(void*,void*,void*) was already registered for ObjCDispatch, and that fact covers nothing here.",
+    "Windows shares this file. A native image is built for one platform, so the shapes are a union -- a macOS build never calls a Windows shape and the reverse -- and verify-native-metadata.py checks both platform packages against this one file.",
+    "Windows upcalls come in two forms. Com.queryInterface, addRef and release are static methods, so they are directUpcalls like the macOS ones. The COM event handlers and the window procedure are bound instance methods (a lambda, a per-window adapter), which no class-and-method entry can name, so they are registered by shape in foreign.upcalls -- the form GraalVM uses for non-static upcall targets.",
+    "The handler methods behind those bound upcalls are reached with MethodHandles.lookup().findVirtual, so the methods themselves need reflection entries (Com$Completed.invoke, Com$Event.invoke, Win32$ProcedureAdapter.dispatch). Missing these does not fail on the JVM; the native executable dies while creating its first handler, with NoSuchMethodException."
   ],
   "reflection": [
     {
@@ -192,6 +195,71 @@
           ]
         }
       ]
+    },
+    {
+      "type": "io.github.lihuu.panamaview.windows.Com",
+      "methods": [
+        {
+          "name": "queryInterface",
+          "parameterTypes": [
+            "java.lang.foreign.MemorySegment",
+            "java.lang.foreign.MemorySegment",
+            "java.lang.foreign.MemorySegment"
+          ]
+        },
+        {
+          "name": "addRef",
+          "parameterTypes": [
+            "java.lang.foreign.MemorySegment"
+          ]
+        },
+        {
+          "name": "release",
+          "parameterTypes": [
+            "java.lang.foreign.MemorySegment"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "io.github.lihuu.panamaview.windows.Com$Completed",
+      "methods": [
+        {
+          "name": "invoke",
+          "parameterTypes": [
+            "java.lang.foreign.MemorySegment",
+            "int",
+            "java.lang.foreign.MemorySegment"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "io.github.lihuu.panamaview.windows.Com$Event",
+      "methods": [
+        {
+          "name": "invoke",
+          "parameterTypes": [
+            "java.lang.foreign.MemorySegment",
+            "java.lang.foreign.MemorySegment",
+            "java.lang.foreign.MemorySegment"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "io.github.lihuu.panamaview.windows.Win32$ProcedureAdapter",
+      "methods": [
+        {
+          "name": "dispatch",
+          "parameterTypes": [
+            "java.lang.foreign.MemorySegment",
+            "int",
+            "long",
+            "long"
+          ]
+        }
+      ]
     }
   ],
   "resources": [
@@ -323,6 +391,59 @@
           "void*",
           "void*",
           "void*"
+        ]
+      },
+      {
+        "class": "io.github.lihuu.panamaview.windows.Com",
+        "method": "queryInterface",
+        "returnType": "jint",
+        "parameterTypes": [
+          "void*",
+          "void*",
+          "void*"
+        ]
+      },
+      {
+        "class": "io.github.lihuu.panamaview.windows.Com",
+        "method": "addRef",
+        "returnType": "jint",
+        "parameterTypes": [
+          "void*"
+        ]
+      },
+      {
+        "class": "io.github.lihuu.panamaview.windows.Com",
+        "method": "release",
+        "returnType": "jint",
+        "parameterTypes": [
+          "void*"
+        ]
+      }
+    ],
+    "upcalls": [
+      {
+        "returnType": "jint",
+        "parameterTypes": [
+          "void*",
+          "jint",
+          "void*"
+        ]
+      },
+      {
+        "returnType": "jint",
+        "parameterTypes": [
+          "void*",
+          "void*",
+          "void*"
+        ]
+      },
+      {
+        "returnType": "jlong",
+        "parameterTypes": [
+          "void*",
+          "jint",
+          "jlong",
+          "jlong"
         ]
       }
     ],
@@ -565,6 +686,187 @@
           "void*",
           "void*",
           "jlong",
+          "void*"
+        ]
+      },
+      {
+        "returnType": "jshort",
+        "parameterTypes": [
+          "void*"
+        ]
+      },
+      {
+        "returnType": "void*",
+        "parameterTypes": [
+          "jint",
+          "void*",
+          "void*",
+          "jint",
+          "jint",
+          "jint",
+          "jint",
+          "jint",
+          "void*",
+          "void*",
+          "void*",
+          "void*"
+        ]
+      },
+      {
+        "returnType": "jint",
+        "parameterTypes": [
+          "void*",
+          "jint"
+        ]
+      },
+      {
+        "returnType": "jlong",
+        "parameterTypes": [
+          "void*",
+          "jint",
+          "jlong",
+          "jlong"
+        ]
+      },
+      {
+        "returnType": "void",
+        "parameterTypes": [
+          "jint"
+        ]
+      },
+      {
+        "returnType": "jint",
+        "parameterTypes": [
+          "void*",
+          "jint",
+          "jlong",
+          "jlong"
+        ]
+      },
+      {
+        "returnType": "jint",
+        "parameterTypes": [
+          "jint",
+          "jint",
+          "jlong",
+          "jlong"
+        ]
+      },
+      {
+        "returnType": "jint",
+        "parameterTypes": [
+          "void*",
+          "void*",
+          "jint",
+          "jint"
+        ]
+      },
+      {
+        "returnType": "jlong",
+        "parameterTypes": [
+          "void*"
+        ]
+      },
+      {
+        "returnType": "jint",
+        "parameterTypes": [
+          "void*",
+          "jint",
+          "jlong",
+          "void*"
+        ]
+      },
+      {
+        "returnType": "jint",
+        "parameterTypes": [
+          "void*",
+          "void*",
+          "jint",
+          "void*",
+          "void*"
+        ]
+      },
+      {
+        "returnType": "jint",
+        "parameterTypes": [
+          "void*",
+          "jint",
+          "void*",
+          "jint",
+          "jint"
+        ]
+      },
+      {
+        "returnType": "void*",
+        "parameterTypes": [
+          "jint"
+        ]
+      },
+      {
+        "returnType": "void*",
+        "parameterTypes": [
+          "jint",
+          "void*"
+        ]
+      },
+      {
+        "returnType": "void*",
+        "parameterTypes": [
+          "jint",
+          "jlong"
+        ]
+      },
+      {
+        "returnType": "jint",
+        "parameterTypes": [
+          "void*"
+        ]
+      },
+      {
+        "returnType": "jint",
+        "parameterTypes": [
+          "void*",
+          "void*"
+        ]
+      },
+      {
+        "returnType": "jint",
+        "parameterTypes": [
+          "void*",
+          "void*",
+          "void*"
+        ]
+      },
+      {
+        "returnType": "jint",
+        "parameterTypes": [
+          "void*",
+          "void*",
+          "void*",
+          "void*"
+        ]
+      },
+      {
+        "returnType": "jint",
+        "parameterTypes": [
+          "void*",
+          "struct(jint,jint,jint,jint)"
+        ]
+      },
+      {
+        "returnType": "jint",
+        "parameterTypes": [
+          "void*",
+          "void*",
+          "void*",
+          "jint"
+        ]
+      },
+      {
+        "returnType": "jint",
+        "parameterTypes": [
+          "void*",
+          "jint",
           "void*"
         ]
       }

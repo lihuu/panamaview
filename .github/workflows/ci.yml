@@ -147,6 +147,64 @@ jobs:
       - name: The npm package installs and produces a working project
         run: ./scripts/verify-npm-package.sh
 
+  windows-native:
+    name: windows — the native image reaches Win32, COM and WebView2
+    # The metadata check above proves the file lists every shape; this proves the list is
+    # right. Only a native image on Windows exercises the shapes themselves: a registered
+    # shape that is wrong (an upcall registered as a downcall, a by-value RECT the linker
+    # lays out differently) dies here, and only here. The JVM path cannot see it, because
+    # HotSpot does not require registration at all.
+    #
+    # It runs the bridge self-test, not the milestone-one probe: the probe stops at the
+    # loader and never opens a window, and #31 is the record of a check that passed while
+    # skipping the path that crashed. The self-test opens the window, exercises COM and the
+    # menu, and exits with the verdict.
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up GraalVM
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '25'
+          distribution: 'graalvm-community'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Toolchain
+        run: |
+          java --version
+          native-image --version
+          mvn --version
+
+      - name: Build and install the framework
+        run: mvn -q install -DskipTests
+
+      # The one file the Windows side fetches: Microsoft's loader, checksum-pinned in the
+      # script. WebView2 itself is part of the image on Windows 11 runners.
+      - name: Fetch the WebView2 loader
+        run: powershell -ExecutionPolicy Bypass -File windows-probe/fetch-loader.ps1
+
+      - name: Build the native self-test
+        working-directory: windows-probe
+        run: .\build-native.cmd
+
+      # Software rendering: a runner's desktop is not a GPU desktop, and the browser's boot
+      # is the part that stalls. The self-test's own verdict is the exit code.
+      - name: Run the native self-test
+        working-directory: windows-probe
+        env:
+          WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: --disable-gpu
+        run: .\target\panamaview-selftest.exe
+
+      - name: Self-test screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-native-screenshots
+          path: windows-probe/*.png
+          if-no-files-found: ignore
+
   templates:
     name: ${{ matrix.template }} — template and scaffolded project, JVM + native
     runs-on: macos-latest

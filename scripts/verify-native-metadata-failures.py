@@ -278,6 +278,41 @@ final class FixtureDeclared {{
 
 DECLARED_CLASS = "io.github.lihuu.panamaview.macos.FixtureDeclared"
 
+UPCALL_SOURCE = """package io.github.lihuu.panamaview.macos;
+
+import java.lang.foreign.Arena;
+import java.lang.foreign.FunctionDescriptor;
+import java.lang.foreign.Linker;
+import java.lang.foreign.MemorySegment;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+
+import static java.lang.foreign.ValueLayout.ADDRESS;
+import static java.lang.foreign.ValueLayout.JAVA_INT;
+
+/**
+ * A fixture: an upcall whose target is a bound instance method, so the metadata can
+ * only register it by shape -- and this shape is not registered for upcalls.
+ */
+final class FixtureUpcall {{
+
+    private static final MethodHandle TARGET = MethodHandles.lookup()
+            .findVirtual(FixtureUpcall.class, "body",
+                    MethodType.methodType(int.class, MemorySegment.class, int.class))
+            .bindTo(new FixtureUpcall());
+
+    static MemorySegment stub() {{
+        return Linker.nativeLinker().upcallStub(
+                TARGET, FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT), Arena.global());
+    }}
+
+    int body(MemorySegment self, int value) {{
+        return value;
+    }}
+}}
+"""
+
 
 # ------------------------------------------------------------------- the cases
 
@@ -301,6 +336,15 @@ def case_unregistered_shape(work):
     write_java(root, "FixtureShape.java", SHAPE_SOURCE.format(descriptor=descriptor))
     expect_failure("the check notices the unregistered shape", root,
                    "the sources build %s but the file does not register it" % shape)
+
+
+def case_unregistered_upcall_shape(work):
+    """An upcall whose target cannot be named, and whose shape is not registered."""
+    say("an upcall whose target cannot be named, and whose shape is not registered")
+    root = make_tree(work, "upcall")
+    write_java(root, "FixtureUpcall.java", UPCALL_SOURCE)
+    expect_failure("the check notices the unregistered upcall shape", root,
+                   "does not register it in foreign.upcalls")
 
 
 def case_missing_method(work):
@@ -409,6 +453,7 @@ def main():
         expect_clean("the check passes on the tree as it is", make_tree(work, "pristine"))
 
         case_unregistered_shape(work)
+        case_unregistered_upcall_shape(work)
         case_missing_method(work)
         case_missing_reflection(work)
         case_unplaced_descriptor(work)
