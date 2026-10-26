@@ -173,7 +173,6 @@ final class WinDialog {
                     save ? CLSID_FILE_SAVE : CLSID_FILE_OPEN,
                     save ? IID_FILE_DIALOG : IID_FILE_OPEN_DIALOG,
                     save ? "CoCreateInstance(CLSID_FileSaveDialog)" : "CoCreateInstance(CLSID_FileOpenDialog)");
-            System.out.println("[panamaview] dialog 0x" + Long.toHexString(dialog.address()) + " created");
 
             setOptionsWithReadBack(dialog, plan.options());
 
@@ -192,11 +191,9 @@ final class WinDialog {
             active = dialog;
             int shown;
             try {
-                System.out.println("[panamaview] Show entering on 0x" + Long.toHexString(dialog.address()));
                 shown = (int) Com.bind(dialog, SHOW,
                                 FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS))
                         .invoke(dialog, hwnd);
-                System.out.println("[panamaview] Show returned 0x" + Integer.toHexString(shown));
             } catch (Throwable t) {
                 throw new IllegalStateException("Show could not be called", t);
             } finally {
@@ -246,12 +243,10 @@ final class WinDialog {
             System.out.println("[panamaview] cancelActive: no dialog opened within the wait");
             return false;
         }
-        System.out.println("[panamaview] cancelActive: dialog 0x" + Long.toHexString(dialog.address()));
         // The HRESULT argument is what Show's caller receives, so handing it the cancellation
         // makes Show answer exactly what the Cancel button would have.
-        int closeResult = callForHresult(dialog, CLOSE,
-                FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT), "Close", ERROR_CANCELLED);
-        System.out.println("[panamaview] Close answered 0x" + Integer.toHexString(closeResult));
+        callForHresult(dialog, CLOSE, FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT),
+                "Close", ERROR_CANCELLED);
         return true;
     }
 
@@ -279,8 +274,6 @@ final class WinDialog {
             call(dialog, GET_OPTIONS, FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS),
                     "GetOptions", out);
             int read = out.get(JAVA_INT, 0);
-            System.out.println("[panamaview] options set 0x" + Integer.toHexString(options)
-                    + ", read back 0x" + Integer.toHexString(read));
             if ((read & options) != options) {
                 throw new IllegalStateException("the dialog kept options 0x"
                         + Integer.toHexString(read) + ", which do not contain the 0x"
