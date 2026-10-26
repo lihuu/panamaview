@@ -64,6 +64,24 @@ for name in $TEMPLATES; do
     [ -d "$TEMPLATE" ] || { echo "no such template: $name" >&2; exit 1; }
 
     (
+    say "[$name] checking the packaging scripts are the shared copies"
+    # The packager is one script copied into every template, because a generated project has to
+    # carry its own copy. Copies drift silently -- the one that is edited works, the others do
+    # not -- so the copies are compared here, not trusted.
+    for script in package.sh package.ps1 build-native.ps1; do
+        [ -f "$TEMPLATE/$script" ] || continue
+        if ! cmp -s "$TEMPLATE/$script" "$ROOT/scripts/packaging/$script"; then
+            echo "templates/$name/$script differs from scripts/packaging/$script" >&2
+            echo "  Fix: cp scripts/packaging/$script templates/$name/$script" >&2
+            exit 1
+        fi
+    done
+    if [ ! -x "$TEMPLATE/package.sh" ]; then
+        echo "templates/$name/package.sh is not executable" >&2
+        exit 1
+    fi
+    echo "  package.sh (and the Windows scripts where present) match scripts/packaging/"
+
     say "[$name] checking the pinned framework version"
     python3 - "$FRAMEWORK_VERSION" "$TEMPLATE/pom.xml" "$name" <<'PY'
 import re, sys
