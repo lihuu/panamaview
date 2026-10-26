@@ -70,6 +70,11 @@ public final class WebApp {
         return this;
     }
 
+    /**
+     * The window's size in logical pixels — the size it should occupy on a 96-DPI display. A
+     * high-DPI host converts it for the monitor, so the window keeps its apparent size and its
+     * content stays sharp.
+     */
     public WebApp size(int w, int h) {
         this.width = w;
         this.height = h;

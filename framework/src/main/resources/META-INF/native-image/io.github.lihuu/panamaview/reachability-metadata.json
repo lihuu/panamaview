@@ -31,7 +31,8 @@
     "MenuTarget's handleMenuItem is the menu item's action, reached from AppKit. It is an upcall, so it is registered by class and method rather than by shape: void(void*,void*,void*) was already registered for ObjCDispatch, and that fact covers nothing here.",
     "Windows shares this file. A native image is built for one platform, so the shapes are a union -- a macOS build never calls a Windows shape and the reverse -- and verify-native-metadata.py checks both platform packages against this one file.",
     "Windows upcalls come in two forms. Com.queryInterface, addRef and release are static methods, so they are directUpcalls like the macOS ones. The COM event handlers and the window procedure are bound instance methods (a lambda, a per-window adapter), which no class-and-method entry can name, so they are registered by shape in foreign.upcalls -- the form GraalVM uses for non-static upcall targets.",
-    "The handler methods behind those bound upcalls are reached with MethodHandles.lookup().findVirtual, so the methods themselves need reflection entries (Com$Completed.invoke, Com$Event.invoke, Win32$ProcedureAdapter.dispatch). Missing these does not fail on the JVM; the native executable dies while creating its first handler, with NoSuchMethodException."
+    "The handler methods behind those bound upcalls are reached with MethodHandles.lookup().findVirtual, so the methods themselves need reflection entries (Com$Completed.invoke, Com$Event.invoke, Win32$ProcedureAdapter.dispatch). Missing these does not fail on the JVM; the native executable dies while creating its first handler, with NoSuchMethodException.",
+    "SetWindowPos is the WM_DPICHANGED handler's shape -- int(void*,void*,int,int,int,int,int). The other two DPI calls reuse shapes the file already had: GetDpiForSystem is int() and SetProcessDpiAwarenessContext is int(void*). Without the SetWindowPos entry a native build compiles and dies on the first window, before it is shown, with MissingForeignRegistrationError."
   ],
   "reflection": [
     {
@@ -868,6 +869,18 @@
           "void*",
           "jint",
           "void*"
+        ]
+      },
+      {
+        "returnType": "jint",
+        "parameterTypes": [
+          "void*",
+          "void*",
+          "jint",
+          "jint",
+          "jint",
+          "jint",
+          "jint"
         ]
       }
     ]
