@@ -29,7 +29,10 @@ source either way.
 |---|---|---|
 | `./run.sh` | yes | a POSIX shell script; on Windows run the Maven equivalent below |
 | `mvn compile exec:exec` | yes | **yes** |
-| `./build-native.sh` | yes | not yet — it is a POSIX script and needs GraalVM, which is not on Windows here |
+| `./build-native.sh` | yes | not — it is a POSIX script |
+| `.\build-native.ps1` | — | yes |
+| `./package.sh` | yes → `.app` + `.dmg` | — |
+| `.\package.ps1` | — | yes → zip + `.msi` |
 
 The two places a platform actually shows through, and what happens to them:
 
@@ -40,7 +43,8 @@ The two places a platform actually shows through, and what happens to them:
   referenced but only one is loaded, which is what keeps the other platform's runtime out of the
   process entirely.
 
-On Windows, `WebView2Loader.dll` has to sit beside the working directory (or in `loader/`) before
+On Windows, `WebView2Loader.dll` has to sit beside the executable (or in `loader/` under the
+working directory) before
 the window will open — it is the loader for the WebView2 runtime the system already has, and it is
 not installed with it. `fetch-loader.ps1`, in this directory, downloads it from the NuGet package
 Microsoft publishes it in and checks its sha256 before using it:
@@ -61,6 +65,20 @@ It is a Windows-only step — macOS uses the system WebKit.
 ```
 
 `mvn compile exec:exec` is the equivalent of `./run.sh`.
+
+## Packaging
+
+`./package.sh` turns the native build into an installable app: `target/dist/My App.app` and
+`target/dist/myapp-0.1.0.dmg` with an `/Applications` link. The name, bundle identifier and
+version come from the pom; `--title`, `--bundle-id`, `--version`, `--icon` and `--sign` override
+them. The default signature is ad-hoc — the app runs on this machine; distributing it needs a
+Developer ID signature and notarization.
+
+On Windows, `.\package.ps1` writes a portable zip and a per-user MSI, installed under
+`%LOCALAPPDATA%` with no administrator prompt. The MSI needs WiX v4/v5; `-NoMsi` produces only
+the zip.
+
+Both are described in [Packaging an app](https://github.com/lihuu/panamaview/blob/main/docs/packaging.md).
 
 ### Editing without restarting
 

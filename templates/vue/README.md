@@ -41,7 +41,8 @@ source either way.
 |---|---|---|
 | `./run.sh` | yes | a POSIX shell script; on Windows run the Maven equivalent below |
 | `mvn compile exec:exec` | yes | **yes** |
-| `./build-native.sh` | yes | not yet — it is a POSIX script and needs GraalVM, which is not on Windows here |
+| `./build-native.sh` | yes | not — it is a POSIX script |
+| `./package.sh` | yes → `.app` + `.dmg` | — |
 
 The two places a platform actually shows through, and what happens to them:
 
@@ -52,7 +53,8 @@ The two places a platform actually shows through, and what happens to them:
   referenced but only one is loaded, which is what keeps the other platform's runtime out of the
   process entirely.
 
-On Windows, `WebView2Loader.dll` has to sit beside the working directory (or in `loader/`) before
+On Windows, `WebView2Loader.dll` has to sit beside the executable (or in `loader/` under the
+working directory) before
 the window will open — it is the loader for the WebView2 runtime the system already has, and it is
 not installed with it. `fetch-loader.ps1`, in this directory, downloads it from the NuGet package
 Microsoft publishes it in and checks its sha256 before using it:
@@ -78,6 +80,16 @@ template — it has the same editing experience without needing Node.
 That requirement is **development-time only**. `build-native.sh` produces a native executable
 plus a directory of static files, and neither has any trace of Node at runtime — the frontend
 toolchain is scaffolding you can delete once the app is built.
+
+## Packaging
+
+`./package.sh` turns the native build into `target/dist/My App.app` and a `.dmg` with an
+`/Applications` link. Identity comes from the pom; `--title`, `--bundle-id`, `--version` and
+`--icon` override it, and the default signature is ad-hoc.
+
+Windows packaging is not available for this template yet: the frontend build is a POSIX script,
+and only the vanilla template has a Windows native build today. See
+[Packaging an app](https://github.com/lihuu/panamaview/blob/main/docs/packaging.md).
 
 ## Developing
 

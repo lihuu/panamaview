@@ -151,7 +151,12 @@ Or pass -NoMsi to produce only the portable zip.
 
     $exePath = XmlEscape (Resolve-Path $Exe).Path
     $loaderPath = XmlEscape (Resolve-Path $Loader).Path
-    $wxs = Join-Path $Output "installer.wxs"
+    # The WiX source and its debug symbols are build intermediates; only the MSI belongs in the
+    # output directory beside the zip.
+    $wixDir = Join-Path $Output "wix"
+    New-Item -ItemType Directory -Force -Path $wixDir | Out-Null
+    $wxs = Join-Path $wixDir "installer.wxs"
+    $builtMsi = Join-Path $wixDir (Split-Path $msi -Leaf)
 
     $iconXml = ""
     $shortcutIcon = ""
@@ -167,6 +172,7 @@ Or pass -NoMsi to produce only the portable zip.
   <Package Name="$(XmlEscape $Title)" Manufacturer="$(XmlEscape $Manufacturer)" Version="$Version"
            UpgradeCode="$(Get-UpgradeCode $BundleId)" Language="1033" Scope="perUser">
     <MajorUpgrade DowngradeErrorMessage="A newer version of $Title is already installed." />
+    <MediaTemplate EmbedCab="yes" />
 $iconXml    <StandardDirectory Id="LocalAppDataFolder">
       <Directory Id="INSTALLFOLDER" Name="$(XmlEscape $Name)" />
     </StandardDirectory>
@@ -176,12 +182,14 @@ $iconXml    <StandardDirectory Id="LocalAppDataFolder">
   </Package>
   <Fragment>
     <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
-      <Component Id="Main" Guid="*">
+      <Component Id="MainExecutable" Guid="*">
         <File Id="AppExe" Source="$exePath" KeyPath="yes">
           <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="$(XmlEscape $Title)"
                     Description="$(XmlEscape $Title)" WorkingDirectory="INSTALLFOLDER" Advertise="yes"$shortcutIcon />
         </File>
-        <File Id="WebView2Loader" Source="$loaderPath" />
+      </Component>
+      <Component Id="Loader" Guid="*">
+        <File Id="WebView2Loader" Source="$loaderPath" KeyPath="yes" />
       </Component>
     </ComponentGroup>
   </Fragment>
@@ -191,8 +199,10 @@ $iconXml    <StandardDirectory Id="LocalAppDataFolder">
 
     Write-Output "==> writing $msi"
     if (Test-Path $msi) { Remove-Item -Force $msi }
-    & $wix build $wxs -arch x64 -o $msi
+    if (Test-Path $builtMsi) { Remove-Item -Force $builtMsi }
+    & $wix build $wxs -arch x64 -o $builtMsi
     if ($LASTEXITCODE -ne 0) { Fail "wix build failed ($LASTEXITCODE)" }
+    Move-Item -Force $builtMsi $msi
 }
 
 Write-Output "[package] $zip"

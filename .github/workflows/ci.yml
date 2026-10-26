@@ -203,7 +203,10 @@ jobs:
       # the executable, not because the shortcut happened to set the working directory.
       - name: Install WiX
         run: |
-          dotnet tool install --global wix
+          # WiX 6 and later require accepting the Open Source Maintenance Fee EULA inside the
+          # build; 5.x is the last line that does not, and it speaks the same v4 schema. Pinned,
+          # so a new major version cannot fail this job for a licensing reason.
+          dotnet tool install --global wix --version 5.0.2
           "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Append
 
       - name: Package the native self-test as a per-user MSI

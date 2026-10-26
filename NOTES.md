@@ -1340,3 +1340,57 @@ display, so a Linux *window* is possible in WSL — but there is no Linux host t
 yet, and a WebKitGTK host needs a WebKitGTK runtime, which is the work the roadmap's
 "Linux host via WebKitGTK" line is. The menu's Linux story is the same story: the model is
 portable, and the builder for a third platform comes with its host.
+
+---
+
+## 20. Packaging, measured
+
+A native executable is not an installable application, and the gap is platform-specific. These
+are the measurements behind `docs/packaging.md`; the scripts are the record of the rest.
+
+### Windows, on the Windows 11 box (2026-10-26)
+
+Built from `templates/vanilla` with `.\build-native.ps1` (GraalVM CE 25.4.4.1.1) into a 16.71 MiB
+exe, then `.\package.ps1`:
+
+```
+myapp-0.1.0-win-x64.zip   6,952,257 bytes
+myapp-0.1.0-win-x64.msi   5,849,088 bytes   (cab embedded)
+```
+
+Installed silently with `msiexec /i ... /qn`, it landed in `%LOCALAPPDATA%\myapp` with the exe and
+`WebView2Loader.dll` beside it. Launched **from `C:\`** — not the install directory — it opened its
+window, loaded the page and completed the ready round-trip:
+
+```
+[panamaview] window 0xf02b8 of class 'panamaview-1a600b5c8160' (register error was 0)
+[panamaview] page loaded: url=https://app.panamaview/index.html title=My App
+[panamaview] java → js  window.onJavaMessage({"from":"Java","message":"ready"})
+```
+
+That is what the executable-relative loader lookup is for. Before it, `findLoader` looked only
+under the working directory, so an installed app started by a shortcut found the DLL only when
+Windows happened to make its folder the working directory. `-Dpanamaview.check=true` from the same
+directory also passes (`index.html`, 1174 bytes; `panamaview.js`, 6078 bytes). Uninstall removed
+the directory; nothing was left behind.
+
+### Two traps worth keeping
+
+**WiX 6 and later refuse to build without accepting the Open Source Maintenance Fee EULA**
+(`WIX7015`), which is a licensing decision that has no place in a framework's packaging path.
+WiX 5.0.2 speaks the same v4 schema and does not, so `package.ps1` documents v4/v5 and CI pins
+`dotnet tool install --global wix --version 5.0.2`. Measured the hard way on 7.0.0 first.
+
+**WiX writes an external cabinet unless told otherwise.** The first MSI was 32 KB with a 5.8 MB
+`cab1.cab` beside it — an installer that cannot be copied on its own. `<MediaTemplate
+EmbedCab="yes"/>` makes it one file. The build's own intermediates now go to `target/dist/wix/`,
+so the output directory holds only what can be shipped.
+
+### macOS
+
+The bundle path was exercised on 2026-10-26 with a placeholder executable (the local GraalVM has
+no `native-image`): `package.sh` wrote `My App.app` with `CFBundleIdentifier
+com.example.myapp`, version `0.1.0`, an ad-hoc signature that `codesign --verify --strict`
+accepts, and a dmg that mounts with the app and the `/Applications` link. The real end-to-end
+run — scaffold, native build, bundle, dmg — is `scripts/verify-packaging.sh` in CI, because a
+native macOS build needs GraalVM with `native-image`, which this checkout does not have.

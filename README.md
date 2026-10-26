@@ -20,6 +20,7 @@ No Electron bloat. No bundled Chromium. Zero JNI, JNA, or C/C++ shims.
 - 🧵 **High-Concurrency Virtual Thread IPC**: IPC handlers run on Java Virtual Threads off the UI thread without freezing the window; built-in request cancellation and watchdog deadlines.
 - 🍽️ **Native Application Menus**: Declare a menu bar in Java — items, separators, and shortcuts — and get a native one on macOS and Windows. Only macOS binds the keyboard shortcuts today, and the framework installs no Edit menu of its own on Windows — there the browser already owns the editing commands.
 - 📂 **Native File Dialogs**: Open-file, open-multiple, open-directory and save dialogs (`NSOpenPanel`/`NSSavePanel` on macOS, `IFileOpenDialog`/`IFileSaveDialog` on Windows) declared once as a portable `FileDialog` spec — with file-type filters, a start directory and a save name — and bound as an ordinary `bindUi` handler whose cancellation is an answer, not an error.
+- 📦 **Native Installers**: Package a built app as a macOS `.app` / `.dmg` (with a real bundle identity, which the notification centre requires) or a per-user Windows `.msi` / portable zip, from the template's own `package.sh` / `package.ps1`. Ad-hoc signed by default; Developer ID signing and notarization are documented manual steps. See [Packaging an app](docs/packaging.md).
 - 🛠️ **Out-of-the-Box Scaffolder & Templates**: First-class templates for React, Vue 3, Angular, Tailwind CSS, and Vanilla JS.
 
 ---
@@ -206,6 +207,7 @@ if (devServer != null) {
   - **Windows**: Windows 10/11 x64, utilizing Microsoft Edge WebView2.
   - **Linux**: not yet — there is no Linux host, and the WebKitGTK one is still on the roadmap. The framework's own tests do pass on Linux (measured in WSL2, Ubuntu 26.04), but nothing can *run* there yet, and a CI job that keeps them passing there is still missing.
 - **Native Image**: GraalVM CE 25+ (optional, required only for native binary builds).
+- **Installers**: macOS `.app`/`.dmg` need nothing beyond the native build; the Windows `.msi` needs WiX v4 or v5 (optional — `-NoMsi` produces a portable zip).
 
 ---
 
@@ -233,7 +235,7 @@ docs/                  Deep-dive architecture and maintenance documentation
 **Shipped**
 
 - [x] macOS native host via FFM & Cocoa WebKit
-- [x] Windows native host via FFM, Win32 & WebView2, exercised by a self-test of its own (`windows-probe`)
+- [x] Windows native host via FFM, Win32 & WebView2, exercised by a self-test of its own (`windows-probe`) — on the JVM, and as a native executable in CI
 - [x] Virtual thread-backed JSON RPC & cooperative cancellation
 - [x] Private asset URL schemes with SPA routing fallback
 - [x] GraalVM Native Image reachability metadata & standalone builds — one metadata file serves both platforms, CI checks it against both platform packages, and a Windows native self-test proves the shapes at run time ([#34](https://github.com/lihuu/panamaview/issues/34))
@@ -245,12 +247,12 @@ docs/                  Deep-dive architecture and maintenance documentation
 - [x] Live reload on Windows
 - [x] A reachability-metadata check in CI, so the sources and the metadata cannot drift apart again ([#31](https://github.com/lihuu/panamaview/issues/31))
 - [x] Native file dialogs (`NSOpenPanel`/`NSSavePanel`, `IFileOpenDialog`/`IFileSaveDialog`) — a portable `FileDialog` spec behind the optional `DialogHost` seam
+- [x] Distribution packaging — macOS `.app`/`.dmg` for every template, a per-user Windows `.msi` and portable zip for `vanilla`; ad-hoc signed, with Developer ID signing and notarization documented as manual steps ([docs/packaging.md](docs/packaging.md))
 
 **Next up — the features the next phase is shaped around**
 
 - [ ] System tray integration
 - [ ] Multi-window management
-- [ ] Distribution packaging (`.app` bundle, `.dmg`, Windows `.msi` installers)
 - [ ] Linux host via WebKitGTK
 
 **Ready to start — no design question stands between here and the first commit**
@@ -264,6 +266,7 @@ docs/                  Deep-dive architecture and maintenance documentation
 - [Migrating to 1.0 (package rename)](docs/migrating-to-1.0.md)
 - [Where your page runs (Asset Serving & WebKit Internals)](docs/page-environment.md)
 - [Verification & Benchmarks](docs/verification.md)
+- [Packaging an app](docs/packaging.md)
 - [Publishing to Maven Central & Private Repositories](docs/publishing.md)
 - [Release Workflow & Version Management](docs/releasing.md)
 - [Low-Level FFM & Runtime Notes](NOTES.md)
