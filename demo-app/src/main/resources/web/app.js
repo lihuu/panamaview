@@ -242,6 +242,27 @@
       check("menu item reaches its binding", false, String(error.message));
     }
 
+    // 12. A native file dialog, opened and dismissed without a human.
+    //
+    // A self-test cannot choose a file — choosing is what a person is for — so the check
+    // proves the machinery around that choice: the dialog opens on the UI thread, a
+    // programmatic dismissal closes it, the answer is an honest "not accepted", and a round
+    // trip afterwards proves the modal loop left nothing wedged behind it. The dialog really
+    // was open: the dismissal is delivered through the same modal loop the real Cancel button
+    // uses, so a panel that never opened cannot pass this.
+    try {
+      const armed = await java.invoke("cancelDialogSoon", {});
+      const picked = await java.invoke("pickFile",
+            { kind: "file", title: "panamaview self-test", extensions: ["txt"] });
+      const after = await java.invoke("hello", { name: "after the dialog" });
+      check("file dialog opens, cancels and returns",
+            armed === "armed" && picked.ok === false
+                  && after === "Hello after the dialog",
+            `armed=${armed}, picked=${JSON.stringify(picked)}, hello after="${after}"`);
+    } catch (error) {
+      check("file dialog opens, cancels and returns", false, String(error.message));
+    }
+
     // Hand the verdict to Java so it lands in stdout. A test whose result can only be read by
     // looking at a screenshot is not a test you can run in CI.
     const passed = results.filter((r) => r.ok).length;

@@ -1,5 +1,6 @@
 package io.github.lihuu.panamaview.demo;
 
+import io.github.lihuu.panamaview.FileDialog;
 import io.github.lihuu.panamaview.Resources;
 import io.github.lihuu.panamaview.macos.MacOsHost;
 
@@ -55,7 +56,18 @@ public final class Main {
                 // navigator.clipboard, but only while the user's click is still fresh; behind an
                 // await it is refused. This binding has no such rule.
                 .bind("copyText", params -> copyText(host, params))
-                .bind("clipboard", params -> clipboard(host));
+                .bind("clipboard", params -> clipboard(host))
+                // The native file dialog. Bound to the UI thread, not a virtual one: the
+                // dialog is modal to the window, it blocks until the user decides, and the
+                // 30-second default deadline would interrupt a user who was still choosing.
+                .bindUi("pickFile", params -> host.open(FileDialog.of(params)).toMap())
+                // Dismisses the dialog a test is about to open, from no human at all. The
+                // wait for the dialog to appear is the host's own (cancelActiveDialog), so
+                // arming before opening is not a race.
+                .bind("cancelDialogSoon", params -> {
+                    Thread.ofVirtual().start(() -> host.onUiThread(() -> host.cancelActiveDialog()));
+                    return "armed";
+                });
 
         app.web().run();
     }

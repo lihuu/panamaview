@@ -182,6 +182,27 @@
       check("menu item reaches its binding", false, String(error.message));
     }
 
+    // 12. A native file dialog, opened and dismissed without a human.
+    //
+    // A self-test cannot choose a file — choosing is what a person is for — so the check
+    // proves the machinery around that choice: the dialog opens on the pump thread, a
+    // programmatic dismissal closes it, the answer is an honest "not accepted", and a round
+    // trip afterwards proves the modal loop left nothing wedged behind it. The dismissal
+    // travels through the queue the modal loop keeps pumping, so a dialog that never opened,
+    // or a loop that does not pump, cannot pass this.
+    try {
+      const armed = await java.invoke("cancelDialogSoon", {});
+      const picked = await java.invoke("pickFile",
+            { kind: "file", title: "panamaview self-test", extensions: ["txt"] });
+      const after = await java.invoke("hello", { name: "after the dialog" });
+      check("file dialog opens, cancels and returns",
+            armed === "armed" && picked.ok === false
+                  && after === "Hello after the dialog",
+            `armed=${armed}, picked=${JSON.stringify(picked)}, hello after="${after}"`);
+    } catch (error) {
+      check("file dialog opens, cancels and returns", false, String(error.message));
+    }
+
     // The verdict goes to Java so it lands in stdout.
     const passed = results.filter((r) => r.ok).length;
     try {

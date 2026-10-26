@@ -181,6 +181,16 @@ final class Win32 {
     private static final MethodHandle GLOBAL_FREE =
             bind(LOOKUPS.KERNEL32, "GlobalFree", FunctionDescriptor.of(ADDRESS, ADDRESS));
 
+    // CoCreateInstance is how every COM object gets made — the common item dialogs included.
+    // HRESULT(REFCLSID rclsid, void* pUnkOuter, DWORD dwClsContext, REFIID riid, void** ppv).
+    private static final MethodHandle CO_CREATE_INSTANCE =
+            bind(LOOKUPS.OLE32, "CoCreateInstance",
+                    FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT, ADDRESS, ADDRESS));
+    // The COM task allocator: what GetDisplayName's returned strings are made of, and the
+    // only thing that may free them.
+    static final MethodHandle CO_TASK_MEM_FREE =
+            bind(LOOKUPS.OLE32, "CoTaskMemFree", FunctionDescriptor.ofVoid(ADDRESS));
+
     private static final int CS_HREDRAW_VREDRAW = 0x0003;
     private static final int WS_OVERLAPPEDWINDOW = 0x00CF0000;
     private static final int CW_USEDEFAULT = 0x80000000;
@@ -191,6 +201,42 @@ final class Win32 {
     /** CF_UNICODETEXT — what a text field pastes from. */
     private static final int CF_UNICODETEXT = 13;
     private static final int GMEM_MOVEABLE = 0x0002;
+
+    /**
+     * {@code CLSCTX_INPROC_SERVER} — the dialogs live in-process in shell32's neighbour,
+     * and every COM object this framework makes is an in-proc one.
+     */
+    static final int CLSCTX_INPROC_SERVER = 0x1;
+
+    /**
+     * Makes a COM object: {@code CoCreateInstance(rclsid, null, CLSCTX_INPROC_SERVER, riid, &out)}.
+     *
+     * <p>The GUIDs arrive already parsed by {@link Com#guid}, so the caller states which class
+     * and which interface it means by name; this writes the little-endian bytes, makes the
+     * call, and hands back the interface pointer the caller asked for. Must run on the
+     * apartment thread — the pump thread, where {@link #coInitializeApartmentThreaded} ran.
+     */
+    static MemorySegment coCreateInstance(byte[] clsid, byte[] iid, String what) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment clsidSegment = arena.allocate(16);
+            MemorySegment.copy(MemorySegment.ofArray(clsid), 0, clsidSegment, 0, 16);
+            MemorySegment iidSegment = arena.allocate(16);
+            MemorySegment.copy(MemorySegment.ofArray(iid), 0, iidSegment, 0, 16);
+            MemorySegment out = arena.allocate(ADDRESS);
+            int hresult = (int) CO_CREATE_INSTANCE.invoke(
+                    clsidSegment, MemorySegment.NULL, CLSCTX_INPROC_SERVER, iidSegment, out);
+            Com.check(hresult, what);
+            MemorySegment created = out.getAtIndex(ADDRESS, 0);
+            if (created.address() == 0) {
+                throw new IllegalStateException(what + " succeeded but returned nothing");
+            }
+            return created.reinterpret(Long.MAX_VALUE);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException(what + " could not be called", t);
+        }
+    }
 
     static long currentThreadId() {
         try {

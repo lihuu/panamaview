@@ -9,20 +9,21 @@ This document records the empirical verification tests and benchmarks for `panam
 The test suite exercises all bridge mechanisms in a real OS window:
 
 ```
-[selftest] 13 passed, 0 failed
+[selftest] 14 passed, 0 failed
 [selftest]   PASS  hello — Hello World
 [selftest]   PASS  json round trip — {"a":1,"b":"two","c":[3,4],"d":{"nested":true},"e":null}
 [selftest]   PASS  slow handler does not block — hello answered in 1 ms while slow(600 ms) was in flight
-[selftest]   PASS  control: UI-thread handler does block — hello delayed 406 ms behind slowUi(400 ms)
-[selftest]   PASS  cancel actually stops the handler — handler interrupted (count 0 → 1)
+[selftest]   PASS  control: UI-thread handler does block — hello delayed 402 ms behind slowUi(400 ms) — contrast with 1 ms above
+[selftest]   PASS  cancel actually stops the handler — handler interrupted (count 0 → 1); page stopped waiting in 0 ms
 [selftest]   PASS  java-side deadline fires on its own — rejected after 303 ms with "no answer within 300 ms"
 [selftest]   PASS  deadline can be disabled — ran 200 ms with no deadline
-[selftest]   PASS  by-value NSRect round trip — 1000×700 window
+[selftest]   PASS  by-value NSRect round trip — 1000×700 window #1994
 [selftest]   PASS  platform extra runs on UI thread — onUiThread=true
 [selftest]   PASS  web view follows the window — 900.0x620.0 → 1000.0x700.0
-[selftest]   PASS  ordinary handler runs off the UI thread — OpenJDK 64-Bit Server VM, imageKind=jvm
-[selftest]   PASS  200 concurrent invocations — 200 round trips in 22 ms
-[selftest]   PASS  webkit self-snapshot — /tmp/co2.png
+[selftest]   PASS  ordinary handler runs off the UI thread — OpenJDK 64-Bit Server VM, imageKind=jvm, handler on VirtualThread
+[selftest]   PASS  200 concurrent invocations — 200 round trips in 19 ms
+[selftest]   PASS  menu item reaches its binding — the menu item ran the binding 1 time(s), and the one after the separator 1
+[selftest]   PASS  file dialog opens, cancels and returns — armed=armed, picked={"ok":false,"paths":[]}, hello after="Hello after the dialog"
 ```
 
 ---

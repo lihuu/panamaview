@@ -284,6 +284,7 @@ final class ObjC {
     private static final FunctionDescriptor ID_OBJ_LONG_OBJ_OBJ =
             FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS);
     private static final FunctionDescriptor LONG0 = FunctionDescriptor.of(JAVA_LONG, ADDRESS, ADDRESS);
+    private static final FunctionDescriptor ID_LONG0 = FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, JAVA_LONG);
     private static final FunctionDescriptor ID_OBJ_LONG = FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, ADDRESS, JAVA_LONG);
     private static final FunctionDescriptor VOID_BOOL = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_BYTE);
     private static final FunctionDescriptor VOID_LONG = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_LONG);
@@ -346,6 +347,15 @@ final class ObjC {
 
     public static long sendLong(MemorySegment receiver, MemorySegment sel) {
         return (Long) call(LONG0, receiver, sel);
+    }
+
+    /**
+     * An object-returning message with one {@code NSInteger} argument — {@code objectAtIndex:}.
+     *
+     * <p>This is the whole of the framework's NSArray reading: a count, then this in a loop.
+     */
+    public static MemorySegment send(MemorySegment receiver, MemorySegment sel, long arg) {
+        return (MemorySegment) call(ID_LONG0, receiver, sel, arg);
     }
 
     public static boolean sendBool(MemorySegment receiver, MemorySegment sel, boolean arg) {

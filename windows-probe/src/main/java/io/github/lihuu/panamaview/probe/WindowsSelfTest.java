@@ -1,5 +1,6 @@
 package io.github.lihuu.panamaview.probe;
 
+import io.github.lihuu.panamaview.FileDialog;
 import io.github.lihuu.panamaview.Item;
 import io.github.lihuu.panamaview.Menu;
 import io.github.lihuu.panamaview.MenuBar;
@@ -215,6 +216,33 @@ public final class WindowsSelfTest {
                 .bindUi("windowInfo", params -> Map.of(
                         "window", host.windowRectangle(),
                         "onUiThread", host.isUiThread()))
+
+                // 12. A native file dialog, opened and dismissed without a human. bindUi,
+                // because the dialog is modal to the window: it blocks the pump thread until
+                // the user decides, and the queue the modal loop keeps pumping is what
+                // delivers the dismissal below. A cancellation is an answer, not an error.
+                .bindUi("pickFile", params -> host.open(FileDialog.of(params)).toMap())
+
+                // The dismissal, armed to fire mid-dialog. The wait for the dialog to
+                // appear is the host's own (cancelActiveDialog), so arming before opening is
+                // not a race. The hop is to the UI thread, because that is where the modal
+                // loop is blocked. The picture before the hop is the diagnostic a log cannot
+                // be: whether the dialog is on screen at all.
+                .bind("cancelDialogSoon", params -> {
+                    Thread.ofVirtual().start(() -> {
+                        try {
+                            Robot robot = new Robot();
+                            BufferedImage image = robot.createScreenCapture(new Rectangle(
+                                    Toolkit.getDefaultToolkit().getScreenSize()));
+                            ImageIO.write(image, "png", new File("dialog-open.png"));
+                            System.out.println("[selftest] the dialog screenshot is at dialog-open.png");
+                        } catch (Throwable t) {
+                            System.err.println("[selftest] the dialog screenshot failed: " + t);
+                        }
+                        host.onUiThread(() -> host.cancelActiveDialog());
+                    });
+                    return "armed";
+                })
 
                 // 9. Runtime facts only Java can supply, including which thread answered.
                 .bind("runtime", params -> runtime())
