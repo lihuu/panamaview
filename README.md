@@ -205,7 +205,7 @@ if (devServer != null) {
 - **Operating Systems**:
   - **macOS**: macOS 14+ on Apple Silicon (arm64), utilizing system WebKit.
   - **Windows**: Windows 10/11 x64, utilizing Microsoft Edge WebView2.
-  - **Linux**: not yet — there is no Linux host, and the WebKitGTK one is still on the roadmap. The framework's own tests do pass on Linux (measured in WSL2, Ubuntu 26.04), but nothing can *run* there yet, and a CI job that keeps them passing there is still missing.
+  - **Linux**: not yet — there is no Linux host, and the WebKitGTK one is still on the roadmap. The portable layer builds and its tests pass on Linux (CI runs them on every change), but nothing can *run* there yet.
 - **Native Image**: GraalVM CE 25+ (optional, required only for native binary builds).
 - **Installers**: macOS `.app`/`.dmg` need nothing beyond the native build; the Windows `.msi` needs WiX v4 or v5 (optional — `-NoMsi` produces a portable zip).
 
@@ -245,19 +245,16 @@ docs/                  Deep-dive architecture and maintenance documentation
 - [x] Native clipboard bindings on both hosts — read, write, and a change counter
 - [x] Window position memory: the window reopens where the user last put it (macOS)
 - [x] Live reload on Windows
-- [x] A reachability-metadata check in CI, so the sources and the metadata cannot drift apart again ([#31](https://github.com/lihuu/panamaview/issues/31))
+- [x] A reachability-metadata check in CI for both platform packages, so the sources and the metadata cannot drift apart again ([#31](https://github.com/lihuu/panamaview/issues/31))
 - [x] Native file dialogs (`NSOpenPanel`/`NSSavePanel`, `IFileOpenDialog`/`IFileSaveDialog`) — a portable `FileDialog` spec behind the optional `DialogHost` seam
 - [x] Distribution packaging — macOS `.app`/`.dmg` for every template, a per-user Windows `.msi` and portable zip for `vanilla`; ad-hoc signed, with Developer ID signing and notarization documented as manual steps ([docs/packaging.md](docs/packaging.md))
+- [x] The framework's own tests run on Linux in CI — the portable layer is verified on a third platform, not only where a host exists
 
 **Next up — the features the next phase is shaped around**
 
 - [ ] System tray integration
 - [ ] Multi-window management
-- [ ] Linux host via WebKitGTK
-
-**Ready to start — no design question stands between here and the first commit**
-
-- [ ] A Linux CI job for the framework's own tests — they already pass there, measured in WSL2; only the job is missing
+- [ ] Linux host via WebKitGTK — the portable layer already builds and is tested on Linux; the host is what is missing
 
 ---
 
