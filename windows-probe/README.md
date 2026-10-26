@@ -213,6 +213,28 @@ Exit codes: the wrapped script's own, or `2` if it was still running at the time
 the task and the process it started are stopped, because an unregistered task cannot stop what it
 started and the window would stay on the user's screen.
 
+## The native build
+
+```bat
+build-native.cmd
+target\panamaview-selftest.exe
+```
+
+`build-native.cmd` compiles the same self-test into a standalone executable with GraalVM Native
+Image. This is the check the framework's reachability metadata exists for: on the JVM an
+unregistered FFM shape is invisible, and the native executable dies on the first call that needs
+it. CI builds and runs this binary on `windows-latest`, so the metadata cannot regress unnoticed.
+
+The expected verdict is the same `[selftest] 12 passed, 0 failed`, and the exit code is the
+verdict. Two things differ from the JVM run: the log says `Substrate VM` where it said the JVM
+name, and the screenshots are unavailable — a native image has no `java.awt.Toolkit` — so the run
+reports that and continues. The pictures are evidence for a person; the verdict does not depend on
+them.
+
+Requirements: GraalVM CE 25 with `native-image` (point `JAVA_HOME` at it), and the loader staged
+beside the probe as above. Run the executable from this directory: it finds
+`loader\WebView2Loader.dll` relative to the working directory.
+
 ## Requirements
 
 - Windows on x64, with the WebView2 Evergreen runtime installed. It is preinstalled on
