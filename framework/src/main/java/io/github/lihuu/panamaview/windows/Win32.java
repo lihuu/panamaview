@@ -47,6 +47,7 @@ final class Win32 {
     static final int WM_CLOSE = 0x0010;
     static final int WM_QUIT = 0x0012;
     static final int WM_COMMAND = 0x0111;
+    static final int WM_DPICHANGED = 0x02E0;
     static final int WM_APP_RUNNABLE = 0x8000;   // WM_APP: for the host's own use
 
     // ------------------------------------------------------------- layouts
@@ -127,6 +128,26 @@ final class Win32 {
             bind(LOOKUPS.USER32, "GetClientRect", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
     private static final MethodHandle GET_WINDOW_RECT =
             bind(LOOKUPS.USER32, "GetWindowRect", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
+    // DPI. Both calls are Windows 10 1607/1703 and later, and WebView2 already requires a
+    // Windows 10 that has them, so they are ordinary bindings rather than optional ones.
+    private static final MethodHandle SET_PROCESS_DPI_AWARENESS_CONTEXT =
+            bind(LOOKUPS.USER32, "SetProcessDpiAwarenessContext",
+                    FunctionDescriptor.of(JAVA_INT, ADDRESS));
+    private static final MethodHandle GET_DPI_FOR_SYSTEM =
+            bind(LOOKUPS.USER32, "GetDpiForSystem", FunctionDescriptor.of(JAVA_INT));
+    private static final MethodHandle GET_DPI_FOR_WINDOW =
+            bind(LOOKUPS.USER32, "GetDpiForWindow", FunctionDescriptor.of(JAVA_INT, ADDRESS));
+    private static final MethodHandle GET_THREAD_DPI_AWARENESS_CONTEXT =
+            bind(LOOKUPS.USER32, "GetThreadDpiAwarenessContext", FunctionDescriptor.of(ADDRESS));
+    private static final MethodHandle SET_THREAD_DPI_AWARENESS_CONTEXT =
+            bind(LOOKUPS.USER32, "SetThreadDpiAwarenessContext", FunctionDescriptor.of(ADDRESS, ADDRESS));
+    private static final MethodHandle GET_AWARENESS_FROM_DPI_AWARENESS_CONTEXT =
+            bind(LOOKUPS.USER32, "GetAwarenessFromDpiAwarenessContext",
+                    FunctionDescriptor.of(JAVA_INT, ADDRESS));
+    private static final MethodHandle SET_WINDOW_POS =
+            bind(LOOKUPS.USER32, "SetWindowPos",
+                    FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT, JAVA_INT,
+                            JAVA_INT, JAVA_INT, JAVA_INT));
     private static final MethodHandle DEF_WINDOW_PROC =
             bind(LOOKUPS.USER32, "DefWindowProcW", FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_INT, JAVA_LONG, JAVA_LONG));
     private static final MethodHandle POST_QUIT_MESSAGE =
@@ -195,8 +216,18 @@ final class Win32 {
     private static final int WS_OVERLAPPEDWINDOW = 0x00CF0000;
     private static final int CW_USEDEFAULT = 0x80000000;
     private static final int SW_SHOW = 5;
+    private static final int SWP_NOMOVE = 0x0002;
+    private static final int SWP_NOZORDER = 0x0004;
+    private static final int SWP_NOACTIVATE = 0x0010;
     private static final long COLOR_WINDOW_PLUS_ONE = 6;
     private static final long IDC_ARROW = 32512;
+
+    /**
+     * {@code DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2}: the context that makes Windows hand a
+     * process physical pixels and tell it, through {@code WM_DPICHANGED}, when the monitor's DPI
+     * changes. A pseudo-handle, hence the negative value.
+     */
+    private static final long DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = -4L;
 
     /** CF_UNICODETEXT — what a text field pastes from. */
     private static final int CF_UNICODETEXT = 13;
@@ -331,10 +362,116 @@ final class Win32 {
     }
 
     /**
+     * Makes the process per-monitor DPI aware, before its first window exists.
+     *
+     * <p>Without this the process is DPI-unaware: Windows never tells it the monitor's DPI and
+     * bitmap-scales everything it draws. On a 200% display, a window asked for as 1180×760 is
+     * drawn at 96 DPI and then blown up to 2360×1520 — it covers most of a 4K screen and every
+     * glyph is a stretched 96-DPI glyph.
+     *
+     * <p>The call fails harmlessly when the process is already aware — a second call, or a
+     * manifest that declared awareness — and the window keeps whatever awareness it had.
+     */
+    static void enableDpiAwareness() {
+        try {
+            MemorySegment perMonitorV2 = MemorySegment.ofAddress(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+            int ok = (int) SET_PROCESS_DPI_AWARENESS_CONTEXT.invokeExact(perMonitorV2);
+            int error = ok == 0 ? (int) GET_LAST_ERROR.invoke() : 0;
+            System.out.println("[panamaview] process dpi awareness: " + awarenessName()
+                    + (ok == 0 ? " (the call was refused, GetLastError " + error + ")" : ""));
+        } catch (Throwable t) {
+            System.out.println("[panamaview] process dpi awareness could not be set: " + t);
+        }
+    }
+
+    /**
+     * Sets this thread's DPI awareness before it creates a window.
+     *
+     * <p>The process-level call is refused on some images — Windows answers ERROR_ACCESS_DENIED
+     * — because the awareness was already fixed when the process started. A thread may still
+     * choose its own context, and the window it creates follows that choice. This is the call
+     * the window actually depends on.
+     */
+    static void enableThreadDpiAwareness() {
+        try {
+            // The call returns the previous context; the value is not used, but invokeExact is
+            // signature-polymorphic and infers a void return when the call is a statement.
+            MemorySegment previous = (MemorySegment) SET_THREAD_DPI_AWARENESS_CONTEXT.invokeExact(
+                    MemorySegment.ofAddress(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2));
+            System.out.println("[panamaview] ui-thread dpi awareness: " + awarenessName()
+                    + " (was " + previous.address() + ")");
+        } catch (Throwable t) {
+            System.out.println("[panamaview] ui-thread dpi awareness could not be set: " + t);
+        }
+    }
+
+    /** The calling thread's DPI awareness, as a word for the log. */
+    private static String awarenessName() {
+        try {
+            int awareness = (int) GET_AWARENESS_FROM_DPI_AWARENESS_CONTEXT.invokeExact(
+                    (MemorySegment) GET_THREAD_DPI_AWARENESS_CONTEXT.invokeExact());
+            return switch (awareness) {
+                case 0 -> "unaware";
+                case 1 -> "system";
+                case 2 -> "per-monitor";
+                default -> "unknown(" + awareness + ")";
+            };
+        } catch (Throwable t) {
+            return "unknown";
+        }
+    }
+
+    /** The system DPI, or 96 where the query fails. */
+    static int systemDpi() {
+        try {
+            return (int) GET_DPI_FOR_SYSTEM.invokeExact();
+        } catch (Throwable t) {
+            return Dpi.BASE;
+        }
+    }
+
+    /** The DPI of the monitor a window is on, or 0 when it cannot be asked. */
+    static int dpiForWindow(MemorySegment hwnd) {
+        try {
+            return (int) GET_DPI_FOR_WINDOW.invokeExact(hwnd);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    /**
+     * Applies the rectangle a {@code WM_DPICHANGED} carries: the new position and size Windows
+     * computed for the monitor the window has just moved to.
+     *
+     * <p>Not optional. A per-monitor-aware window that ignores the suggestion keeps the size it
+     * had for the old DPI, so dragging between monitors leaves it either too small or too large.
+     */
+    static void applySuggestedRect(MemorySegment hwnd, long pointer) {
+        if (pointer == 0) {
+            return;
+        }
+        MemorySegment rect = MemorySegment.ofAddress(pointer).reinterpret(RECT.byteSize());
+        int left = rect.get(JAVA_INT, 0);
+        int top = rect.get(JAVA_INT, 4);
+        int right = rect.get(JAVA_INT, 8);
+        int bottom = rect.get(JAVA_INT, 12);
+        try {
+            SET_WINDOW_POS.invoke(hwnd, MemorySegment.NULL, left, top,
+                    right - left, bottom - top, SWP_NOZORDER | SWP_NOACTIVATE);
+        } catch (Throwable t) {
+            throw new IllegalStateException("SetWindowPos could not be called", t);
+        }
+    }
+
+    /**
      * Registers the class, creates and shows the window, returns the HWND. The window procedure
      * is an upcall stub bound to {@code procedure}: the host answers the messages it cares
      * about, and everything else goes to {@code DefWindowProcW} — a window procedure that ate a
      * message would eat the behaviour behind it.
+     *
+     * <p>{@code width} and {@code height} are logical pixels, the size a caller means at 96 DPI.
+     * The process is per-monitor DPI aware, so they are converted to the monitor's physical
+     * pixels here rather than left for the system to scale.
      *
      * <p>The menu goes in at creation time, in {@code CreateWindowExW}'s {@code hMenu} slot,
      * and not through {@code SetMenu} afterwards: this method shows the window before it
@@ -393,11 +530,18 @@ final class Win32 {
                         + (int) GET_LAST_ERROR.invoke() + " (pre-call error " + registerError + ")");
             }
 
+            // The system DPI is the best guess before there is a window; the window's own
+            // monitor is authoritative, and it is knowable as soon as the window exists. The
+            // system value is wrong in a service session (96 regardless of the user's display)
+            // and for a window that lands on a secondary monitor.
+            int dpi = systemDpi();
+            int physicalWidth = Dpi.scale(width, dpi);
+            int physicalHeight = Dpi.scale(height, dpi);
             MemorySegment hwnd = (MemorySegment) CREATE_WINDOW.invoke(
                     0,                    // exStyle
                     classNameSeg, windowName,
                     WS_OVERLAPPEDWINDOW,  // style
-                    x, y, width, height,
+                    x, y, physicalWidth, physicalHeight,
                     MemorySegment.NULL,   // hWndParent
                     // hMenu — the menu is part of the window's birth, and a null one means
                     // the window has no menu at all. The linker wants the null address, not
@@ -410,9 +554,21 @@ final class Win32 {
                 throw new IllegalStateException("CreateWindowExW failed, GetLastError "
                         + (int) GET_LAST_ERROR.invoke());
             }
+            int windowDpi = dpiForWindow(hwnd);
+            if (windowDpi > 0 && windowDpi != dpi) {
+                dpi = windowDpi;
+                physicalWidth = Dpi.scale(width, dpi);
+                physicalHeight = Dpi.scale(height, dpi);
+                // Not shown yet, so the correction is not visible. WM_SIZE follows and the web
+                // view is sized from the client rectangle.
+                SET_WINDOW_POS.invoke(hwnd, MemorySegment.NULL, 0, 0, physicalWidth,
+                        physicalHeight, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+            }
             SHOW_WINDOW.invoke(hwnd, SW_SHOW);
             System.out.println("[panamaview] window 0x" + Long.toHexString(hwnd.address())
                     + " of class '" + className + "' (register error was " + registerError + ")");
+            System.out.println("[panamaview] dpi " + dpi + ", window " + physicalWidth + "x"
+                    + physicalHeight + " (asked for " + width + "x" + height + ")");
             return hwnd.reinterpret(Long.MAX_VALUE);
         } catch (IllegalStateException e) {
             throw e;

@@ -16,6 +16,8 @@ package io.github.lihuu.panamaview;
  * @param page   where the page comes from
  * @param origin where the window opens, or {@code null} to let the platform decide — centred on
  *               the first launch, then remembered from then on
+ * @param width  the window's width in logical pixels, the size it should occupy at 96 DPI
+ * @param height the window's height in logical pixels
  */
 public record WindowSpec(String title, int width, int height, PageSource page, Origin origin) {
 

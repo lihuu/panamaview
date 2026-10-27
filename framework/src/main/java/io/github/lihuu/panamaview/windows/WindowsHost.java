@@ -74,6 +74,9 @@ public final class WindowsHost implements UiHost, MenuHost, DialogHost {
     @Override
     public void start(Callbacks callbacks, WindowSpec spec) {
         this.callbacks = callbacks;
+        // Before the window and before its thread: Windows decides a process' DPI awareness
+        // once, and a window created by an unaware process is bitmap-scaled by the system.
+        Win32.enableDpiAwareness();
         Thread pump = new Thread(null, () -> pump(spec), "panamaview-ui", 0);
         this.pumpThread = pump;
         pump.start();
@@ -93,6 +96,8 @@ public final class WindowsHost implements UiHost, MenuHost, DialogHost {
         pumpArena = Arena.ofConfined();
         try {
             Win32.coInitializeApartmentThreaded();
+            // This thread creates the window, so its own context is what the window follows.
+            Win32.enableThreadDpiAwareness();
 
             WindowSpec.Origin origin = spec.origin();
             MemorySegment hMenu = buildMenu(spec);
@@ -213,6 +218,13 @@ public final class WindowsHost implements UiHost, MenuHost, DialogHost {
         switch (message) {
             case Win32.WM_SIZE -> {
                 resizeWebView();
+            }
+            case Win32.WM_DPICHANGED -> {
+                // The window moved to a monitor with a different DPI. Windows has already
+                // computed the size and position that keep it the same physical size on the new
+                // monitor; applying it is what makes the move correct. The WM_SIZE that follows
+                // resizes the web view.
+                Win32.applySuggestedRect(hwndArg, lparam);
             }
             case Win32.WM_APP_RUNNABLE -> {
                 drainUiQueue();
