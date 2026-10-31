@@ -4,6 +4,8 @@ import io.github.lihuu.panamaview.Item;
 import io.github.lihuu.panamaview.Menu;
 import io.github.lihuu.panamaview.MenuBar;
 import io.github.lihuu.panamaview.Menus;
+import io.github.lihuu.panamaview.Platform;
+import io.github.lihuu.panamaview.TraySpec;
 import io.github.lihuu.panamaview.UiHost;
 import io.github.lihuu.panamaview.WebApp;
 
@@ -37,12 +39,17 @@ public final class App {
     /** The binding the application's own second menu item names. */
     private static final String OTHER = "menuProbe2";
 
+    /** The binding the tray's binding item names. */
+    private static final String TRAY_PROBE = "trayProbe";
+
     /**
      * How a menu item is chosen without a human choosing it.
      *
      * <p>The activation is a platform call, and this file is portable, so the demo takes it as
      * a port and the composition root supplies the platform's own. Nothing here knows what a
-     * menu is on the other side.
+     * menu is on the other side. Both surfaces take it — the bar's items and the tray's items
+     * are the same kind of thing, an item of a menu, and they differ in which table their ids
+     * name — which is why one interface serves two ports.
      */
     public interface MenuClicker {
         /**
@@ -56,6 +63,7 @@ public final class App {
 
     private final WebApp web;
     private final MenuClicker clicker;
+    private final MenuClicker trayClicker;
 
     /**
      * The menu bar the demo declares.
@@ -77,6 +85,24 @@ public final class App {
             Menus.editMenu());
 
     /**
+     * The tray the demo declares.
+     *
+     * <p>One item of each kind — a binding item, a separator, the platform's Quit — because
+     * the smallest tray that shows all three is the one worth testing. The tooltip is what a
+     * pointer resting on the icon says. The icon itself is left to the framework, the same
+     * way the application menu is: the default is the framework's business until an
+     * application says otherwise.
+     *
+     * <p>Declaring it also changes what closing the window means — the process now outlives
+     * its window by default, because the icon would outlive it too. That is the lifecycle
+     * change this feature makes, and the demo runs with it on purpose.
+     */
+    private final TraySpec tray = new TraySpec("panamaview demo", java.util.List.of(
+            Menus.item(TRAY_PROBE, "托盘探测"),
+            Menus.separator(),
+            Menus.platformItem(Platform.QUIT, "退出")));
+
+    /**
      * How many times a handler has actually been interrupted.
      *
      * <p>This exists to make cancellation <em>observable</em>. A page that cancels and stops
@@ -90,13 +116,18 @@ public final class App {
     private final AtomicInteger probeClicks = new AtomicInteger();
     private final AtomicInteger otherClicks = new AtomicInteger();
 
-    public App(UiHost host, MenuClicker clicker) {
+    /** How many times the tray's binding ran — the effect the tray check asserts. */
+    private final AtomicInteger trayProbeClicks = new AtomicInteger();
+
+    public App(UiHost host, MenuClicker clicker, MenuClicker trayClicker) {
         this.clicker = clicker;
+        this.trayClicker = trayClicker;
         this.web = new WebApp(host)
                 .title(APP_NAME)
                 .size(1000, 700)
                 .load("/web/index.html")
-                .menu(bar);
+                .menu(bar)
+                .tray(tray);
     }
 
     /** The underlying app, for wiring platform-specific extras onto. */
@@ -161,6 +192,10 @@ public final class App {
             return "the second item ran";
         });
 
+        // The tray's binding item, counted the same way: a tray item that reaches nobody
+        // does not throw either, and the count is the only evidence it did anything.
+        web.bind(TRAY_PROBE, params -> "the tray item ran " + trayProbeClicks.incrementAndGet());
+
         // Chooses an item of the demo's own menu, the way a click would, and waits for the
         // binding behind it to run.
         //
@@ -186,6 +221,21 @@ public final class App {
         // page can show the menu a person uses, and a person clicking an item in the real
         // menu bar sees the count move.
         web.bind("menuState", params -> menuState());
+
+        // Chooses an item of the demo's own tray, the way a click in the icon's menu would,
+        // and waits for the binding behind it to run. Same shape and same reasoning as
+        // menuClick, over the tray's own id table: the activation crosses the item's action,
+        // the target's upcall and the binding, so the wait belongs here, in one round trip.
+        web.bind("trayClick", params -> {
+            AtomicInteger counter = counterOf(TRAY_PROBE);
+            int before = counter.get();
+            trayClicker.click(trayIdOf(TRAY_PROBE));
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+            while (counter.get() == before && System.nanoTime() < deadline) {
+                Thread.sleep(10);
+            }
+            return counter.get();
+        });
 
         // No deadline at all. This is the escape hatch for work that is honestly unbounded —
         // the agent-run case — where a fixed number would be a guess that eventually fails a
@@ -258,8 +308,24 @@ public final class App {
         return switch (binding) {
             case PROBE -> probeClicks;
             case OTHER -> otherClicks;
+            case TRAY_PROBE -> trayProbeClicks;
             default -> throw new IllegalArgumentException("no menu item is bound to '" + binding + "'");
         };
+    }
+
+    /**
+     * The id of the tray item that names a binding.
+     *
+     * <p>Read out of the tray's own numbering, the way {@link #idOf} reads the bar's: an id
+     * is the framework's own, and the tray's table is a different table from the bar's.
+     */
+    private int trayIdOf(String binding) {
+        for (Item item : tray.items()) {
+            if (binding.equals(item.binding())) {
+                return item.id();
+            }
+        }
+        throw new IllegalStateException("the tray has no item bound to '" + binding + "'");
     }
 
     /**

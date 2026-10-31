@@ -358,6 +358,20 @@ final class ObjC {
         return (MemorySegment) call(ID_LONG0, receiver, sel, arg);
     }
 
+    /**
+     * An object-returning message with one {@code CGFloat} argument —
+     * {@code statusItemWithLength:}.
+     *
+     * <p>Deliberately an overload of the {@code NSInteger} spelling and not a reuse of it: the
+     * argument travels as a double, and a {@code long} stub handed {@code -1.0} would marshal
+     * the bit pattern of a double as an integer — a wildly wrong length, silently. The two
+     * layouts are not distinguishable at the call site, so the signature is.
+     */
+    public static MemorySegment send(MemorySegment receiver, MemorySegment sel, double arg) {
+        return (MemorySegment) call(FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, JAVA_DOUBLE),
+                receiver, sel, arg);
+    }
+
     public static boolean sendBool(MemorySegment receiver, MemorySegment sel, boolean arg) {
         return ((Byte) call(BOOL1, receiver, sel, (byte) (arg ? 1 : 0))) != 0;
     }

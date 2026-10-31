@@ -242,6 +242,30 @@
       check("menu item reaches its binding", false, String(error.message));
     }
 
+    // 11b. The tray: the third surface, its own id table, its own callback.
+    //
+    // Three assertions, in the order a broken tray would fail them. The icon exists at all
+    // — an NSStatusItem that was never created shows nothing and throws nothing. The menu
+    // behind it holds exactly the items the spec declared — an item that was declared but
+    // not built is silent the same way. And a chosen item reaches its binding — the effect,
+    // not the absence of an exception, exactly as the menu check above says.
+    //
+    // What no check here can assert is that a human sees the icon in the strip: that part
+    // is a person looking once, and saying so is part of the result.
+    try {
+      const info = await java.invoke("trayInfo", {});
+      const clicked = await java.invoke("trayClick", {});
+      check("tray icon exists and holds the declared menu",
+            info.present === true && info.builtItems === info.declaredItems,
+            `present=${info.present}, built=${info.builtItems}/${info.declaredItems}`
+            + `, tooltip="${info.tooltip}"`);
+      check("tray item reaches its binding", clicked >= 1,
+            `the tray item ran the binding ${clicked} time(s)`);
+    } catch (error) {
+      check("tray icon exists and holds the declared menu", false, String(error.message));
+      check("tray item reaches its binding", false, String(error.message));
+    }
+
     // 12. A native file dialog, opened and dismissed without a human.
     //
     // A self-test cannot choose a file — choosing is what a person is for — so the check
