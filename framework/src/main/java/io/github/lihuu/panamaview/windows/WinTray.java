@@ -241,9 +241,12 @@ final class WinTray {
      *
      * <p>The same check {@code WinMenu.verify} gives the window menu, because the same failure
      * is available here: a menu that looks right and dispatches wrong does not throw when
-     * chosen — it runs the wrong binding, silently. A separator's id reads back as the system's
-     * {@code -1}, which is not a command id and not the plan's 0, so it is compared as what the
-     * system reports.
+     * chosen — it runs the wrong binding, silently. A separator carries the plan's 0 and reads
+     * back as the system's 0 — the same value, on this Win32: the documentation says a
+     * separator's {@code GetMenuItemID} is {@code -1}, and the window menu's verify has never
+     * agreed, because it compares the plan's 0 against the real menu and has never failed. This
+     * check believed the documentation once, and every click threw before the menu could show;
+     * it believes the measurement now.
      */
     private void verifyPopup(MemorySegment menu, Arena scope) {
         int count = Win32.getMenuItemCount(menu);
@@ -254,11 +257,10 @@ final class WinTray {
         for (int position = 0; position < count; position++) {
             WinMenu.ItemPlan item = plan.get(position);
             int id = Win32.getMenuItemId(menu, position);
-            int expected = item.isSeparator() ? -1 : item.commandId();
-            if (id != expected) {
+            if (id != item.commandId()) {
                 throw new IllegalStateException("the tray popup, item " + position + " ('"
                         + item.text() + "'), carries command id " + id + " and the spec asked for "
-                        + expected);
+                        + item.commandId());
             }
             String title = Win32.getMenuString(scope, menu, position, 512, 0x00000400);
             if (!title.equals(item.text())) {
