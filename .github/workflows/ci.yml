@@ -268,8 +268,15 @@ jobs:
           Pop-Location
           Write-Output $output
           if ($code -ne 0) { throw "the installed self-test exited $code" }
-          if ($output -notmatch "12 passed, 0 failed") {
+          # The count is asserted, not only "0 failed": a check that stopped running would
+          # also report zero failures, and silence is what this assertion exists to catch.
+          # The floor is the set of checks the framework ships - every added check lands
+          # here without touching this file - and the tray checks brought it to 15.
+          if ($output -notmatch "(\d+) passed, 0 failed") {
             throw "the installed self-test did not report a full pass"
+          }
+          if ([int]$Matches[1] -lt 15) {
+            throw "the installed self-test reported only $($Matches[1]) checks; the run is expected to have at least 15"
           }
 
           $uninstall = Start-Process msiexec.exe -Wait -PassThru -ArgumentList @(

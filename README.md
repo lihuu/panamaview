@@ -253,7 +253,7 @@ docs/                  Deep-dive architecture and maintenance documentation
 
 **Next up — the features the next phase is shaped around**
 
-- [ ] System tray integration — the portable slice and the macOS host (`NSStatusItem`, an SF Symbol default icon, the demo self-test driving its menu) are merged; the Windows (`Shell_NotifyIcon`) slice is not started, and the roadmap line only moves up once both hosts are verified
+- [ ] System tray integration — the portable slice and both hosts are implemented: macOS (`NSStatusItem`, SF Symbol default icon) and Windows (`Shell_NotifyIconW`, a hidden callback window, a `TaskbarCreated` re-add, a popup verified by read-back), each driven by its self-test. One check is left, and no CI can run it: a person seeing the icon and clicking it on a real desktop. That glance is what moves this line to shipped
 - [ ] Multi-window management
 - [ ] Linux host via WebKitGTK — the portable layer already builds and is tested on Linux; the host is what is missing
 

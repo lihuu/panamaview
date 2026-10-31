@@ -1,7 +1,7 @@
 # System tray: design
 
 **Date:** 2026-10-27
-**Status:** approved direction; the portable slice and the macOS slice are implemented (macOS landed 2026-10-31), the Windows slice is not. One correction the macOS slice recorded: the default icon is built with the class method `imageWithSystemSymbolName:accessibilityDescription:` — the instance init this section never named does not exist on the runtime, and the selector is the whole difference between a tray icon and an abort.
+**Status:** approved direction; the portable slice and both host slices are implemented (macOS landed 2026-10-31, Windows 2026-11-01). One correction the macOS slice recorded: the default icon is built with the class method `imageWithSystemSymbolName:accessibilityDescription:` — the instance init this section never named does not exist on the runtime, and the selector is the whole difference between a tray icon and an abort. The Windows slice's one open item is its own: the interactive check a session-0 runner cannot perform — a person seeing the notification-area icon and choosing from its popup — is what finishes the feature and moves the README line.
 
 ## Intent
 

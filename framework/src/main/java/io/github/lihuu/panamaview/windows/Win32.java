@@ -49,6 +49,10 @@ final class Win32 {
     static final int WM_COMMAND = 0x0111;
     static final int WM_DPICHANGED = 0x02E0;
     static final int WM_APP_RUNNABLE = 0x8000;   // WM_APP: for the host's own use
+    /** WM_APP + 1: the tray icon's callback message, distinct from the runnable nudge. */
+    static final int WM_APP_TRAY = 0x8001;
+    /** WM_NULL — the documented post-TrackPopupMenu dismissal nudge, and nothing else. */
+    static final int WM_NULL = 0x0000;
 
     // ------------------------------------------------------------- layouts
 
@@ -83,6 +87,10 @@ final class Win32 {
             JAVA_INT.withName("left"), JAVA_INT.withName("top"),
             JAVA_INT.withName("right"), JAVA_INT.withName("bottom"));
 
+    /** {@code {LONG x; LONG y}} — the cursor position {@code GetCursorPos} fills. */
+    static final MemoryLayout POINT = MemoryLayout.structLayout(
+            JAVA_INT.withName("x"), JAVA_INT.withName("y"));
+
     /** {@code {HWND; UINT; WPARAM; LPARAM; DWORD time; POINT pt; DWORD lPrivate}} — 48 bytes on x64. */
     private static final MemoryLayout MSG = MemoryLayout.structLayout(
             ADDRESS.withName("hwnd"), JAVA_INT.withName("message"), MemoryLayout.paddingLayout(4),
@@ -98,6 +106,7 @@ final class Win32 {
         final java.lang.foreign.SymbolLookup KERNEL32 = java.lang.foreign.SymbolLookup.libraryLookup("kernel32.dll", LIFE);
         final java.lang.foreign.SymbolLookup KERNELBASE = java.lang.foreign.SymbolLookup.libraryLookup("kernelbase.dll", LIFE);
         final java.lang.foreign.SymbolLookup USER32 = java.lang.foreign.SymbolLookup.libraryLookup("user32.dll", LIFE);
+        final java.lang.foreign.SymbolLookup SHELL32 = java.lang.foreign.SymbolLookup.libraryLookup("shell32.dll", LIFE);
         final java.lang.foreign.SymbolLookup OLE32 = java.lang.foreign.SymbolLookup.libraryLookup("ole32.dll", LIFE);
     }
 
@@ -179,6 +188,25 @@ final class Win32 {
     private static final MethodHandle GET_SUB_MENU =
             bind(LOOKUPS.USER32, "GetSubMenu", FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_INT));
 
+    // The tray. Shell_NotifyIconW is the whole notification-area API in one function: the
+    // same call adds, modifies and removes the icon, and the code says which with dwMessage.
+    private static final MethodHandle SHELL_NOTIFY_ICON =
+            bind(LOOKUPS.SHELL32, "Shell_NotifyIconW", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
+    private static final MethodHandle REGISTER_WINDOW_MESSAGE =
+            bind(LOOKUPS.USER32, "RegisterWindowMessageW", FunctionDescriptor.of(JAVA_INT, ADDRESS));
+    private static final MethodHandle GET_CURSOR_POS =
+            bind(LOOKUPS.USER32, "GetCursorPos", FunctionDescriptor.of(JAVA_INT, ADDRESS));
+    private static final MethodHandle TRACK_POPUP_MENU =
+            bind(LOOKUPS.USER32, "TrackPopupMenu",
+                    FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS, ADDRESS));
+    private static final MethodHandle SET_FOREGROUND_WINDOW =
+            bind(LOOKUPS.USER32, "SetForegroundWindow", FunctionDescriptor.of(JAVA_INT, ADDRESS));
+    private static final MethodHandle LOAD_IMAGE =
+            bind(LOOKUPS.USER32, "LoadImageW",
+                    FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT));
+    private static final MethodHandle LOAD_ICON =
+            bind(LOOKUPS.USER32, "LoadIconW", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS));
+
     private static final MethodHandle OPEN_CLIPBOARD =
             bind(LOOKUPS.USER32, "OpenClipboard", FunctionDescriptor.of(JAVA_INT, ADDRESS));
     private static final MethodHandle CLOSE_CLIPBOARD =
@@ -216,11 +244,19 @@ final class Win32 {
     private static final int WS_OVERLAPPEDWINDOW = 0x00CF0000;
     private static final int CW_USEDEFAULT = 0x80000000;
     private static final int SW_SHOW = 5;
+    /** SW_HIDE — the put-away a tray application's close becomes. */
+    static final int SW_HIDE = 0;
     private static final int SWP_NOMOVE = 0x0002;
     private static final int SWP_NOZORDER = 0x0004;
     private static final int SWP_NOACTIVATE = 0x0010;
     private static final long COLOR_WINDOW_PLUS_ONE = 6;
     private static final long IDC_ARROW = 32512;
+    /** IDI_APPLICATION — the stock icon a tray falls back to when the application brings none. */
+    private static final long IDI_APPLICATION = 32512;
+    /** IMAGE_ICON — the LoadImageW type for an icon handle. */
+    private static final int IMAGE_ICON = 1;
+    /** LR_LOADFROMFILE — LoadImageW reads the icon from a file instead of a resource. */
+    private static final int LR_LOADFROMFILE = 0x0010;
 
     /**
      * {@code DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2}: the context that makes Windows hand a
@@ -291,6 +327,15 @@ final class Win32 {
             POST_QUIT_MESSAGE.invoke(0);
         } catch (Throwable t) {
             throw new IllegalStateException(t);
+        }
+    }
+
+    /** Shows or hides a window: {@code SW_SHOW} for a birth, {@code SW_HIDE} for a put-away. */
+    static void showWindow(MemorySegment hwnd, int command) {
+        try {
+            SHOW_WINDOW.invoke(hwnd, command);
+        } catch (Throwable t) {
+            throw new IllegalStateException("ShowWindow could not be called", t);
         }
     }
 
@@ -705,6 +750,188 @@ final class Win32 {
             return (MemorySegment) GET_SUB_MENU.invoke(menu, position);
         } catch (Throwable t) {
             throw new IllegalStateException("GetSubMenu could not be called", t);
+        }
+    }
+
+    // --------------------------------------------------------------------- the tray
+
+    /**
+     * Adds, modifies or removes the notification-area icon.
+     *
+     * <p>The one call does all three, and says which with {@code dwMessage}; the data it reads
+     * is the {@code NOTIFYICONDATAW} {@code WinTray} owns. The boolean is the whole contract:
+     * a false from {@code NIM_ADD} is a tray that was declared and never appeared, which is a
+     * failure the caller reports rather than a state it guesses about.
+     */
+    static boolean shellNotifyIcon(int code, MemorySegment data) {
+        try {
+            return (int) SHELL_NOTIFY_ICON.invoke(code, data) != 0;
+        } catch (Throwable t) {
+            throw new IllegalStateException("Shell_NotifyIconW could not be called", t);
+        }
+    }
+
+    /** Registers a window message by name; {@code TaskbarCreated} is the one this framework needs. */
+    static int registerWindowMessage(Arena arena, String name) {
+        try {
+            int id = (int) REGISTER_WINDOW_MESSAGE.invoke(arena.allocateFrom(name, StandardCharsets.UTF_16LE));
+            if (id == 0) {
+                throw new IllegalStateException("RegisterWindowMessageW failed for '" + name + "'");
+            }
+            return id;
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException("RegisterWindowMessageW could not be called", t);
+        }
+    }
+
+    /** The cursor's position in screen coordinates, into a {@link #POINT} buffer. */
+    static void getCursorPos(Arena arena, MemorySegment point) {
+        try {
+            if ((int) GET_CURSOR_POS.invoke(point) == 0) {
+                throw new IllegalStateException("GetCursorPos failed");
+            }
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException("GetCursorPos could not be called", t);
+        }
+    }
+
+    /**
+     * Shows the popup menu at the cursor and returns the command id that was chosen, or 0 when
+     * the user dismissed it.
+     *
+     * <p>{@code TPM_RETURNCMD} is what makes the return value the answer: without it the choice
+     * comes back as a {@code WM_COMMAND} round trip, which is the window menu's route and not
+     * this one's. The menu is transient — built, shown, destroyed around this one call — so the
+     * id the framework assigned is the only thing that survives it.
+     */
+    static int trackPopupMenu(Arena arena, MemorySegment menu, int flags, MemorySegment hwnd) {
+        try {
+            MemorySegment point = arena.allocate(POINT);
+            getCursorPos(arena, point);
+            int x = point.get(JAVA_INT, 0), y = point.get(JAVA_INT, 4);
+            return (int) TRACK_POPUP_MENU.invoke(menu, flags, x, y, 0, hwnd, MemorySegment.NULL);
+        } catch (Throwable t) {
+            throw new IllegalStateException("TrackPopupMenu could not be called", t);
+        }
+    }
+
+    /** Brings the tray's hidden window to the foreground, the documented prerequisite for a popup. */
+    static void setForegroundWindow(MemorySegment hwnd) {
+        try {
+            SET_FOREGROUND_WINDOW.invoke(hwnd);
+        } catch (Throwable t) {
+            throw new IllegalStateException("SetForegroundWindow could not be called", t);
+        }
+    }
+
+    /**
+     * The default icon: the stock application icon, by its resource id.
+     *
+     * <p>{@code MAKEINTRESOURCE} is an id smuggled through a pointer, which is what
+     * {@link #idResource} does. The icon is a shared system resource, so it is never freed and
+     * never destroyed — the same rule the cursor at window creation already follows.
+     */
+    static MemorySegment defaultIcon() {
+        try {
+            MemorySegment icon = (MemorySegment) LOAD_ICON.invoke(MemorySegment.NULL, idResource(IDI_APPLICATION));
+            if (icon == null || icon.address() == 0) {
+                throw new IllegalStateException("LoadIconW returned no icon");
+            }
+            return icon;
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException("LoadIconW could not be called", t);
+        }
+    }
+
+    /**
+     * The application's own icon, loaded from an {@code .ico} file.
+     *
+     * <p>{@code LR_LOADFROMFILE} reads the file at call time; the handle is owned by this
+     * process and is never freed, because the tray lives as long as the process does. A file
+     * that will not load is an error rather than a silent fall-back to the default: the
+     * application asked for its own icon, and quietly showing the framework's instead would be
+     * a wrong icon presented as the right one.
+     */
+    static MemorySegment iconFromFile(Arena arena, java.nio.file.Path path) {
+        try {
+            MemorySegment icon = (MemorySegment) LOAD_IMAGE.invoke(MemorySegment.NULL,
+                    arena.allocateFrom(path.toString(), StandardCharsets.UTF_16LE),
+                    IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
+            if (icon == null || icon.address() == 0) {
+                throw new IllegalArgumentException("the tray icon could not be loaded: " + path
+                        + " (a Windows tray icon is an .ico file)");
+            }
+            return icon;
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException("LoadImageW could not be called", t);
+        }
+    }
+
+    /**
+     * Registers a class and creates the tray's message window, invisible and ordinary.
+     *
+     * <p>Ordinary is the point, and it is measured, not stylistic: a message-only window
+     * ({@code HWND_MESSAGE}) does not receive broadcast messages, and {@code TaskbarCreated} —
+     * the message Explorer sends when it restarts and the notification area is rebuilt — is a
+     * broadcast. An icon that misses it stays gone for the rest of the session. So this is a
+     * real top-level window that is simply never shown, with its own procedure bound the same
+     * way the main window's is.
+     */
+    static MemorySegment createHiddenWindow(Arena arena, Procedure procedure) {
+        MemorySegment wndProc = LINKER.upcallStub(
+                mh(ProcedureAdapter.class, "dispatch",
+                        MethodType.methodType(long.class, MemorySegment.class, int.class, long.class, long.class),
+                        new ProcedureAdapter(procedure)),
+                FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_INT, JAVA_LONG, JAVA_LONG), LIFE);
+
+        try (Arena confined = Arena.ofConfined()) {
+            String className = "panamaview-tray-" + Long.toHexString(System.nanoTime());
+            MemorySegment classNameSeg = confined.allocateFrom(className, StandardCharsets.UTF_16LE);
+            MemorySegment instance = (MemorySegment) GET_MODULE_HANDLE.invoke(MemorySegment.NULL);
+            MemorySegment cursor = (MemorySegment) LOAD_CURSOR.invoke(MemorySegment.NULL, idResource(IDC_ARROW));
+
+            MemorySegment wcx = arena.allocate(WNDCLASSEX);
+            WCX_CBSIZE.set(wcx, 0L, (int) WNDCLASSEX.byteSize());
+            WCX_STYLE.set(wcx, 0L, 0);                                   // no redraw: nothing is drawn
+            WCX_WNDPROC.set(wcx, 0L, wndProc);
+            WCX_CLS_EXTRA.set(wcx, 0L, 0);
+            WCX_WND_EXTRA.set(wcx, 0L, 0);
+            WCX_INSTANCE.set(wcx, 0L, instance);
+            WCX_ICON.set(wcx, 0L, MemorySegment.NULL);
+            WCX_CURSOR.set(wcx, 0L, cursor);
+            WCX_BACKGROUND.set(wcx, 0L, MemorySegment.NULL);             // never painted
+            WCX_MENU_NAME.set(wcx, 0L, MemorySegment.NULL);
+            WCX_CLASS_NAME.set(wcx, 0L, classNameSeg);
+            WCX_ICON_SMALL.set(wcx, 0L, MemorySegment.NULL);
+            short atom = (short) REGISTER_CLASS.invoke(wcx);
+            if (atom == 0) {
+                throw new IllegalStateException("RegisterClassExW failed for the tray window, GetLastError "
+                        + (int) GET_LAST_ERROR.invoke());
+            }
+            MemorySegment hwnd = (MemorySegment) CREATE_WINDOW.invoke(
+                    0, classNameSeg, classNameSeg,
+                    0,                     // style: not overlapped, not visible — a message receiver
+                    0, 0, 0, 0,
+                    MemorySegment.NULL, MemorySegment.NULL, instance, MemorySegment.NULL);
+            if (hwnd.equals(MemorySegment.NULL)) {
+                throw new IllegalStateException("CreateWindowExW failed for the tray window, GetLastError "
+                        + (int) GET_LAST_ERROR.invoke());
+            }
+            System.out.println("[panamaview] tray window 0x" + Long.toHexString(hwnd.address())
+                    + " of class '" + className + "'");
+            return hwnd.reinterpret(Long.MAX_VALUE);
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException(t);
         }
     }
 
