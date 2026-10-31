@@ -252,7 +252,7 @@ docs/                  Deep-dive architecture and maintenance documentation
 
 **Next up — the features the next phase is shaped around**
 
-- [ ] System tray integration
+- [ ] System tray integration — the portable slice is merged (`TraySpec`, the optional `TrayHost` seam, the quit-on-last-window default, and its unit tests); the macOS (`NSStatusItem`) and Windows (`Shell_NotifyIcon`) slices are not started, and the roadmap line only moves up once both hosts are verified
 - [ ] Multi-window management
 - [ ] Linux host via WebKitGTK — the portable layer already builds and is tested on Linux; the host is what is missing
 

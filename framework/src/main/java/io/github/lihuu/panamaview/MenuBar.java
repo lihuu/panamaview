@@ -1,5 +1,6 @@
 package io.github.lihuu.panamaview;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
@@ -36,55 +37,75 @@ public final class MenuBar {
     }
 
     /**
-     * Numbers the items and records what each number means, in one walk.
+     * Numbers the bar's items and records what each number means, in one walk.
      *
-     * <p>The two belong together: the ids are what the platform reports when an item is
-     * chosen, and the names are what the bindings are registered under. A second walk to
-     * derive the names would be a second opinion about the same numbering, and the two would
-     * drift the moment the model grew a level.
-     *
-     * <p>An item that is in the bar twice is refused here, where the ids are handed out.
-     * The ids live in the items themselves, so one item in two places would be given its
-     * second id and lose its first: both places would carry the same id, and the two places
-     * would become indistinguishable — a click could no longer say which one was chosen,
-     * while the id table could keep an entry for an id no item carries. The binding itself
-     * would still be the right one, because it is the same item; what stops agreeing is the
-     * places. That is the one way the table and the numbering could still disagree, so it
-     * is not left to be discovered.
+     * <p>The walk itself is {@link #number(List, String)}, because a tray menu is numbered by it
+     * too: the two surfaces have separate tables but must not have separate ideas about ids.
      */
     private Map<Integer, String> numberItems() {
-        Map<Integer, String> names = new HashMap<>();
-        // Identity, not equality: two items that happen to look alike are still two items.
-        Set<Item> seenItems = Collections.newSetFromMap(new IdentityHashMap<>());
+        // Identity, not equality: two menus that happen to look alike are still two menus.
         Set<Menu> seenMenus = Collections.newSetFromMap(new IdentityHashMap<>());
-        int currentId = 1;
+        List<Item> items = new ArrayList<>();
         for (Menu menu : menus) {
             if (!seenMenus.add(menu)) {
                 throw new IllegalArgumentException("The same menu is in the bar twice: "
                         + describe(menu) + ". A menu may appear only once: its items would be "
                         + "in the bar twice, and each of them would carry one id for two places.");
             }
-            for (Item item : menu.items()) {
-                if (!seenItems.add(item)) {
-                    throw new IllegalArgumentException("The same menu item is in the bar twice: "
-                            + describe(item) + ". An item may appear only once: one id would "
-                            + "serve both places, so a click could not say which place was "
-                            + "chosen, and the id table could keep an entry for an id no item "
-                            + "carries.");
-                }
-                // Assign sequential IDs to all items to support platform mapping
-                switch (item) {
-                    case Item.BindingItem b -> b.assignId(currentId);
-                    case Item.PlatformItem p -> p.assignId(currentId);
-                    case Item.SeparatorItem s -> s.assignId(currentId);
-                }
-                // Only a binding item names a binding. A platform item is the platform's own
-                // business, and a separator names nothing at all.
-                if (item.binding() != null) {
-                    names.put(item.id(), item.binding());
-                }
-                currentId++;
+            items.addAll(menu.items());
+        }
+        return number(items, "bar");
+    }
+
+    /**
+     * Numbers {@code items} and records what each number means, in one walk.
+     *
+     * <p>The two belong together: the ids are what the platform reports when an item is
+     * chosen, and the names are what the bindings are registered under. A second walk to
+     * derive the names would be a second opinion about the same numbering, and the two would
+     * drift the moment the model grew a level.
+     *
+     * <p>An item that appears twice in the same surface is refused here, where the ids are
+     * handed out. The ids live in the items themselves, so one item in two places would be
+     * given its second id and lose its first: both places would carry the same id, and the two
+     * places would become indistinguishable — a click could no longer say which one was chosen,
+     * while the id table could keep an entry for an id no item carries. The binding itself
+     * would still be the right one, because it is the same item; what stops agreeing is the
+     * places. That is the one way the table and the numbering could still disagree, so it is
+     * not left to be discovered.
+     *
+     * <p>Package-private because {@link TraySpec} numbers its menu with this same walk. A tray
+     * is a separate surface with a separate id table, but not a separate numbering: a second
+     * implementation would be a second opinion about ids that a host and this class could
+     * disagree about.
+     *
+     * @param surface what an error should call the container — "bar" or "tray menu"
+     */
+    static Map<Integer, String> number(List<Item> items, String surface) {
+        Map<Integer, String> names = new HashMap<>();
+        // Identity, not equality: two items that happen to look alike are still two items.
+        Set<Item> seenItems = Collections.newSetFromMap(new IdentityHashMap<>());
+        int currentId = 1;
+        for (Item item : items) {
+            if (!seenItems.add(item)) {
+                throw new IllegalArgumentException("The same menu item is in the " + surface
+                        + " twice: " + describe(item) + ". An item may appear only once: one id "
+                        + "would serve both places, so a click could not say which place was "
+                        + "chosen, and the id table could keep an entry for an id no item "
+                        + "carries.");
             }
+            // Assign sequential IDs to all items to support platform mapping
+            switch (item) {
+                case Item.BindingItem b -> b.assignId(currentId);
+                case Item.PlatformItem p -> p.assignId(currentId);
+                case Item.SeparatorItem s -> s.assignId(currentId);
+            }
+            // Only a binding item names a binding. A platform item is the platform's own
+            // business, and a separator names nothing at all.
+            if (item.binding() != null) {
+                names.put(item.id(), item.binding());
+            }
+            currentId++;
         }
         return Map.copyOf(names);
     }

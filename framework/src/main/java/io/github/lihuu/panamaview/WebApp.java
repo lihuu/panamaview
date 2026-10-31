@@ -59,6 +59,12 @@ public final class WebApp {
     private WindowSpec.Origin origin;
     private MenuBar menuBar;
     private Map<Integer, String> menuBindings = Map.of();
+    private TraySpec traySpec;
+    private Map<Integer, String> trayBindings = Map.of();
+    /** Null means "let the tray decide": the default is computed when the window closes. */
+    private Boolean quitOnLastClose;
+    /** Set at run time: a tray counts only when the host can actually show it. */
+    private boolean trayAccepted;
 
     public WebApp(UiHost host) {
         this.host = host;
@@ -380,6 +386,41 @@ public final class WebApp {
     }
 
     /**
+     * Declares the tray icon and its menu.
+     *
+     * <p>Handed to the host when {@link #run()} starts, before the platform creates its window,
+     * for the same reason the menu bar is: both platforms build the icon during start-up.
+     *
+     * <p>A <em>null</em> spec means no tray, the same way a null bar means no menu. A host that
+     * does not implement {@link TrayHost} simply has no tray; the application still runs, and
+     * the absence is reported rather than left to be discovered on screen.
+     *
+     * <p>Declaring a tray also changes what closing the last window means: see
+     * {@link #quitWhenLastWindowCloses(boolean)}.
+     */
+    public WebApp tray(TraySpec tray) {
+        this.traySpec = tray;
+        this.trayBindings = tray == null ? Map.of() : tray.bindings();
+        return this;
+    }
+
+    /**
+     * Whether closing the last window ends the process.
+     *
+     * <p>The default is true, except when a tray was declared <em>and the host accepted it</em>:
+     * an application with a tray is expected to outlive its window, and quitting would take the
+     * icon with it. A tray that the host could not take leaves the default alone — otherwise the
+     * application would become a background process with no window and no icon.
+     *
+     * <p>Pass false to keep an application alive without a tray, or true to make a tray
+     * application quit with its window anyway.
+     */
+    public WebApp quitWhenLastWindowCloses(boolean quit) {
+        this.quitOnLastClose = quit;
+        return this;
+    }
+
+    /**
      * A menu item was chosen.
      *
      * <p>The id names an item of the declared bar. An id that names no binding — a platform
@@ -396,6 +437,20 @@ public final class WebApp {
         bridge.invokeBinding(name, Map.of());
     }
 
+    /**
+     * A tray item was chosen.
+     *
+     * <p>The same contract as {@link #onMenuItem(int)}, against the tray's own table: an id that
+     * names no binding — a platform item, a separator, or an id the host made up — is ignored.
+     */
+    private void onTrayMenuItem(int id) {
+        String name = trayBindings.get(id);
+        if (name == null) {
+            return;
+        }
+        bridge.invokeBinding(name, Map.of());
+    }
+
     /** Runs the platform event loop. Blocks until the application quits. */
     public void run() throws IOException {
         String directory = entry.substring(0, entry.lastIndexOf('/'));
@@ -409,6 +464,19 @@ public final class WebApp {
             // Before start(): both platforms build their native menu during start-up, so a bar
             // handed over afterwards would come too late to be in either menu.
             menuHost.setMenu(menuBar);
+        }
+
+        if (traySpec != null) {
+            if (host instanceof TrayHost trayHost) {
+                // Same reason as the menu: both platforms create the icon during start-up.
+                trayHost.setTray(traySpec);
+                trayAccepted = true;
+            } else {
+                // The icon is the whole feature, and its absence is otherwise
+                // indistinguishable from an icon that is there and invisible.
+                System.err.println("[panamaview] this host cannot show a tray, so the tray icon "
+                        + "is not shown; the application still runs");
+            }
         }
 
         host.start(new UiHost.Callbacks() {
@@ -447,8 +515,18 @@ public final class WebApp {
             }
 
             @Override
+            public void onTrayMenuItem(int id) {
+                WebApp.this.onTrayMenuItem(id);
+            }
+
+            @Override
             public boolean shouldQuitWhenLastWindowCloses() {
-                return true;
+                // A tray makes the process outlive its window by default: closing the window is
+                // how a tray application is put away, and quitting would take the icon with it.
+                // An explicit choice wins either way, and a tray the host did not accept does
+                // not change the default — an application with neither a window nor an icon is
+                // a background process nobody can reach.
+                return quitOnLastClose != null ? quitOnLastClose : !trayAccepted;
             }
         }, new WindowSpec(title, width, height, page, origin));
     }
