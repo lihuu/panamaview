@@ -36,9 +36,11 @@ public final class Main {
         }
 
         MacOsHost host = new MacOsHost();
-        // The menu's activation is the platform's own call, so the portable half of the demo
-        // takes it as a port and this is where it is supplied.
-        App app = new App(host, id -> host.clickMenuItem(id)).install();
+        // Both menus' activations are the platform's own calls, so the portable half of the
+        // demo takes them as ports and this is where they are supplied — one clicker per
+        // surface, because the two surfaces number their items in two tables.
+        App app = new App(host, id -> host.clickMenuItem(id), id -> host.clickTrayMenuItem(id))
+                .install();
 
         app.web()
                 .bindUi("geometry", params -> host.geometry())
@@ -47,6 +49,10 @@ public final class Main {
                         number(params, "height", 700)))
                 .bindUi("snapshot", params -> host.snapshot(
                         String.valueOf(params.getOrDefault("path", "/tmp/panamaview.png"))))
+                // What the tray looks like, for the self-test's assertions: whether the status
+                // item exists and how many items its menu holds. Reads live native objects,
+                // so it is bound to the UI thread like the other window-touching extras.
+                .bindUi("trayInfo", params -> host.trayInfo())
                 // Both of these run on a virtual thread, like every ordinary binding, and both
                 // answer with facts the page cannot know on its own: whether this process is a
                 // .app at all, and what the user decided when the system asked.

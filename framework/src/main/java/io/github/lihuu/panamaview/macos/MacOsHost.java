@@ -2,10 +2,13 @@ package io.github.lihuu.panamaview.macos;
 
 import io.github.lihuu.panamaview.DialogHost;
 import io.github.lihuu.panamaview.FileDialog;
+import io.github.lihuu.panamaview.Item;
 import io.github.lihuu.panamaview.MenuBar;
 import io.github.lihuu.panamaview.MenuHost;
 import io.github.lihuu.panamaview.Menus;
 import io.github.lihuu.panamaview.PageSource;
+import io.github.lihuu.panamaview.TrayHost;
+import io.github.lihuu.panamaview.TraySpec;
 import io.github.lihuu.panamaview.UiHost;
 import io.github.lihuu.panamaview.WindowSpec;
 
@@ -32,7 +35,7 @@ import java.util.Map;
  * cross-platform signatures for them before a second implementation exists would be a guess;
  * {@code Main} registers them as ordinary bindings instead.
  */
-public final class MacOsHost implements UiHost, MenuHost, DialogHost {
+public final class MacOsHost implements UiHost, MenuHost, DialogHost, TrayHost {
 
     /**
      * The bar the framework installs when the application declares none.
@@ -50,10 +53,25 @@ public final class MacOsHost implements UiHost, MenuHost, DialogHost {
     /** The bar the native menu was built from, and the menus that were built out of it. */
     private MenuBar builtFrom;
     private List<MemorySegment> builtMenus;
+    private TraySpec tray;
+    /** The status item the tray was built into, or null when no tray was declared. */
+    private MemorySegment statusItem;
 
     @Override
     public void setMenu(MenuBar bar) {
         this.menuBar = bar;
+    }
+
+    /**
+     * Takes the application's tray.
+     *
+     * <p>Arrives before {@link #start}, per the seam's contract: the status item is built
+     * while starting, on the UI thread, before the run loop. Nothing native happens here —
+     * the caller may be on any thread — so this only stores what {@code start} will build.
+     */
+    @Override
+    public void setTray(TraySpec tray) {
+        this.tray = tray;
     }
 
     @Override
@@ -76,6 +94,14 @@ public final class MacOsHost implements UiHost, MenuHost, DialogHost {
             builtFrom = bar;
             builtMenus = Cocoa.installMenuBar(scope, application, bar, spec.title(), menuTarget);
             Cocoa.finishLaunching(application);
+
+            // The tray is the third surface, built like the others: while starting, on this
+            // thread, before the run loop. Its items point at the target's tray half, so a
+            // click arrives through the tray's own action and cannot be mistaken for a bar
+            // item's.
+            if (tray != null) {
+                statusItem = StatusBar.install(scope, tray, MenuTarget.trayTarget());
+            }
 
             MemorySegment dispatch = ObjCDispatch.create(this);
             Cocoa.setDelegate(application, dispatch);
@@ -185,6 +211,76 @@ public final class MacOsHost implements UiHost, MenuHost, DialogHost {
      */
     void menuItem(int id) {
         callbacks.onMenuItem(id);
+    }
+
+    /**
+     * A tray item was chosen.
+     *
+     * <p>Called by {@link MenuTarget}'s tray half on the UI thread, with the id the framework
+     * assigned in the tray's own numbering. Same contract as {@link #menuItem(int)} — a
+     * different callback, because a different table: a tray id and a bar id can both be 1.
+     */
+    void trayMenuItem(int id) {
+        callbacks.onTrayMenuItem(id);
+    }
+
+    // ------------------------------------------------------------------- the tray
+
+    /**
+     * Activates a tray item, the way choosing it in the icon's menu would.
+     *
+     * <p>The tray twin of {@link #clickMenuItem(int)}, and simpler for being flat: the
+     * position is the item's index in the declared list, separators included, and there are
+     * no top-level menus to search. The activation is posted to the UI thread, because that
+     * is where the menu lives; the binding behind the item runs on a thread of its own, so
+     * the effect is not there yet when this returns.
+     *
+     * @throws IllegalStateException when no tray was declared, or the status item does not
+     *                               exist because the application has not started
+     */
+    public void clickTrayMenuItem(int id) {
+        TraySpec spec = tray;
+        MemorySegment item = statusItem;
+        if (spec == null || item == null) {
+            throw new IllegalStateException("no tray exists yet, so there is no item to activate");
+        }
+        int index = 0;
+        for (Item trayItem : spec.items()) {
+            if (trayItem.id() == id) {
+                int position = index;
+                // No scope: the call takes an integer, so there is no arena-allocated buffer
+                // to invalidate, and the run loop's own pool is where anything AppKit
+                // autoreleases goes.
+                onUiThread(() -> {
+                    MemorySegment menu = ObjC.send(item, ObjC.selector("menu"));
+                    ObjC.sendVoidLong(menu, ObjC.selector("performActionForItemAtIndex:"), position);
+                });
+                return;
+            }
+            index++;
+        }
+        throw new IllegalArgumentException("the tray has no item with the id " + id);
+    }
+
+    /**
+     * What the tray looks like from the outside, for a test that cannot see the menu bar.
+     *
+     * <p>Whether the icon exists, and how many items the menu behind it holds against how
+     * many the spec declared — the two numbers disagreeing is exactly the failure a tray
+     * check exists to catch, because an item that was not built does not throw when chosen,
+     * it does nothing. Must run on the UI thread; it reads live native objects.
+     */
+    public Map<String, Object> trayInfo() {
+        Map<String, Object> info = new LinkedHashMap<>();
+        MemorySegment item = statusItem;
+        info.put("present", item != null);
+        if (item != null) {
+            MemorySegment menu = ObjC.send(item, ObjC.selector("menu"));
+            info.put("builtItems", ObjC.sendLong(menu, ObjC.selector("numberOfItems")));
+            info.put("declaredItems", tray.items().size());
+            info.put("tooltip", tray.tooltip());
+        }
+        return info;
     }
 
     // -------------------------------------------------------------- platform extras

@@ -94,12 +94,36 @@ final class Cocoa {
             built.add(submenu);
 
             for (Item item : menu.items()) {
-                addItem(scope, submenu, item, itemTitle(menu, item, appName), target);
+                addItem(scope, submenu, item, itemTitle(menu, item, appName), target,
+                        MenuTarget.ACTION);
             }
         }
 
         ObjC.sendVoid(app, ObjC.selector("setMainMenu:"), mainMenu);
         return built;
+    }
+
+    /**
+     * Builds the tray's popup out of the model: one flat menu, the items in the order the
+     * spec declares them.
+     *
+     * <p>The same {@link #addItem} builds both surfaces' items, because a binding item, a
+     * platform item and a separator mean the same thing in both places. Two things differ.
+     * The action a binding item carries is the tray's own, so a click lands on the tray's
+     * handler and reads its own id table — a bar id and a tray id can both be 1, and the
+     * action is what keeps them apart. And no tray is the application menu, so every item
+     * keeps the title the model gave it: the application-name composition that
+     * {@link #itemTitle} does for the bar has no tray counterpart, and a Quit declared in a
+     * tray says what the application called it.
+     */
+    public static MemorySegment buildTrayMenu(ObjC.Scope scope, List<Item> items,
+                                              MemorySegment target) {
+        MemorySegment menu = newMenu(scope, "");
+        for (Item item : items) {
+            String title = item.title() == null ? "" : item.title();
+            addItem(scope, menu, item, title, target, MenuTarget.TRAY_ACTION);
+        }
+        return menu;
     }
 
     /**
@@ -165,7 +189,7 @@ final class Cocoa {
      * view's text field, and a target that stopped the action there would break it.
      */
     private static void addItem(ObjC.Scope scope, MemorySegment menu, Item item, String title,
-                                MemorySegment target) {
+                                MemorySegment target, String bindingAction) {
         switch (item) {
             case Item.SeparatorItem ignored -> {
                 // A separator is a class-method singleton, [+NSMenuItem separatorItem].
@@ -174,7 +198,7 @@ final class Cocoa {
                 ObjC.sendVoid(menu, ObjC.selector("addItem:"), separator);
             }
             case Item.BindingItem binding -> {
-                MemorySegment menuItem = newItem(scope, title, MenuTarget.ACTION,
+                MemorySegment menuItem = newItem(scope, title, bindingAction,
                         binding.shortcut());
                 ObjC.sendVoid(menuItem, ObjC.selector("setTarget:"), target);
                 // The tag is the id the framework assigned, and it is how the target learns
