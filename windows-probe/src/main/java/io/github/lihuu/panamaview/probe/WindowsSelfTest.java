@@ -5,6 +5,8 @@ import io.github.lihuu.panamaview.Item;
 import io.github.lihuu.panamaview.Menu;
 import io.github.lihuu.panamaview.MenuBar;
 import io.github.lihuu.panamaview.Menus;
+import io.github.lihuu.panamaview.Platform;
+import io.github.lihuu.panamaview.TraySpec;
 import io.github.lihuu.panamaview.WebApp;
 import io.github.lihuu.panamaview.windows.WindowsHost;
 
@@ -24,6 +26,7 @@ import java.lang.invoke.MethodHandle;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -94,11 +97,17 @@ public final class WindowsSelfTest {
     /** How many times the second menu item has run. */
     private static final AtomicInteger OTHER_COUNT = new AtomicInteger();
 
+    /** How many times the tray's binding has run — the effect the tray check asserts. */
+    private static final AtomicInteger TRAY_COUNT = new AtomicInteger();
+
     /** The binding the application's own first menu item names. */
     private static final String PROBE = "menuProbe";
 
     /** The binding the application's own second menu item names — the one after the separator. */
     private static final String OTHER = "menuProbe2";
+
+    /** The binding the tray's binding item names. */
+    private static final String TRAY_PROBE = "trayProbe";
 
     /** Whether the page has reported. The watchdog's reason to stay quiet. */
     private static final AtomicBoolean REPORTED = new AtomicBoolean();
@@ -155,6 +164,17 @@ public final class WindowsSelfTest {
                 // covered only by a unit test on a machine that cannot load user32.dll.
                 Menus.editMenu());
 
+        // The tray, declared the way an application would: one item of each kind, so the
+        // popup that a person clicks on the real desktop shows all three. The tooltip is
+        // not ASCII on purpose — szTip is the UTF-16 array a wrong offset would overwrite,
+        // and a mojibake tooltip on the real taskbar is where that shows. Declaring the
+        // tray also flips the quit-on-last-window default: closing the window now hides
+        // it, and the Quit items are what end the run.
+        TraySpec tray = new TraySpec("panamaview self-test tray", List.of(
+                Menus.item(TRAY_PROBE, "托盘探测"),
+                Menus.separator(),
+                Menus.platformItem(Platform.QUIT, "退出")));
+
         app = new WebApp(host)
                 .title(WINDOW_TITLE)
                 .size(1000, 700)
@@ -163,6 +183,9 @@ public final class WindowsSelfTest {
                 // menu during start-up, so a bar handed over afterwards would be too late to
                 // be in the window.
                 .menu(bar)
+                // The tray, handed over the same way: the icon is built while starting, and a
+                // spec handed over afterwards would be too late to be on the taskbar.
+                .tray(tray)
 
                 // 1. A plain call.
                 .bind("hello", params -> "Hello " + params.getOrDefault("name", "world"))
@@ -279,6 +302,44 @@ public final class WindowsSelfTest {
                         Thread.sleep(10);
                     }
                     return counter.get();
+                })
+
+                // 11b. The tray's binding, and the checks with it. The counter is the effect,
+                // exactly as the menu's: a tray item that reaches nobody does not throw, it
+                // does nothing.
+                .bind(TRAY_PROBE, params -> TRAY_COUNT.incrementAndGet())
+
+                // The tray command, dispatched the way a popup choice would. There is no way
+                // to choose from a TrackPopupMenu without a human, so the dispatch — the part
+                // a wrong id would send to the wrong binding — is what a run drives directly;
+                // the popup a person clicks is the interactive run's part.
+                .bind("trayClick", params -> {
+                    int before = TRAY_COUNT.get();
+                    host.clickTrayMenuItem(trayIdOf(tray, TRAY_PROBE));
+                    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+                    while (TRAY_COUNT.get() == before && System.nanoTime() < deadline) {
+                        Thread.sleep(10);
+                    }
+                    return TRAY_COUNT.get();
+                })
+
+                // What the tray looks like from outside: taken, added, and how many items the
+                // popup plan holds. Java-side state only, so it needs no thread it should not
+                // be on — which is itself part of what the check can lean on.
+                .bind("trayInfo", params -> host.trayInfo())
+
+                // Posts a callback message the way a mouse event on the icon would, and waits
+                // for the host to report it. The message is asynchronous — the pump thread
+                // receives it — so the wait lives here, in one round trip, and the page never
+                // polls. The lParam carries no mouse event, so nothing opens.
+                .bind("probeTrayCallback", params -> {
+                    host.probeTrayCallback();
+                    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+                    while (!Boolean.TRUE.equals(host.trayInfo().get("callbackSeen"))
+                            && System.nanoTime() < deadline) {
+                        Thread.sleep(10);
+                    }
+                    return host.trayInfo();
                 })
 
                 // The verdict goes here, so it lands in stdout where a machine can read it.
@@ -521,8 +582,26 @@ public final class WindowsSelfTest {
         return switch (binding) {
             case PROBE -> PROBE_COUNT;
             case OTHER -> OTHER_COUNT;
+            case TRAY_PROBE -> TRAY_COUNT;
             default -> throw new IllegalArgumentException("no menu item is bound to '" + binding + "'");
         };
+    }
+
+    /**
+     * The id of the tray item that names a binding, out of the tray's own numbering.
+     *
+     * <p>A tray id and a menu id can both be 1: the two surfaces number their items in two
+     * tables, which is exactly why the click that carries one arrives on its own callback.
+     * Reading the id out of the declared spec rather than counting items keeps this helper
+     * honest the same way {@link #idOf} is.
+     */
+    private static int trayIdOf(TraySpec tray, String binding) {
+        for (Item item : tray.items()) {
+            if (binding.equals(item.binding())) {
+                return item.id();
+            }
+        }
+        throw new IllegalStateException("the tray has no item bound to '" + binding + "'");
     }
 
     private static Map<String, Object> runtime() {

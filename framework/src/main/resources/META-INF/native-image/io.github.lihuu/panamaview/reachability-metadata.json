@@ -33,7 +33,8 @@
     "Windows upcalls come in two forms. Com.queryInterface, addRef and release are static methods, so they are directUpcalls like the macOS ones. The COM event handlers and the window procedure are bound instance methods (a lambda, a per-window adapter), which no class-and-method entry can name, so they are registered by shape in foreign.upcalls -- the form GraalVM uses for non-static upcall targets.",
     "The handler methods behind those bound upcalls are reached with MethodHandles.lookup().findVirtual, so the methods themselves need reflection entries (Com$Completed.invoke, Com$Event.invoke, Win32$ProcedureAdapter.dispatch). Missing these does not fail on the JVM; the native executable dies while creating its first handler, with NoSuchMethodException.",
     "SetWindowPos is the WM_DPICHANGED handler's shape -- int(void*,void*,int,int,int,int,int). The other two DPI calls reuse shapes the file already had: GetDpiForSystem is int() and SetProcessDpiAwarenessContext is int(void*). Without the SetWindowPos entry a native build compiles and dies on the first window, before it is shown, with MissingForeignRegistrationError.",
-    "StatusBar adds one downcall shape and one directUpcall. statusItemWithLength: takes a CGFloat, so the send is void*(void*,void*,jdouble) -- the NSInteger spelling of the same call would marshal -1.0's bits as an integer length. handleTrayMenuItem is the tray item's action, the twin of handleMenuItem: same three-pointer shape, registered separately because it is a different method the runtime resolves by name."
+    "StatusBar adds one downcall shape and one directUpcall. statusItemWithLength: takes a CGFloat, so the send is void*(void*,void*,jdouble) -- the NSInteger spelling of the same call would marshal -1.0's bits as an integer length. handleTrayMenuItem is the tray item's action, the twin of handleMenuItem: same three-pointer shape, registered separately because it is a different method the runtime resolves by name.",
+    "WinTray adds three downcall shapes for the notification area. Shell_NotifyIconW is jint(jint,void*) -- the message code comes first, a DWORD. TrackPopupMenu is jint(void*,jint,jint,jint,jint,void*,void*): menu, flags, x, y, a reserved zero, the window, a null rect. LoadImageW is void*(void*,void*,jint,jint,jint,jint) -- the icon file path and the load flags. The tray window's procedure reuses ProcedureAdapter, so it needs no upcall the file did not already have."
   ],
   "reflection": [
     {
@@ -904,6 +905,36 @@
           "void*",
           "void*",
           "jint",
+          "jint",
+          "jint",
+          "jint",
+          "jint"
+        ]
+      },
+      {
+        "returnType": "jint",
+        "parameterTypes": [
+          "jint",
+          "void*"
+        ]
+      },
+      {
+        "returnType": "jint",
+        "parameterTypes": [
+          "void*",
+          "jint",
+          "jint",
+          "jint",
+          "jint",
+          "void*",
+          "void*"
+        ]
+      },
+      {
+        "returnType": "void*",
+        "parameterTypes": [
+          "void*",
+          "void*",
           "jint",
           "jint",
           "jint",

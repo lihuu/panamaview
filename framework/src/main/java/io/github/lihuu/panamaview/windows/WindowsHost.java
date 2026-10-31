@@ -6,12 +6,16 @@ import io.github.lihuu.panamaview.MenuBar;
 import io.github.lihuu.panamaview.MenuHost;
 import io.github.lihuu.panamaview.PageSource;
 import io.github.lihuu.panamaview.Platform;
+import io.github.lihuu.panamaview.TrayHost;
+import io.github.lihuu.panamaview.TraySpec;
 import io.github.lihuu.panamaview.UiHost;
 import io.github.lihuu.panamaview.WindowSpec;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -50,7 +54,7 @@ import java.util.concurrent.LinkedBlockingQueue;
  * Relative URLs inside the page behave identically on both platforms; only absolute URLs
  * differ, and a page that wants its own address asks Java instead of guessing.
  */
-public final class WindowsHost implements UiHost, MenuHost, DialogHost {
+public final class WindowsHost implements UiHost, MenuHost, DialogHost, TrayHost {
 
     private static final String VIRTUAL_HOST_SUFFIX = ".panamaview";
 
@@ -62,6 +66,10 @@ public final class WindowsHost implements UiHost, MenuHost, DialogHost {
     private volatile MemorySegment webview;
     private volatile MenuBar menuBar;
     private volatile WinMenu.Plan menuPlan;
+    private volatile TraySpec traySpec;
+    private volatile WinTray tray;
+    /** A tray callback message arrived, whatever it carried — the self-test's evidence. */
+    private volatile boolean trayCallbackSeen;
     private final LinkedBlockingQueue<Runnable> uiQueue = new LinkedBlockingQueue<>();
     private final CountDownLatch done = new CountDownLatch(1);
     private Arena pumpArena;
@@ -69,6 +77,17 @@ public final class WindowsHost implements UiHost, MenuHost, DialogHost {
     @Override
     public void setMenu(MenuBar bar) {
         this.menuBar = bar;
+    }
+
+    /**
+     * Takes the application's tray.
+     *
+     * <p>Arrives before {@link #start}, per the seam's contract; nothing native happens here,
+     * because the icon is built on the pump thread while the window is being born.
+     */
+    @Override
+    public void setTray(TraySpec tray) {
+        this.traySpec = tray;
     }
 
     @Override
@@ -117,6 +136,13 @@ public final class WindowsHost implements UiHost, MenuHost, DialogHost {
             // view before it exists is a no-op, because evaluate() has nothing to evaluate on,
             // and the page has not loaded yet for a reload to be about.
             drainUiQueue();
+
+            // The tray is the third surface, born like the others: on the pump thread, with
+            // the window it reports to. The icon reports to a hidden window of its own, and
+            // its clicks come back through onTrayCommand.
+            if (traySpec != null) {
+                tray = WinTray.install(pumpArena, traySpec, this::onTrayWindowMessage, this::onTrayCommand);
+            }
 
             Path loader = findLoader();
             WebView2.createEnvironment(WebView2.load(loader),
@@ -232,6 +258,18 @@ public final class WindowsHost implements UiHost, MenuHost, DialogHost {
             case Win32.WM_COMMAND -> {
                 onMenuCommand(wparam);
             }
+            case Win32.WM_CLOSE -> {
+                if (tray != null) {
+                    // A tray application's close is a put-away, not a destruction: the icon is
+                    // still there and the process is still running, so a destroyed window would
+                    // leave a tray with nothing behind it. Hidden, it waits for the operation
+                    // that asks for it back; DefWindowProc here would DestroyWindow, which is
+                    // exactly what a put-away is not.
+                    Win32.showWindow(hwnd, Win32.SW_HIDE);
+                    return 0;
+                }
+                return Win32.defWindowProc(hwndArg, message, wparam, lparam);
+            }
             case Win32.WM_DESTROY -> {
                 if (callbacks.shouldQuitWhenLastWindowCloses()) {
                     quit();
@@ -282,10 +320,91 @@ public final class WindowsHost implements UiHost, MenuHost, DialogHost {
             return;
         }
         switch (operation) {
-            case QUIT -> postOrFail(hwnd, Win32.WM_CLOSE, 0L, 0L);
+            case QUIT -> {
+                if (tray != null) {
+                    // WM_CLOSE would now hide the window — a tray application's close is a
+                    // put-away — so a Quit that means quit goes the tray's own way: the icon
+                    // out, then the loop.
+                    quitForReal();
+                } else {
+                    postOrFail(hwnd, Win32.WM_CLOSE, 0L, 0L);
+                }
+            }
             default -> System.err.println("[panamaview] the menu operation " + operation
                     + " has no Windows route; its item was built disabled");
         }
+    }
+
+    // ------------------------------------------------------------------ the tray
+
+    /**
+     * The tray icon's messages, on the hidden window the icon reports to.
+     *
+     * <p>The callback message carries the mouse event in its {@code lParam}; either button's
+     * release opens the popup, the same gesture that opens the macOS status item's menu.
+     * {@code TaskbarCreated} means Explorer rebuilt the notification area, and the icon must be
+     * put back or it stays gone for the rest of the session. Everything else is not this
+     * window's business, and DefWindowProc answers it.
+     */
+    private long onTrayWindowMessage(MemorySegment hwndArg, int message, long wparam, long lparam) {
+        if (message == Win32.WM_APP_TRAY) {
+            trayCallbackSeen = true;
+            if (tray != null && WinTray.opensPopup(lparam)) {
+                tray.showPopup();
+            }
+            return 0;
+        }
+        WinTray trayHandle = tray;
+        if (trayHandle != null && message == trayHandle.taskbarCreated()) {
+            trayHandle.reAdd();
+            return 0;
+        }
+        return Win32.defWindowProc(hwndArg, message, wparam, lparam);
+    }
+
+    /**
+     * A command was chosen in the tray's popup.
+     *
+     * <p>The same table-and-dispatch the window menu's {@code WM_COMMAND} goes through, against
+     * the tray's own plan: a binding reaches the portable layer on the tray's callback, and the
+     * platform's Quit removes the icon and ends the loop — never a {@code WM_CLOSE}, which with
+     * a tray in place is a put-away and would leave the process running.
+     */
+    private void onTrayCommand(int id) {
+        WinTray trayHandle = tray;
+        WinMenu.ItemPlan item = trayHandle == null ? null : trayHandle.itemFor(id);
+        if (item == null) {
+            System.err.println("[panamaview] a tray command named the id " + id
+                    + ", which this tray does not have");
+            return;
+        }
+        Platform operation = item.operation();
+        if (operation == null) {
+            // A binding item: the portable layer's business, and it knows the id.
+            callbacks.onTrayMenuItem(id);
+            return;
+        }
+        switch (operation) {
+            case QUIT -> quitForReal();
+            default -> System.err.println("[panamaview] the tray operation " + operation
+                    + " has no Windows route; its item was built disabled");
+        }
+    }
+
+    /**
+     * Ends the application the way a tray must be ended: the icon out first, then the loop.
+     *
+     * <p>{@code PostQuitMessage} and not {@code WM_CLOSE}, and not as a stylistic choice: with
+     * close-to-tray in place, {@code WM_CLOSE} hides the window and leaves the process running
+     * with no icon and no window — a background process nobody can reach. Both quit routes (the
+     * window menu's and the tray's) take this one path.
+     */
+    private void quitForReal() {
+        WinTray trayHandle = tray;
+        if (trayHandle != null) {
+            trayHandle.remove();
+        }
+        quit();
     }
 
     /**
@@ -419,6 +538,60 @@ public final class WindowsHost implements UiHost, MenuHost, DialogHost {
                     + "post a menu command to");
         }
         postOrFail(window, Win32.WM_COMMAND, id, 0L);
+    }
+
+    /**
+     * Dispatches a tray command the way a popup choice would.
+     *
+     * <p>There is no way to choose from a popup without a human — {@code TrackPopupMenu} runs
+     * its own modal loop — so this is how a test exercises what a choice does: the same
+     * dispatch, from the same table. The popup's own showing, and a human's click on it, is
+     * what the interactive run on a real desktop proves; a runner in session 0 cannot, and does
+     * not try.
+     */
+    public void clickTrayMenuItem(int id) {
+        if (tray == null) {
+            throw new IllegalStateException("no tray exists yet, so there is no command to dispatch");
+        }
+        onTrayCommand(id);
+    }
+
+    /**
+     * Posts a tray callback message to the icon's window, the way a mouse event on the icon
+     * would, with a {@code lParam} that opens nothing.
+     *
+     * <p>The mechanical half of "the callback reaches the host": the message is posted, the
+     * window's procedure receives it, and {@link #trayInfo()} reports that it did. A runner in
+     * session 0 has no mouse and no notification area, so the honest evidence stops here — the
+     * icon a person can see and click is the interactive run's part.
+     */
+    public void probeTrayCallback() {
+        WinTray trayHandle = tray;
+        if (trayHandle == null) {
+            throw new IllegalStateException("no tray exists yet, so there is no callback to probe");
+        }
+        postOrFail(trayHandle.window(), Win32.WM_APP_TRAY, 0L, 0L);
+    }
+
+    /**
+     * What the tray looks like from the outside, for a test that cannot see the taskbar.
+     *
+     * <p>Whether a tray was taken, whether the icon was added and is believed to be there, and
+     * whether a callback message has arrived — the three facts a session-0 run can honestly
+     * assert, with {@code builtItems} against {@code declaredItems} as the plan check.
+     */
+    public Map<String, Object> trayInfo() {
+        Map<String, Object> info = new LinkedHashMap<>();
+        WinTray trayHandle = tray;
+        info.put("accepted", trayHandle != null);
+        if (trayHandle != null) {
+            info.put("added", trayHandle.added());
+            info.put("callbackSeen", trayCallbackSeen);
+            info.put("declaredItems", traySpec.items().size());
+            info.put("builtItems", trayHandle.itemCount());
+            info.put("tooltip", traySpec.tooltip());
+        }
+        return info;
     }
 
     /** Where the window is, as {@code widthxheight at x,y}. Registered by the composition root. */

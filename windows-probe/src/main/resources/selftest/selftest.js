@@ -182,6 +182,42 @@
       check("menu item reaches its binding", false, String(error.message));
     }
 
+    // 11b. The tray: the third surface, its own id table, its own callback.
+    //
+    // Three assertions, in the order a broken tray would fail them. The icon was added at
+    // all — Shell_NotifyIconW's answer is the only evidence a session-0 run can honestly
+    // hold, and a run whose icon was refused has nothing else to say. A callback message
+    // posted the way a mouse event posts reaches the host's procedure. And a dispatched
+    // command reaches its binding — the effect, not the absence of an exception, exactly
+    // as the menu check above says.
+    //
+    // What no run here can assert is the icon a person sees and clicks: GitHub's Windows
+    // runners are in session 0, with no Explorer and no notification area. That part is the
+    // interactive run on a real desktop, and saying so is part of the result.
+    try {
+      const info = await java.invoke("trayInfo", {});
+      check("tray icon accepted and added", info.accepted === true && info.added === true,
+            "accepted=" + info.accepted + ", added=" + info.added
+            + ", built=" + info.builtItems + "/" + info.declaredItems
+            + ', tooltip="' + info.tooltip + '"');
+    } catch (error) {
+      check("tray icon accepted and added", false, String(error.message));
+    }
+    try {
+      const after = await java.invoke("probeTrayCallback", {});
+      check("tray callback reaches the host", after.callbackSeen === true,
+            "callbackSeen=" + after.callbackSeen);
+    } catch (error) {
+      check("tray callback reaches the host", false, String(error.message));
+    }
+    try {
+      const clicked = await java.invoke("trayClick", {});
+      check("tray item reaches its binding", clicked >= 1,
+            "the tray item ran the binding " + clicked + " time(s)");
+    } catch (error) {
+      check("tray item reaches its binding", false, String(error.message));
+    }
+
     // 12. A native file dialog, opened and dismissed without a human.
     //
     // A self-test cannot choose a file — choosing is what a person is for — so the check
