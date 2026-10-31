@@ -249,6 +249,7 @@ docs/                  Deep-dive architecture and maintenance documentation
 - [x] Native file dialogs (`NSOpenPanel`/`NSSavePanel`, `IFileOpenDialog`/`IFileSaveDialog`) — a portable `FileDialog` spec behind the optional `DialogHost` seam
 - [x] Distribution packaging — macOS `.app`/`.dmg` for every template, a per-user Windows `.msi` and portable zip for `vanilla`; ad-hoc signed, with Developer ID signing and notarization documented as manual steps ([docs/packaging.md](docs/packaging.md))
 - [x] The framework's own tests run on Linux in CI — the portable layer is verified on a third platform, not only where a host exists
+- [x] Windows DPI awareness — per-monitor v2 on the UI thread, window sizes taken as logical pixels and converted with the monitor's DPI, `WM_DPICHANGED` applied when the window moves monitors
 
 **Next up — the features the next phase is shaped around**
 
