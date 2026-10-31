@@ -91,6 +91,19 @@ public interface UiHost {
         default void onMenuItem(int id) {
         }
 
+        /**
+         * A tray menu item was chosen, identified by the id the framework gave it.
+         *
+         * <p>Separate from {@link #onMenuItem} because a tray is a separate surface: its items
+         * are numbered in a table of their own, so a tray item and a bar item can both be id 1
+         * and mean different things. The two callbacks are what keeps them apart.
+         *
+         * <p>Optional, for the same reason as {@link #onMenuItem}: a host with no tray has
+         * nothing to report, and a default method keeps every existing implementation working.
+         */
+        default void onTrayMenuItem(int id) {
+        }
+
         /** Whether closing the last window should end the process. */
         boolean shouldQuitWhenLastWindowCloses();
     }
