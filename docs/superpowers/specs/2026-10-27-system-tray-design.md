@@ -1,7 +1,7 @@
 # System tray: design
 
 **Date:** 2026-10-27
-**Status:** approved direction; the portable slice is implemented, the two platform slices are not
+**Status:** approved direction; the portable slice and the macOS slice are implemented (macOS landed 2026-10-31), the Windows slice is not. One correction the macOS slice recorded: the default icon is built with the class method `imageWithSystemSymbolName:accessibilityDescription:` — the instance init this section never named does not exist on the runtime, and the selector is the whole difference between a tray icon and an abort.
 
 ## Intent
 
